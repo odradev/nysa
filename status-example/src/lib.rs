@@ -1,25 +1,40 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{env, near_bindgen, AccountId};
 use std::collections::HashMap;
+use c3_lang_macro::c3_lang;
 
-#[near_bindgen]
-#[derive(Default, BorshDeserialize, BorshSerialize)]
-pub struct StatusMessage {
-    records: HashMap<AccountId, String>,
-}
-
-#[near_bindgen]
-impl StatusMessage {
-    #[payable]
-    pub fn set_status(&mut self, message: String) {
-        let account_id = env::signer_account_id();
-        self.records.insert(account_id, message);
+c3_lang! {
+    impl BorshDeserialize for PathStack {
+        fn deserialize(_buf: &mut &[u8]) -> std::io::Result<Self> {
+            Ok(Default::default())
+        }
+    }
+    
+    impl BorshSerialize for PathStack {
+        fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> std::io::Result<()> {
+            Ok(())
+        }
     }
 
-    pub fn get_status(&self, account_id: AccountId) -> Option<String> {
-        self.records.get(&account_id).cloned()
+    #[near_bindgen]
+    #[derive(Default, BorshDeserialize, BorshSerialize)]
+    pub struct StatusMessage {
+        records: HashMap<AccountId, String>,
     }
-}
+    
+    #[near_bindgen]
+    impl StatusMessage {
+        #[payable]
+        pub fn set_status(&mut self, message: String) {
+            let account_id = env::signer_account_id();
+            self.records.insert(account_id, message);
+        }
+    
+        pub fn get_status(&self, account_id: AccountId) -> Option<String> {
+            self.records.get(&account_id).cloned()
+        }
+    }
+}    
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
