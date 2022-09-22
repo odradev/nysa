@@ -1,2 +1,6 @@
 [workspace]
-members = ["nysa", "status-example"]
+members = [
+    "nysa",
+    "solidity-parser",
+    "status-example"
+]
