@@ -11,3 +11,7 @@ c3-lang-parser = { path = "../../c3-lang/c3-lang-parser" }
 c3-lang-linearization = { path = "../../c3-lang/c3-lang-linearization" }
 quote = "*"
 syn = "*"
+proc-macro2 = "*"
+
+[dev-dependencies]
+pretty_assertions = "1.2"

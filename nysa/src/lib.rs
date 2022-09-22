@@ -1,10 +1,112 @@
-use c3_lang_linearization::{Class, Fn};
+use c3_lang_linearization::{Class, Fn, Var};
 use c3_lang_parser::{c3_ast::{PackageDef, ClassNameDef, ClassDef, VarDef, ClassFnImpl, FnDef}};
-use syn::parse_quote;
+use proc_macro2::TokenStream;
+use quote::format_ident;
+use solidity_parser::pt::{self, SourceUnitPart, ContractDefinition, VariableDefinition, ContractPart, Expression};
+use syn::{parse_quote, Item};
 
 
-pub fn parse(input: String) {
-    let solidty_ast = solidity_parser::parse(&input, 0).unwrap();
+pub fn parse(input: String) -> PackageDef {
+    let solidity_ast = solidity_parser::parse(&input, 0).unwrap();
+    let solidity_ast: &SourceUnitPart = &solidity_ast.0.0[0];
+    let contract: &ContractDefinition = 
+    if let SourceUnitPart::ContractDefinition(contract_def) = solidity_ast {
+        contract_def
+    } else {
+        panic!("Not a contract def.")
+    };
+
+    let other_code = other_code();
+    let class_name = class_name_def(&contract);
+    let classes = vec![class_def(&contract)];
+    PackageDef { other_code, class_name, classes }
+}
+
+fn class_name_def(contract: &ContractDefinition) -> ClassNameDef {
+    ClassNameDef { classes: vec![class(contract)] }
+}
+
+fn class(contract: &ContractDefinition) -> Class {
+    Class::from(contract.name.name.clone())
+}
+
+fn class_def(contract: &ContractDefinition) -> ClassDef {
+    let variables = variables_def(contract);
+    let functions = vec![];
+
+    ClassDef { 
+        struct_attrs: vec![
+            parse_quote! { #[near_sdk::near_bindgen] },
+            parse_quote! { #[derive(Default, BorshDeserialize, BorshSerialize)] }
+        ], 
+        impl_attrs: vec![
+            parse_quote! { #[near_sdk::near_bindgen] },
+        ],
+        class: class(contract),
+        path: vec![class(contract)],
+        variables,
+        functions
+    }
+}
+
+fn variables_def(contract: &ContractDefinition) -> Vec<VarDef> {
+    let mut result = Vec::new();
+    for maybe_var in &contract.parts {
+        if let ContractPart::VariableDefinition(var_def) = maybe_var {
+            result.push(variable_def(&var_def));
+        }
+    }
+    result
+}
+
+fn variable_def(v: &VariableDefinition) -> VarDef {
+    let ident: proc_macro2::Ident = format_ident!("{}", v.name.name);
+    let ty = parse_type_from_expr(&v.ty);
+    VarDef { ident, ty }
+}
+
+fn parse_type_from_expr(ty: &Expression) -> syn::Type {
+    match ty {
+        Expression::Type(_, ty) => parse_type(ty),
+        _ => panic!("Not a type.")
+    }
+}
+
+fn parse_type(ty: &pt::Type) -> syn::Type {
+    match ty {
+        pt::Type::Mapping(_, key, value) => {
+            let key = parse_type_from_expr(&key);
+            let value = parse_type_from_expr(&value);
+            parse_quote!{
+                std::collections::HashMap<#key, #value>
+            }
+        },
+        pt::Type::Address => parse_quote!( near_sdk:: AccountId ),
+        pt::Type::String => parse_quote!( String ),
+        _ => panic!("Unexpected type.")
+    }
+}
+
+fn other_code() -> Vec<Item> {
+    vec![
+        parse_quote! {
+            use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+        },
+        parse_quote! { 
+            impl BorshDeserialize for PathStack {
+                fn deserialize(_buf: &mut &[u8]) -> std::io::Result<Self> {
+                    Ok(Default::default())
+                }
+            }
+        },
+        parse_quote! {
+            impl BorshSerialize for PathStack {
+                fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> std::io::Result<()> {
+                    Ok(())
+                }
+            }
+        }
+    ]
 }
 
 pub fn expected() -> PackageDef {
@@ -87,6 +189,8 @@ pub fn expected() -> PackageDef {
 #[cfg(test)]
 mod tests {
 
+    use c3_lang_parser::c3_ast::PackageDef;
+    use pretty_assertions::assert_eq;
     use quote::ToTokens;
 
     use crate::{parse, expected};
@@ -108,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_parser() {
-        let a = expected().to_token_stream();
-        // let result = parse(String::from(input));
+        let result: PackageDef = parse(String::from(input));
+        assert_eq!(result, expected());
     }
 }
