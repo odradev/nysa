@@ -11,9 +11,9 @@ fn test_parser() {
     }
     "#;
 
-    let result = solidity_parser::parse(input, 0).unwrap();
+    let _result = solidity_parser::parse(input, 0).unwrap();
 
-    dbg!(result);
+    // dbg!(result);
 
-    assert!(false);
+    // assert!(false);
 }

@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 near-sdk = "*"
 c3-lang-macro = { path = "../../c3-lang/c3-lang-macro" }
+nysa-macro = { path = "../nysa-macro" }

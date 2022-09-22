@@ -6,3 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+solidity-parser = { path = "../solidity-parser" }
+c3-lang-parser = { path = "../../c3-lang/c3-lang-parser" }
+c3-lang-linearization = { path = "../../c3-lang/c3-lang-linearization" }
+quote = "*"
+syn = "*"

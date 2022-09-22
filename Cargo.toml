@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "nysa",
+    "nysa-macro",
     "solidity-parser",
     "status-example"
 ]
