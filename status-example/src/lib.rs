@@ -36,7 +36,7 @@ nysa_lang! {
     contract StatusMessage {
         mapping(address => string) records;
 
-        function set_status(string status) public payable {
+        function set_status(string memory status) public payable {
             address account_id = msg.sender;
             records[account_id] = status;
         }
