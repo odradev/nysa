@@ -4,7 +4,7 @@
 //             Ok(Default::default())
 //         }
 //     }
-    
+
 //     impl BorshSerialize for PathStack {
 //         fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> std::io::Result<()> {
 //             Ok(())
@@ -16,7 +16,7 @@
 //     pub struct StatusMessage {
 //         records: HashMap<AccountId, String>,
 //     }
-    
+
 //     #[near_bindgen]
 //     impl StatusMessage {
 //         #[payable]
@@ -24,7 +24,7 @@
 //             let account_id = env::signer_account_id();
 //             self.records.insert(account_id, message);
 //         }
-    
+
 //         pub fn get_status(&self, account_id: AccountId) -> String {
 //             self.records.get(&account_id).cloned().unwrap_or_default()
 //         }
@@ -32,7 +32,20 @@
 // }
 
 use nysa_macro::nysa_lang;
-nysa_lang! {}
+nysa_lang! {
+    contract StatusMessage {
+        mapping(address => string) records;
+
+        function set_status(string status) public payable {
+            address account_id = msg.sender;
+            records[account_id] = status;
+        }
+
+        function get_status(address account_id) public view returns (string memory) {
+            return records[account_id];
+        }
+    }
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
@@ -56,7 +69,10 @@ mod tests {
         contract.set_status("hello".to_string());
         let context = get_context(true);
         testing_env!(context);
-        assert_eq!("hello".to_string(), contract.get_status("bob_near".parse().unwrap()));
+        assert_eq!(
+            "hello".to_string(),
+            contract.get_status("bob_near".parse().unwrap())
+        );
     }
 
     #[test]
@@ -64,6 +80,9 @@ mod tests {
         let context = get_context(true);
         testing_env!(context);
         let contract = StatusMessage::default();
-        assert_eq!(String::new(), contract.get_status("francis.near".parse().unwrap()));
+        assert_eq!(
+            String::new(),
+            contract.get_status("francis.near".parse().unwrap())
+        );
     }
 }

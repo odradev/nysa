@@ -8,17 +8,17 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
         pt::Expression::PostDecrement(_, _) => todo!(),
         pt::Expression::New(_, _) => todo!(),
         pt::Expression::ArraySubscript(_, array_expression, key_expression) => {
-            let array = parse_expression(*&array_expression);
+            let array = parse_expression(array_expression);
 
             if let Some(exp) = key_expression {
-                let key = parse_expression(*&exp);
+                let key = parse_expression(exp);
                 parse_quote! {
-                    #array[#key]
+                    self.#array.get(&#key).cloned().unwrap_or_default()
                 }
             } else {
                 panic!("Unspecified key");
             }
-        },
+        }
         pt::Expression::ArraySlice(_, _, _, _) => todo!(),
         pt::Expression::MemberAccess(_, expression, id) => {
             // dbg!(id);
@@ -30,14 +30,14 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
                     } else {
                         panic!("Unknown variable");
                     }
-                },
+                }
                 _ => {
                     let base_expr: syn::Expr = parse_expression(&*expression);
                     let member: syn::Member = format_ident!("{}", id.name).into();
                     parse_quote!(#base_expr.#member)
                 }
             }
-        },
+        }
         pt::Expression::FunctionCall(_, _, _) => todo!(),
         pt::Expression::FunctionCallBlock(_, _, _) => todo!(),
         pt::Expression::NamedFunctionCall(_, _, _) => todo!(),
@@ -69,13 +69,19 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
         pt::Expression::Or(_, _, _) => todo!(),
         pt::Expression::Ternary(_, _, _, _) => todo!(),
         pt::Expression::Assign(_, le, re) => {
-            syn::Expr::Assign(syn::ExprAssign { 
-                attrs: vec![], 
-                left: Box::new(parse_expression(*&le)), 
-                eq_token: Default::default(), 
-                right: Box::new(parse_expression(*&re))
-            })
-        },
+            let le: &pt::Expression = le;
+            let re: &pt::Expression = re;
+            if let pt::Expression::ArraySubscript(_, array_expr, key_expr) = le {
+                let array = parse_expression(array_expr);
+                let key = parse_expression(&key_expr.clone().unwrap());
+                let value = parse_expression(re);
+                parse_quote! {
+                    self.#array.insert(#key, #value)
+                }
+            } else {
+                todo!();
+            }
+        }
         pt::Expression::AssignOr(_, _, _) => todo!(),
         pt::Expression::AssignAnd(_, _, _) => todo!(),
         pt::Expression::AssignXor(_, _, _) => todo!(),
@@ -95,9 +101,9 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
         pt::Expression::HexLiteral(_) => todo!(),
         pt::Expression::AddressLiteral(_, _) => todo!(),
         pt::Expression::Variable(id) => {
-            let name = &id.name;
+            let name = format_ident!("{}", &id.name);
             parse_quote! { #name }
-        },
+        }
         pt::Expression::List(_, _) => todo!(),
         pt::Expression::ArrayLiteral(_, _) => todo!(),
         pt::Expression::Unit(_, _, _) => todo!(),

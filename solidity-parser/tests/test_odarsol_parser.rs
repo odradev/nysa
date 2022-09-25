@@ -1,5 +1,3 @@
-use solidity_parser;
-
 #[test]
 fn test_parser() {
     let input = r#"
