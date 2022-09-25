@@ -1,0 +1,15 @@
+[package]
+name = "example-fibbonacci"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+near-sdk = "*"
+c3-lang-macro = { path = "../../c3-lang/c3-lang-macro" }
+nysa-macro = { path = "../nysa-macro" }
+
+[lib]
+crate-type = ["cdylib"]
+

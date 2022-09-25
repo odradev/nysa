@@ -49,7 +49,7 @@ pub fn parse_attrs_to_receiver_param(attrs: &[pt::FunctionAttribute]) -> Option<
             _ => None,
         }
     } else {
-        Some(parse_quote!(&mut self))
+        Some(parse_quote!(&self))
     }
 }
 

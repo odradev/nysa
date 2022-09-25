@@ -124,7 +124,7 @@ fn variable_def(v: &VariableDefinition) -> VarDef {
 fn parse_type_from_expr(ty: &Expression) -> syn::Type {
     match ty {
         Expression::Type(_, ty) => parse_type(ty),
-        _ => panic!("Not a type."),
+        _ => panic!("Not a type. {:?}", ty),
     }
 }
 
@@ -142,7 +142,7 @@ fn parse_type(ty: &pt::Type) -> syn::Type {
         pt::Type::String => parse_quote!(String),
         pt::Type::Bool => parse_quote!(bool),
         pt::Type::Int(_) => parse_quote!(i16),
-        pt::Type::Uint(_) => parse_quote!(u16),
+        pt::Type::Uint(_) => parse_quote!(u32),
         _ => panic!("Unsupported type."),
     }
 }
