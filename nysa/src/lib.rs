@@ -11,6 +11,7 @@ mod stmt;
 mod ty;
 mod var;
 
+/// Parses solidity code into a C3 linearized, near compatible ast
 pub fn parse(input: String) -> PackageDef {
     let solidity_ast = solidity_parser::parse(&input, 0).unwrap();
     let solidity_ast: &Vec<SourceUnitPart> = &solidity_ast.0.0;
@@ -32,16 +33,21 @@ pub fn parse(input: String) -> PackageDef {
     }
 }
 
+/// Extracts contract name and wraps with c3 ast abstraction.
+/// 
+/// May contain one or more class name
 fn class_name_def(contract: &ContractDefinition) -> ClassNameDef {
     ClassNameDef {
         classes: vec![class(contract)],
     }
 }
 
+/// Extracts contract name and wraps with c3 ast abstraction.
 fn class(contract: &ContractDefinition) -> Class {
     Class::from(contract.name.name.clone())
 }
 
+/// Builds a c3 contract class definition
 fn class_def(contract: &ContractDefinition) -> ClassDef {
     let variables = var::variables_def(contract);
     let functions = func::functions_def(contract);
@@ -59,6 +65,7 @@ fn class_def(contract: &ContractDefinition) -> ClassDef {
     }
 }
 
+/// Generates code that is not a direct derivative of Solidity code.
 fn other_code() -> Vec<Item> {
     vec![
         parse_quote! {

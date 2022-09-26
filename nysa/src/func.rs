@@ -6,6 +6,7 @@ use syn::{parse_quote, FnArg};
 
 use crate::{class, stmt, ty::parse_type_from_expr};
 
+/// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
 pub fn functions_def(contract: &ContractDefinition) -> Vec<FnDef> {
     let class: Class = class(contract);
     contract
@@ -20,6 +21,7 @@ pub fn functions_def(contract: &ContractDefinition) -> Vec<FnDef> {
         .collect::<Vec<_>>()
 }
 
+/// Transforms solidity [VariableDefinition] into a c3 ast [VarDef].
 fn function_def(func: &FunctionDefinition, class: Class) -> FnDef {
     check_function_type(&func.ty);
 
