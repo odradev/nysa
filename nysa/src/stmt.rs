@@ -28,14 +28,18 @@ pub fn parse_statement(stmt: &pt::Statement) -> syn::Stmt {
             let if_body = parse_statement(if_body);
             let else_body = else_body.clone().unwrap();
             let else_body = parse_statement(&else_body);
-            parse_quote!{
+            parse_quote! {
                 if #assertion #if_body else #else_body
             }
-        },
-        pt::Statement::Block {loc: _, unchecked: _, statements } => {
+        }
+        pt::Statement::Block {
+            loc: _,
+            unchecked: _,
+            statements,
+        } => {
             let res: Vec<syn::Stmt> = statements.iter().map(parse_statement).collect();
-            parse_quote!{ { #(#res);* } }
-        },
-        _ => panic!("Unsupported statement {:?}", stmt)
+            parse_quote!({ #(#res);* })
+        }
+        _ => panic!("Unsupported statement {:?}", stmt),
     }
 }

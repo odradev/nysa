@@ -1,46 +1,5 @@
-// c3_lang_macro::c3_lang! {
-//     use std::collections::HashMap;
-//     use near_sdk::{borsh::{self, BorshDeserialize, BorshSerialize}, near_bindgen};
-
-//     impl BorshDeserialize for PathStack {
-//         fn deserialize(_buf: &mut &[u8]) -> std::io::Result<Self> {
-//             Ok(Default::default())
-//         }
-//     }
-
-//     impl BorshSerialize for PathStack {
-//         fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> std::io::Result<()> {
-//             Ok(())
-//         }
-//     }
-
-//     #[near_bindgen]
-//     #[derive(Default, BorshDeserialize, BorshSerialize)]
-//     pub struct Fibbonacci {
-//         results: HashMap<u32, u32>,
-//     }
-
-//     #[near_bindgen]
-//     impl Fibbonacci {
-//         pub fn compute(&mut self, input: u32) {
-//             self.results.insert(input, self.fibb(input));
-//         }
-
-//         pub fn get_result(&self, input: u32) -> u32 {
-//             self.results.get(&input).cloned().unwrap_or_default()
-//         }
-
-//         fn fibb(&self, n: u32) -> u32 {
-//             if n <= 1 {
-//                 return n;
-//             } else {
-//                 return self.fibb(n - 1) + self.fibb(n - 2);
-//             }
-//         }
-//     }
-// }
-
 use nysa_macro::nysa_lang;
+
 nysa_lang! {
     contract Fibbonacci {
         mapping(uint32 => uint32) results;

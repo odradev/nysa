@@ -1,11 +1,57 @@
+use c3_lang_linearization::{Class, Fn};
+use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef};
 use quote::format_ident;
-use solidity_parser::pt;
-use syn::parse_quote;
+use solidity_parser::pt::{self, ContractDefinition, ContractPart, FunctionDefinition};
+use syn::{parse_quote, FnArg};
 
-use crate::parse_type_from_expr;
+use crate::{class, stmt, ty::parse_type_from_expr};
 
-mod expr;
-mod stmt;
+pub fn functions_def(contract: &ContractDefinition) -> Vec<FnDef> {
+    let class: Class = class(contract);
+    contract
+        .parts
+        .iter()
+        .filter_map(|part| match part {
+            ContractPart::FunctionDefinition(func) => Some(func),
+            _ => None,
+        })
+        .filter(|func| func.name.is_some())
+        .map(|func| function_def(func, class.clone()))
+        .collect::<Vec<_>>()
+}
+
+fn function_def(func: &FunctionDefinition, class: Class) -> FnDef {
+    check_function_type(&func.ty);
+
+    let name: Fn = func.name.to_owned().unwrap().name.into();
+
+    let mut args: Vec<FnArg> = func
+        .params
+        .iter()
+        .filter_map(|p| p.1.as_ref())
+        .map(parse_parameter)
+        .collect();
+
+    if let Some(receiver) = parse_attrs_to_receiver_param(&func.attributes) {
+        args.insert(0, receiver);
+    }
+
+    let attrs = parse_attrs(&func.attributes);
+    let ret = parse_ret_type(func);
+    let block: syn::Block = parse_body(&func.body);
+
+    FnDef {
+        attrs,
+        name: name.clone(),
+        args,
+        ret,
+        implementations: vec![ClassFnImpl {
+            class,
+            fun: name,
+            implementation: block,
+        }],
+    }
+}
 
 pub fn parse_body(body: &Option<pt::Statement>) -> syn::Block {
     if let Some(v) = &body {
@@ -53,7 +99,7 @@ pub fn parse_attrs_to_receiver_param(attrs: &[pt::FunctionAttribute]) -> Option<
     }
 }
 
-pub fn parse_parameter(param: &pt::Parameter) -> syn::FnArg {
+fn parse_parameter(param: &pt::Parameter) -> syn::FnArg {
     let ty = parse_type_from_expr(&param.ty);
     let name = param
         .name
@@ -64,7 +110,7 @@ pub fn parse_parameter(param: &pt::Parameter) -> syn::FnArg {
     parse_quote!( #name: #ty )
 }
 
-pub fn parse_attrs(attrs: &[pt::FunctionAttribute]) -> Vec<syn::Attribute> {
+fn parse_attrs(attrs: &[pt::FunctionAttribute]) -> Vec<syn::Attribute> {
     attrs
         .iter()
         .filter_map(|attr| match attr {
@@ -77,7 +123,7 @@ pub fn parse_attrs(attrs: &[pt::FunctionAttribute]) -> Vec<syn::Attribute> {
         .collect::<Vec<_>>()
 }
 
-pub fn parse_ret_type(func: &pt::FunctionDefinition) -> syn::ReturnType {
+fn parse_ret_type(func: &pt::FunctionDefinition) -> syn::ReturnType {
     if func.return_not_returns.is_some() {
         syn::ReturnType::Default
     } else {
@@ -88,7 +134,7 @@ pub fn parse_ret_type(func: &pt::FunctionDefinition) -> syn::ReturnType {
             let param = returns.first().cloned().unwrap();
             let param = param.1.unwrap();
             let ty = parse_type_from_expr(&param.ty);
-            syn::ReturnType::Type(Default::default(), Box::new(ty)) // return single value
+            syn::ReturnType::Type(Default::default(), Box::new(ty))
         } else {
             let types: syn::punctuated::Punctuated<syn::Type, syn::Token![,]> = returns
                 .iter()
@@ -99,12 +145,11 @@ pub fn parse_ret_type(func: &pt::FunctionDefinition) -> syn::ReturnType {
                 elems: types,
             };
             syn::ReturnType::Type(Default::default(), Box::new(syn::Type::Tuple(tuple)))
-            // return tuple
         }
     }
 }
 
-pub fn check_function_type(ty: &pt::FunctionTy) {
+fn check_function_type(ty: &pt::FunctionTy) {
     match ty {
         pt::FunctionTy::Constructor => todo!("constructor"),
         pt::FunctionTy::Function => {}
@@ -114,7 +159,7 @@ pub fn check_function_type(ty: &pt::FunctionTy) {
     }
 }
 
-pub fn parse_mutability(mutability: &pt::Mutability) -> Option<syn::Attribute> {
+fn parse_mutability(mutability: &pt::Mutability) -> Option<syn::Attribute> {
     match mutability {
         pt::Mutability::Pure(_) => None,
         pt::Mutability::View(_) => None,

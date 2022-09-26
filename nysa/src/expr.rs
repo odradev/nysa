@@ -16,22 +16,20 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
                 panic!("Unspecified key");
             }
         }
-        pt::Expression::MemberAccess(_, expression, id) => {
-            match expression.as_ref() {
-                pt::Expression::Variable(var) => {
-                    if &var.name == "msg" && &id.name == "sender" {
-                        parse_quote!(near_sdk::env::signer_account_id())
-                    } else {
-                        panic!("Unknown variable");
-                    }
-                }
-                _ => {
-                    let base_expr: syn::Expr = parse_expression(&*expression);
-                    let member: syn::Member = format_ident!("{}", id.name).into();
-                    parse_quote!(#base_expr.#member)
+        pt::Expression::MemberAccess(_, expression, id) => match expression.as_ref() {
+            pt::Expression::Variable(var) => {
+                if &var.name == "msg" && &id.name == "sender" {
+                    parse_quote!(near_sdk::env::signer_account_id())
+                } else {
+                    panic!("Unknown variable");
                 }
             }
-        }
+            _ => {
+                let base_expr: syn::Expr = parse_expression(&*expression);
+                let member: syn::Member = format_ident!("{}", id.name).into();
+                parse_quote!(#base_expr.#member)
+            }
+        },
         pt::Expression::Assign(_, le, re) => {
             let le: &pt::Expression = le;
             let re: &pt::Expression = re;
@@ -43,7 +41,7 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
                     self.#array.insert(#key, #value)
                 }
             } else {
-                panic!("Unsipported expr assign");
+                panic!("Unsupported expr assign");
             }
         }
         pt::Expression::Variable(id) => {
@@ -52,7 +50,7 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
         }
         pt::Expression::FunctionCall(_, name, args) => {
             let name = parse_expression(name);
-            let args: Vec<syn::Expr> = args.into_iter().map(|e| parse_expression(e)).collect();
+            let args: Vec<syn::Expr> = args.iter().map(parse_expression).collect();
             parse_quote! { self.#name(#(#args),*) }
         }
         pt::Expression::LessEqual(_, l, r) => {
@@ -75,6 +73,6 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
             let r = parse_expression(r);
             parse_quote! { #l - #r }
         }
-        _ => panic!("Unsupported expression {:?}", expression)
+        _ => panic!("Unsupported expression {:?}", expression),
     }
 }
