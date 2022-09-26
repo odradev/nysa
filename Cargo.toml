@@ -4,7 +4,7 @@ members = [
     "nysa-macro",
     "solidity-parser",
     "example-status",
-    "example-fibbonacci"
+    "example-fibonacci"
 ]
 
 [profile.release]

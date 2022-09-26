@@ -1,4 +1,4 @@
-nysa_macro::nysa_file!("example-fibbonacci/src/contract.sol");
+nysa_macro::nysa_file!("example-fibonacci/src/contract.sol");
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
@@ -15,10 +15,10 @@ mod tests {
     }
 
     #[test]
-    fn test_fibbonacci() {
+    fn test_fibonacci() {
         let context = get_context(false);
         testing_env!(context);
-        let mut contract = Fibbonacci::default();
+        let mut contract = Fibonacci::default();
         
         let mut test = |n: u32, expected: u32| {
             contract.compute(n);
