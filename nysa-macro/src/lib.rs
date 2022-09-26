@@ -5,9 +5,9 @@ use quote::ToTokens;
 use syn::parse::{Parse, ParseStream, Result};
 
 /// Transforms solidity code into rust code.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```
 /// nysa_macro::nysa_lang! {
 ///     contract StatusMessage {
@@ -31,9 +31,9 @@ pub fn nysa_lang(item: TokenStream) -> TokenStream {
 }
 
 /// Reads solidity code from a given path and transforms it into rust code.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```
 /// nysa_macro::nysa_file!("example-status/src/contract.sol");
 /// ```
@@ -65,9 +65,10 @@ struct FileName {
 }
 
 impl Parse for FileName {
-
     fn parse(input: ParseStream) -> Result<Self> {
         let lit_file: syn::LitStr = input.parse()?;
-        Ok(Self { filename: lit_file.value() })
+        Ok(Self {
+            filename: lit_file.value(),
+        })
     }
 }

@@ -3,7 +3,7 @@ use solidity_parser::pt;
 use syn::parse_quote;
 
 /// Parses solidity expression into a syn expression.
-/// 
+///
 /// Todo: to handle remaining expressions.
 pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
     match expression {

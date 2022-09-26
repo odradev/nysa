@@ -5,7 +5,7 @@ use syn::parse_quote;
 use super::expr::parse_expression;
 
 /// Parses solidity statement into a syn statement.
-/// 
+///
 /// Todo: to handle remaining statements.
 pub fn parse_statement(stmt: &pt::Statement) -> syn::Stmt {
     match stmt {

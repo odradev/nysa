@@ -14,11 +14,12 @@ mod var;
 /// Parses solidity code into a C3 linearized, near compatible ast
 pub fn parse(input: String) -> PackageDef {
     let solidity_ast = solidity_parser::parse(&input, 0).unwrap();
-    let solidity_ast: &Vec<SourceUnitPart> = &solidity_ast.0.0;
-    let contract= solidity_ast.iter()
+    let solidity_ast: &Vec<SourceUnitPart> = &solidity_ast.0 .0;
+    let contract = solidity_ast
+        .iter()
         .filter_map(|unit| match unit {
             SourceUnitPart::ContractDefinition(contract) => Some(contract),
-            _ => None
+            _ => None,
         })
         .next()
         .expect("Contract not found");
@@ -34,7 +35,7 @@ pub fn parse(input: String) -> PackageDef {
 }
 
 /// Extracts contract name and wraps with c3 ast abstraction.
-/// 
+///
 /// May contain one or more class name
 fn class_name_def(contract: &ContractDefinition) -> ClassNameDef {
     ClassNameDef {

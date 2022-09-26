@@ -19,7 +19,7 @@ mod tests {
         let context = get_context(false);
         testing_env!(context);
         let mut contract = Fibonacci::default();
-        
+
         let mut test = |n: u32, expected: u32| {
             contract.compute(n);
             let result = contract.get_result(n);
