@@ -13,13 +13,14 @@ mod var;
 
 pub fn parse(input: String) -> PackageDef {
     let solidity_ast = solidity_parser::parse(&input, 0).unwrap();
-    let solidity_ast: &SourceUnitPart = &solidity_ast.0 .0[0];
-    let contract: &ContractDefinition =
-        if let SourceUnitPart::ContractDefinition(contract_def) = solidity_ast {
-            contract_def
-        } else {
-            panic!("Not a contract def.")
-        };
+    let solidity_ast: &Vec<SourceUnitPart> = &solidity_ast.0.0;
+    let contract= solidity_ast.iter()
+        .filter_map(|unit| match unit {
+            SourceUnitPart::ContractDefinition(contract) => Some(contract),
+            _ => None
+        })
+        .next()
+        .expect("Contract not found");
 
     let other_code = other_code();
     let class_name = class_name_def(contract);

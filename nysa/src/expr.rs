@@ -25,7 +25,7 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
                 }
             }
             _ => {
-                let base_expr: syn::Expr = parse_expression(&*expression);
+                let base_expr: syn::Expr = parse_expression(expression);
                 let member: syn::Member = format_ident!("{}", id.name).into();
                 parse_quote!(#base_expr.#member)
             }

@@ -1,26 +1,4 @@
-use nysa_macro::nysa_lang;
-
-nysa_lang! {
-    contract Fibbonacci {
-        mapping(uint32 => uint32) results;
-    
-        function compute(uint32 input) public payable {
-            results[input] = fibb(input);
-        }
-    
-        function get_result(uint32 input) public view returns (uint32) {
-            return results[input];
-        }
-    
-        function fibb(uint32 n) public returns (uint32) {
-            if (n <= 1) {
-                return n;
-            } else {
-                return fibb(n - 1) + fibb(n - 2);
-            }
-        }
-    }
-}
+nysa_macro::nysa_file!("example-fibbonacci/src/contract.sol");
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]

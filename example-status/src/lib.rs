@@ -1,19 +1,4 @@
-use nysa_macro::nysa_lang;
-
-nysa_lang! {
-    contract StatusMessage {
-        mapping(address => string) records;
-
-        function set_status(string memory status) public payable {
-            address account_id = msg.sender;
-            records[account_id] = status;
-        }
-
-        function get_status(address account_id) public view returns (string memory) {
-            return records[account_id];
-        }
-    }
-}
+nysa_macro::nysa_file!("example-status/src/contract.sol");
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
