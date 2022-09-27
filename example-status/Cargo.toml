@@ -3,11 +3,8 @@ name = "example-status"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 near-sdk = "4.0.0"
-c3-lang-macro = { git = "https://github.com/odradev/c3-lang.git", branch = "feature/near-support" }
 nysa-macro = { path = "../nysa-macro" }
 
 [lib]

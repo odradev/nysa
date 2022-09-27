@@ -7,18 +7,31 @@ The project aims to transpile smart contracts written in Solidity to smart contr
 
 ## Prerequisites
 
-- Rust toolchain installed (see [rustup.rs](https://rustup.rs/))
-- WebAssembly Binary Toolkit (wabt) installed (see [wabt](https://github.com/WebAssembly/wabt))
-- just (not required but recommended) (see [just](https://github.com/casey/just))
-  
-## Build examples
+- Rust toolchain installed (see [rustup.rs](https://rustup.rs/)).
+- WebAssembly Binary Toolkit (wabt) installed (see [wabt](https://github.com/WebAssembly/wabt)).
+- just (not required but recommended) (see [just](https://github.com/casey/just)).
 
-The easiest way to build and test examples is to run commands defined in the justfile.
+## Test Nysa
 
-Eg. to run Fibonacci Sequence example execute:
+To test `Nysa` internal tests, execute:
 
-`$ just test-fibonacci`
+```bash
+$ just test-nysa
+```
 
-To build Status Message example, execute:
+## Build and test examples
 
-`$ just build-status-contract`
+The easiest way to build and test examples is to run commands defined in the `justfile`.
+
+To build wasm files, execute:
+
+```bash
+$ just build-status-contract
+$ just build-fibonacci-contract
+```
+
+To run all the example tests, execute:
+
+```bash
+$ just test-examples
+```

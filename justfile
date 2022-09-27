@@ -22,7 +22,10 @@ test-fibonacci-solidity:
 test-fibonacci-near:
     cargo test -p example-fibonacci --no-default-features --features "near"
 
-test:
+test-nysa:
+    cargo test -p nysa
+
+test-examples:
     just test-status-solidity
     just test-status-near
     just test-fibonacci-solidity

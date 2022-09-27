@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 near-sdk = "4.0.0"
-c3-lang-macro = { git = "https://github.com/odradev/c3-lang.git", branch = "feature/near-support" }
 nysa-macro = { path = "../nysa-macro" }
 
 [lib]
