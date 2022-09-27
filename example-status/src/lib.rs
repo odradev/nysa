@@ -1,4 +1,11 @@
+#[cfg(feature = "solidity")]
 nysa_macro::nysa_file!("example-status/src/contract.sol");
+
+#[cfg(feature = "near")]
+mod contract;
+
+#[cfg(feature = "near")]
+pub use contract::StatusMessage;
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]

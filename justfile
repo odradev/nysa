@@ -1,5 +1,5 @@
 lint:
-    cargo clippy --all-targets
+    cargo clippy --all-targets -- -D warnings
     cargo fmt
 
 build-status-contract:
@@ -10,5 +10,11 @@ build-fibonacci-contract:
     cargo build -p example-fibonacci --release --target wasm32-unknown-unknown
     wasm-strip target/wasm32-unknown-unknown/release/example_fibonacci.wasm
 
-test-fibonacci:
+test-fibonacci-solidity:
     cargo test -p example-fibonacci
+
+test-status-solidity:
+    cargo test -p example-status
+
+test-status-near:
+    cargo test -p example-status --no-default-features --features "near"
