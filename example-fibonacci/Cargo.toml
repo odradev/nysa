@@ -11,3 +11,7 @@ nysa-macro = { path = "../nysa-macro" }
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+default = ["solidity"]
+solidity = []
+near = []

@@ -1,4 +1,11 @@
-nysa_macro::nysa_file!("example-fibonacci/src/contract.sol");
+#[cfg(feature = "solidity")]
+nysa_macro::nysa_file!("example-fibonacci/src/fibonacci.sol");
+
+#[cfg(feature = "near")]
+mod fibonacci;
+
+#[cfg(feature = "near")]
+pub use fibonacci::Fibonacci;
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
