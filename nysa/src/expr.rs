@@ -2,6 +2,8 @@ use quote::format_ident;
 use solidity_parser::pt;
 use syn::parse_quote;
 
+use crate::utils::to_snake_case_ident;
+
 /// Parses solidity expression into a syn expression.
 ///
 /// Todo: to handle remaining expressions.
@@ -48,7 +50,7 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
             }
         }
         pt::Expression::Variable(id) => {
-            let name = format_ident!("{}", &id.name);
+            let name = to_snake_case_ident(&id.name);
             parse_quote! { #name }
         }
         pt::Expression::FunctionCall(_, name, args) => {
@@ -60,6 +62,11 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
             let l = parse_expression(l);
             let r = parse_expression(r);
             parse_quote! { #l <= #r }
+        }
+        solidity_parser::pt::Expression::MoreEqual(_, l, r) => {
+            let l = parse_expression(l);
+            let r = parse_expression(r);
+            parse_quote! { #l >= #r }
         }
         pt::Expression::NumberLiteral(_, num) => {
             let (sign, digs) = num.to_u32_digits();
@@ -75,6 +82,24 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
             let l = parse_expression(l);
             let r = parse_expression(r);
             parse_quote! { #l - #r }
+        }
+        pt::Expression::PostIncrement(_, expression) => {
+            let expr = parse_expression(expression);
+            // TODO: find out if it is a member or a local variable
+            parse_quote! { self.#expr += 1 }
+        }
+        pt::Expression::PostDecrement(_, expression) => {
+            let expr = parse_expression(expression);
+            // TODO: find out if it is a member or a local variable
+            parse_quote! { self.#expr -= 1 }
+        }
+        solidity_parser::pt::Expression::PreIncrement(_, _) => {
+            let expr = parse_expression(expression);
+            parse_quote! { self.#expr += 1 }
+        }
+        solidity_parser::pt::Expression::PreDecrement(_, _) => {
+            let expr = parse_expression(expression);
+            parse_quote! { self.#expr -= 1 }
         }
         _ => panic!("Unsupported expression {:?}", expression),
     }

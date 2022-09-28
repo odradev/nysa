@@ -10,6 +10,7 @@ mod func;
 mod stmt;
 mod ty;
 mod var;
+mod utils;
 
 /// Parses solidity code into a C3 linearized, near compatible ast
 pub fn parse(input: String) -> PackageDef {

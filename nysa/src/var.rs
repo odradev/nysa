@@ -1,8 +1,7 @@
 use c3_lang_parser::c3_ast::VarDef;
-use quote::format_ident;
 use solidity_parser::pt::{ContractDefinition, ContractPart, VariableDefinition};
 
-use crate::ty;
+use crate::{ty, utils::to_snake_case_ident};
 
 /// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
 pub fn variables_def(contract: &ContractDefinition) -> Vec<VarDef> {
@@ -17,7 +16,7 @@ pub fn variables_def(contract: &ContractDefinition) -> Vec<VarDef> {
 
 /// Transforms solidity [VariableDefinition] into a c3 ast [VarDef].
 fn variable_def(v: &VariableDefinition) -> VarDef {
-    let ident: proc_macro2::Ident = format_ident!("{}", v.name.name);
+    let ident = to_snake_case_ident(&v.name.name);
     let ty = ty::parse_type_from_expr(&v.ty);
     VarDef { ident, ty }
 }
