@@ -5,6 +5,12 @@ A Solidity to Near-Sdk Rust Transpiler.
 
 The project aims to transpile smart contracts written in Solidity to smart contract compatible with near-sdk.
 
+## Usage
+
+<div align="center">
+    <img src=".images/wasm_build.gif"></img>
+</div>
+
 ## Prerequisites
 
 - Rust toolchain installed (see [rustup.rs](https://rustup.rs/)).
