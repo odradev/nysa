@@ -54,7 +54,7 @@ fn class(contract: &ContractDefinition) -> Class {
 /// Builds a c3 contract class definition
 fn class_def(contract: &ContractDefinition) -> ClassDef {
     let variables = var::variables_def(contract);
-    let functions = func::functions_def(contract);
+    let functions = func::functions_def(contract, &variables);
 
     ClassDef {
         struct_attrs: vec![parse_quote! { #[odra::module] }],
@@ -105,11 +105,12 @@ mod tests {
     use c3_lang_linearization::{Class, Fn};
     use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, VarDef};
     use pretty_assertions::assert_eq;
+    use quote::ToTokens;
     use syn::parse_quote;
 
     use super::*;
 
-    const INPUT: &str = r#"
+    const INPUT_STATUS_MESSAGE: &str = r#"
     contract StatusMessage {
         mapping(address => string) records;
 
@@ -124,9 +125,25 @@ mod tests {
     }
     "#;
 
-    fn expected() -> PackageDef {
-        PackageDef {
-            other_code: vec![],
+    const INPUT_OWNABLE: &str = r#"
+    pragma solidity ^0.8.0;
+
+    contract Owner {
+        address private owner;
+    
+        modifier onlyOwner() {
+            require(msg.sender == owner, "Only the contract owner can call this function.");
+            _;
+        }
+    }
+    "#;
+
+    #[test]
+    fn test_parser() {
+        let result: PackageDef = parse(String::from(INPUT_STATUS_MESSAGE));
+        
+        assert_eq!(result, PackageDef {
+            other_code: other_code(),
             class_name: ClassNameDef {
                 classes: vec![Class::from("StatusMessage")],
             },
@@ -178,17 +195,73 @@ mod tests {
                     },
                 ],
             }],
-        }
+        });
     }
 
     #[test]
-    fn test_parser() {
-        let result: PackageDef = parse(String::from(INPUT));
-        let expected = expected();
-        // result.classes[0].functions[0].implementations[0].implementation.stmts.iter().for_each(|f| {
-        //     dbg!(f.to_token_stream().to_string());
-        // });
-        assert_eq!(result, expected);
-        // assert!(false);
+    fn test_owner() {
+        let result: PackageDef = parse(String::from(INPUT_OWNABLE));
+        // let f = result.classes.get(0).unwrap();
+        // let f = f.functions.get(0).unwrap();
+        // let f = f.implementations.get(0).unwrap();
+        // let code = f.implementation.clone().into_token_stream().to_string();
+        // dbg!(code);
+        // assert!(false); 
+        assert_eq!(result, PackageDef {
+            other_code: other_code(),
+            class_name: ClassNameDef {
+                classes: vec![Class::from("Owner")],
+            },
+            classes: vec![ClassDef {
+                struct_attrs: vec![parse_quote! { #[odra::module] }],
+                impl_attrs: vec![parse_quote! { #[odra::module] }],
+                class: Class::from("Owner"),
+                path: vec![Class::from("Owner")],
+                variables: vec![VarDef {
+                    ident: parse_quote! { owner },
+                    ty: parse_quote! { odra::Variable<odra::types::Address> },
+                }],
+                functions: vec![
+                    FnDef {
+                        attrs: vec![parse_quote!(#[odra(init)])],
+                        name: Fn::from("constructor"),
+                        args: vec![parse_quote!(&mut self)],
+                        ret: parse_quote! {},
+                        implementations: vec![ClassFnImpl {
+                            class: Class::from("Owner"),
+                            fun: Fn::from("constructor"),
+                            implementation: parse_quote! {{
+                                self.owner.set(odra::contract_env::caller());
+                            }},
+                            visibility: syn::Visibility::Public(syn::VisPublic {
+                                pub_token: Default::default(),
+                            }),
+                        }],
+                    },
+                    FnDef {
+                        attrs: vec![],
+                        name: Fn::from("only_owner"),
+                        args: vec![
+                            parse_quote!(&self),
+                        ],
+                        ret: parse_quote!(),
+                        implementations: vec![ClassFnImpl {
+                            class: Class::from("Owner"),
+                            fun: Fn::from("only_owner"),
+                            implementation: parse_quote!({
+                                if odra::contract_env::caller() == self.owner.get() {
+                                    return;
+                                } else {
+                                    odra::contract_env::revert(odra::types::ExecutionError::new(1, "Only the contract owner can call this function."))
+                                };
+                            }),
+                            visibility: syn::Visibility::Public(syn::VisPublic {
+                                pub_token: Default::default(),
+                            }),
+                        }],
+                    },
+                ],
+            }],
+        });
     }
 }

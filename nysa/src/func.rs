@@ -1,13 +1,14 @@
 use c3_lang_linearization::{Class, Fn};
-use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef};
+use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, VarDef};
+use convert_case::{Casing, Case};
 use quote::format_ident;
 use solidity_parser::pt::{self, ContractDefinition, ContractPart, FunctionDefinition};
 use syn::{parse_quote, FnArg};
 
-use crate::{class, stmt, ty::parse_type_from_expr};
+use crate::{class, stmt, ty::parse_plain_type_from_expr};
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
-pub fn functions_def(contract: &ContractDefinition) -> Vec<FnDef> {
+pub fn functions_def(contract: &ContractDefinition, storage_fields: &[VarDef]) -> Vec<FnDef> {
     let class: Class = class(contract);
     contract
         .parts
@@ -17,15 +18,15 @@ pub fn functions_def(contract: &ContractDefinition) -> Vec<FnDef> {
             _ => None,
         })
         .filter(|func| func.name.is_some())
-        .map(|func| function_def(func, class.clone()))
+        .map(|func| function_def(func, storage_fields, class.clone()))
         .collect::<Vec<_>>()
 }
 
 /// Transforms solidity [VariableDefinition] into a c3 ast [VarDef].
-fn function_def(func: &FunctionDefinition, class: Class) -> FnDef {
+fn function_def(func: &FunctionDefinition, storage_fields: &[VarDef], class: Class) -> FnDef {
     check_function_type(&func.ty);
 
-    let name: Fn = func.name.to_owned().unwrap().name.into();
+    let name: Fn = func.name.to_owned().unwrap().name.to_case(Case::Snake).into();
 
     let mut args: Vec<FnArg> = func
         .params
@@ -40,7 +41,7 @@ fn function_def(func: &FunctionDefinition, class: Class) -> FnDef {
 
     let attrs = parse_attrs(&func.attributes);
     let ret = parse_ret_type(func);
-    let block: syn::Block = parse_body(&func.body);
+    let block: syn::Block = parse_body(&func.body, storage_fields);
 
     FnDef {
         attrs,
@@ -58,7 +59,7 @@ fn function_def(func: &FunctionDefinition, class: Class) -> FnDef {
     }
 }
 
-pub fn parse_body(body: &Option<pt::Statement>) -> syn::Block {
+pub fn parse_body(body: &Option<pt::Statement>, storage_fields: &[VarDef]) -> syn::Block {
     if let Some(v) = &body {
         match v {
             pt::Statement::Block {
@@ -68,7 +69,8 @@ pub fn parse_body(body: &Option<pt::Statement>) -> syn::Block {
             } => {
                 let stmts = statements
                     .iter()
-                    .map(stmt::parse_statement)
+                    .map(|stmt| stmt::parse_statement(stmt, storage_fields))
+                    .filter_map(|r| r.ok())
                     .collect::<Vec<_>>();
                 parse_quote!({
                     #(#stmts)*
@@ -101,7 +103,7 @@ pub fn parse_attrs_to_receiver_param(attrs: &[pt::FunctionAttribute]) -> Option<
 }
 
 fn parse_parameter(param: &pt::Parameter) -> syn::FnArg {
-    let ty = parse_type_from_expr(&param.ty);
+    let ty = parse_plain_type_from_expr(&param.ty);
     let name = param
         .name
         .as_ref()
@@ -134,12 +136,12 @@ fn parse_ret_type(func: &pt::FunctionDefinition) -> syn::ReturnType {
         } else if returns.len() == 1 {
             let param = returns.first().cloned().unwrap();
             let param = param.1.unwrap();
-            let ty = parse_type_from_expr(&param.ty);
+            let ty = parse_plain_type_from_expr(&param.ty);
             syn::ReturnType::Type(Default::default(), Box::new(ty))
         } else {
             let types: syn::punctuated::Punctuated<syn::Type, syn::Token![,]> = returns
                 .iter()
-                .map(|ret| parse_type_from_expr(&ret.1.as_ref().unwrap().ty))
+                .map(|ret| parse_plain_type_from_expr(&ret.1.as_ref().unwrap().ty))
                 .collect();
             let tuple = syn::TypeTuple {
                 paren_token: Default::default(),
@@ -156,7 +158,7 @@ fn check_function_type(ty: &pt::FunctionTy) {
         pt::FunctionTy::Function => {}
         pt::FunctionTy::Fallback => todo!("fallback"),
         pt::FunctionTy::Receive => todo!("receive"),
-        pt::FunctionTy::Modifier => todo!("modifier"),
+        pt::FunctionTy::Modifier => {},
     }
 }
 
