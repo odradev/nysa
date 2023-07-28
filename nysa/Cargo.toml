@@ -5,8 +5,10 @@ edition = "2021"
 
 [dependencies]
 solidity-parser = { path = "../solidity-parser" }
-c3-lang-parser = "0.0.4"
-c3-lang-linearization = "0.0.4"
+# c3-lang-parser = "0.0.4"
+# c3-lang-linearization = "0.0.4"
+c3-lang-parser = { path = "../../c3-lang/c3-lang-parser" }
+c3-lang-linearization = { path = "../../c3-lang/c3-lang-linearization" }
 quote = "1.0.21"
 syn = "1.0.99"
 proc-macro2 = "1.0.43"

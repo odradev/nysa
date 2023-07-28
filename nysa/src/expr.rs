@@ -14,9 +14,8 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
 
             if let Some(exp) = key_expression {
                 let key = parse_expression(exp);
-                parse_quote! {
-                    self.#array.get(&#key).cloned().unwrap_or_default()
-                }
+                // TODO: check if it is a local array or contract storage.
+                parse_quote!(self.#array.get(&#key).unwrap_or_default())
             } else {
                 panic!("Unspecified key");
             }
@@ -24,7 +23,7 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
         pt::Expression::MemberAccess(_, expression, id) => match expression.as_ref() {
             pt::Expression::Variable(var) => {
                 if &var.name == "msg" && &id.name == "sender" {
-                    parse_quote!(near_sdk::env::signer_account_id())
+                    parse_quote!(odra::contract_env::caller())
                 } else {
                     panic!("Unknown variable");
                 }
@@ -43,7 +42,7 @@ pub fn parse_expression(expression: &pt::Expression) -> syn::Expr {
                 let key = parse_expression(&key_expr.clone().unwrap());
                 let value = parse_expression(re);
                 parse_quote! {
-                    self.#array.insert(#key, #value)
+                    self.#array.set(&#key, #value)
                 }
             } else {
                 panic!("Unsupported expr assign");

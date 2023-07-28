@@ -51,6 +51,7 @@ fn function_def(func: &FunctionDefinition, class: Class) -> FnDef {
             class,
             fun: name,
             implementation: block,
+            visibility: syn::Visibility::Public(syn::VisPublic { pub_token: Default::default() })
         }],
     }
 }
@@ -67,18 +68,14 @@ pub fn parse_body(body: &Option<pt::Statement>) -> syn::Block {
                     .iter()
                     .map(stmt::parse_statement)
                     .collect::<Vec<_>>();
-                syn::Block {
-                    brace_token: Default::default(),
-                    stmts,
-                }
+                parse_quote!({
+                    #(#stmts)*
+                })
             }
             _ => panic!("Invalid statement - pt::Statement::Block expected"),
         }
     } else {
-        syn::Block {
-            brace_token: Default::default(),
-            stmts: vec![],
-        }
+        parse_quote!({})
     }
 }
 
@@ -166,6 +163,6 @@ fn parse_mutability(mutability: &pt::Mutability) -> Option<syn::Attribute> {
         pt::Mutability::Pure(_) => None,
         pt::Mutability::View(_) => None,
         pt::Mutability::Constant(_) => None,
-        pt::Mutability::Payable(_) => Some(parse_quote!( #[payable] )),
+        pt::Mutability::Payable(_) => Some(parse_quote!( #[odra(payable)] )),
     }
 }

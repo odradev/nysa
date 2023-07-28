@@ -56,10 +56,9 @@ fn class_def(contract: &ContractDefinition) -> ClassDef {
 
     ClassDef {
         struct_attrs: vec![
-            parse_quote! { #[near_sdk::near_bindgen] },
-            parse_quote! { #[derive(Default, BorshDeserialize, BorshSerialize)] },
+            parse_quote! { #[odra::module] },
         ],
-        impl_attrs: vec![parse_quote! { #[near_sdk::near_bindgen] }],
+        impl_attrs: vec![parse_quote! { #[odra::module] }],
         class: class(contract),
         path: vec![class(contract)],
         variables,
@@ -71,19 +70,30 @@ fn class_def(contract: &ContractDefinition) -> ClassDef {
 fn other_code() -> Vec<Item> {
     vec![
         parse_quote! {
-            use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+            impl odra::types::contract_def::Node for PathStack {
+                const COUNT: u32 = 0;
+                const IS_LEAF: bool = false;
+            }
         },
         parse_quote! {
-            impl BorshDeserialize for PathStack {
-                fn deserialize(_buf: &mut &[u8]) -> std::io::Result<Self> {
-                    Ok(Default::default())
+            impl odra::OdraItem for PathStack {
+                fn is_module() -> bool {
+                    false
                 }
             }
         },
         parse_quote! {
-            impl BorshSerialize for PathStack {
-                fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> std::io::Result<()> {
-                    Ok(())
+            impl odra::StaticInstance for PathStack {
+                fn instance<'a>(keys: &'a [&'a str]) -> (Self, &'a [&'a str]) {
+                    (PathStack::default(), keys)
+                }
+            }
+        },
+        parse_quote! {
+            impl odra::DynamicInstance for PathStack {
+                #[allow(unused_variables)]
+                fn instance(namespace: &[u8]) -> Self {
+                    PathStack::default()
                 }
             }
         },
@@ -116,69 +126,52 @@ mod tests {
 
     fn expected() -> PackageDef {
         PackageDef {
-            other_code: vec![
-                parse_quote! {
-                    use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-                },
-                parse_quote! {
-                    impl BorshDeserialize for PathStack {
-                        fn deserialize(_buf: &mut &[u8]) -> std::io::Result<Self> {
-                            Ok(Default::default())
-                        }
-                    }
-                },
-                parse_quote! {
-                    impl BorshSerialize for PathStack {
-                        fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> std::io::Result<()> {
-                            Ok(())
-                        }
-                    }
-                },
-            ],
+            other_code: vec![],
             class_name: ClassNameDef {
                 classes: vec![Class::from("StatusMessage")],
             },
             classes: vec![ClassDef {
                 struct_attrs: vec![
-                    parse_quote! { #[near_sdk::near_bindgen] },
-                    parse_quote! { #[derive(Default, BorshDeserialize, BorshSerialize)] },
+                    parse_quote! { #[odra::module] },
                 ],
-                impl_attrs: vec![parse_quote! { #[near_sdk::near_bindgen] }],
+                impl_attrs: vec![parse_quote! { #[odra::module] }],
                 class: Class::from("StatusMessage"),
                 path: vec![Class::from("StatusMessage")],
                 variables: vec![VarDef {
                     ident: parse_quote! { records },
-                    ty: parse_quote! { std::collections::HashMap<near_sdk::AccountId, String> },
+                    ty: parse_quote! { odra::Mapping<odra::types::Address, String> },
                 }],
                 functions: vec![
                     FnDef {
-                        attrs: vec![parse_quote! { #[payable] }],
+                        attrs: vec![parse_quote! { #[odra(payable)] }],
                         name: Fn::from("set_status"),
-                        args: vec![parse_quote! { &mut self }, parse_quote! { status: String }],
+                        args: vec![parse_quote!(&mut self), parse_quote!(status: String)],
                         ret: parse_quote! {},
                         implementations: vec![ClassFnImpl {
                             class: Class::from("StatusMessage"),
                             fun: Fn::from("set_status"),
                             implementation: parse_quote! {{
-                                let account_id = near_sdk::env::signer_account_id().clone();
-                                self.records.insert(account_id, status);
+                                let account_id = odra::contract_env::caller();
+                                self.records.set(&account_id, status);
                             }},
+                            visibility: syn::Visibility::Public(syn::VisPublic { pub_token: Default::default() })
                         }],
                     },
                     FnDef {
                         attrs: vec![],
                         name: Fn::from("get_status"),
                         args: vec![
-                            parse_quote! { &self },
-                            parse_quote! { account_id: near_sdk::AccountId },
+                            parse_quote!(&self),
+                            parse_quote!(account_id: odra::types::Address),
                         ],
                         ret: parse_quote! { -> String },
                         implementations: vec![ClassFnImpl {
                             class: Class::from("StatusMessage"),
                             fun: Fn::from("get_status"),
                             implementation: parse_quote! {{
-                                return self.records.get(&account_id).cloned().unwrap_or_default();
+                                return self.records.get(&account_id).unwrap_or_default();
                             }},
+                            visibility: syn::Visibility::Public(syn::VisPublic { pub_token: Default::default() })
                         }],
                     },
                 ],
@@ -189,6 +182,11 @@ mod tests {
     #[test]
     fn test_parser() {
         let result: PackageDef = parse(String::from(INPUT));
-        assert_eq!(result, expected());
+        let expected = expected();
+        // result.classes[0].functions[0].implementations[0].implementation.stmts.iter().for_each(|f| {
+        //     dbg!(f.to_token_stream().to_string());
+        // });
+        assert_eq!(result, expected);
+        // assert!(false);
     }
 }

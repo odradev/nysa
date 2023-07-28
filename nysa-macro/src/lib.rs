@@ -27,7 +27,7 @@ use syn::parse::{Parse, ParseStream, Result};
 #[proc_macro]
 pub fn nysa_lang(item: TokenStream) -> TokenStream {
     let solidity_code = item.to_string();
-    to_near(solidity_code)
+    to_odra(solidity_code)
 }
 
 /// Reads solidity code from a given path and transforms it into rust code.
@@ -41,10 +41,10 @@ pub fn nysa_lang(item: TokenStream) -> TokenStream {
 pub fn nysa_file(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as FileName);
     let solidity_code = read_solidity_code(input);
-    to_near(solidity_code)
+    to_odra(solidity_code)
 }
 
-fn to_near(solidity_code: String) -> TokenStream {
+fn to_odra(solidity_code: String) -> TokenStream {
     let c3_ast = nysa::parse(solidity_code);
     c3_ast.to_token_stream().into()
 }

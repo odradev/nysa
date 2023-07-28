@@ -2,10 +2,10 @@
 members = [
     "nysa",
     "nysa-macro",
-    "solidity-parser",
-    "example-status",
-    "example-fibonacci"
+    "solidity-parser"
 ]
+
+exclude = [ "example-status", "example-fibonacci", "example-owned-token" ]
 
 [profile.release]
 codegen-units = 1

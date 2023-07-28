@@ -18,22 +18,18 @@ pub fn parse_statement(stmt: &pt::Statement) -> syn::Stmt {
             let pat: syn::Pat = parse_quote! { #name };
             let expr: syn::Expr = parse_expression(expression.as_ref().unwrap());
 
-            parse_quote!(let #pat = #expr.clone();)
+            parse_quote!(let #pat = #expr;)
         }
         pt::Statement::Return(_, expression) => {
             let ret = parse_expression(expression.as_ref().unwrap());
-            parse_quote! {
-                return #ret;
-            }
+            parse_quote!(return #ret;)
         }
         pt::Statement::If(_, assertion, if_body, else_body) => {
             let assertion = parse_expression(assertion);
             let if_body = parse_statement(if_body);
             let else_body = else_body.clone().unwrap();
             let else_body = parse_statement(&else_body);
-            parse_quote! {
-                if #assertion #if_body else #else_body
-            }
+            parse_quote!(if #assertion #if_body else #else_body)
         }
         pt::Statement::Block {
             loc: _,

@@ -17,12 +17,10 @@ fn parse_type(ty: &pt::Type) -> syn::Type {
         pt::Type::Mapping(_, key, value) => {
             let key = parse_type_from_expr(key);
             let value = parse_type_from_expr(value);
-            parse_quote! {
-                std::collections::HashMap<#key, #value>
-            }
+            parse_quote!(odra::Mapping<#key, #value>)
         }
-        pt::Type::Address => parse_quote!(near_sdk::AccountId),
-        pt::Type::AddressPayable => parse_quote!(near_sdk::AccountId),
+        pt::Type::Address => parse_quote!(odra::types::Address),
+        pt::Type::AddressPayable => parse_quote!(odra::types::Address),
         pt::Type::String => parse_quote!(String),
         pt::Type::Bool => parse_quote!(bool),
         pt::Type::Int(_) => parse_quote!(i16),
