@@ -51,7 +51,9 @@ fn function_def(func: &FunctionDefinition, class: Class) -> FnDef {
             class,
             fun: name,
             implementation: block,
-            visibility: syn::Visibility::Public(syn::VisPublic { pub_token: Default::default() })
+            visibility: syn::Visibility::Public(syn::VisPublic {
+                pub_token: Default::default(),
+            }),
         }],
     }
 }

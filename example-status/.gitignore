@@ -1,1 +1,3 @@
 /target
+/src/status_message_sol.rs
+/src/status_message_wasm.rs

@@ -5,12 +5,14 @@ use c3_lang_parser::c3_ast::{ClassDef, ClassNameDef, PackageDef};
 use solidity_parser::pt::{ContractDefinition, SourceUnitPart};
 use syn::{parse_quote, Item};
 
+#[cfg(feature = "builder")]
+pub mod builder;
 mod expr;
 mod func;
 mod stmt;
 mod ty;
-mod var;
 mod utils;
+mod var;
 
 /// Parses solidity code into a C3 linearized, near compatible ast
 pub fn parse(input: String) -> PackageDef {
@@ -55,9 +57,7 @@ fn class_def(contract: &ContractDefinition) -> ClassDef {
     let functions = func::functions_def(contract);
 
     ClassDef {
-        struct_attrs: vec![
-            parse_quote! { #[odra::module] },
-        ],
+        struct_attrs: vec![parse_quote! { #[odra::module] }],
         impl_attrs: vec![parse_quote! { #[odra::module] }],
         class: class(contract),
         path: vec![class(contract)],
@@ -131,9 +131,7 @@ mod tests {
                 classes: vec![Class::from("StatusMessage")],
             },
             classes: vec![ClassDef {
-                struct_attrs: vec![
-                    parse_quote! { #[odra::module] },
-                ],
+                struct_attrs: vec![parse_quote! { #[odra::module] }],
                 impl_attrs: vec![parse_quote! { #[odra::module] }],
                 class: Class::from("StatusMessage"),
                 path: vec![Class::from("StatusMessage")],
@@ -154,7 +152,9 @@ mod tests {
                                 let account_id = odra::contract_env::caller();
                                 self.records.set(&account_id, status);
                             }},
-                            visibility: syn::Visibility::Public(syn::VisPublic { pub_token: Default::default() })
+                            visibility: syn::Visibility::Public(syn::VisPublic {
+                                pub_token: Default::default(),
+                            }),
                         }],
                     },
                     FnDef {
@@ -171,7 +171,9 @@ mod tests {
                             implementation: parse_quote! {{
                                 return self.records.get(&account_id).unwrap_or_default();
                             }},
-                            visibility: syn::Visibility::Public(syn::VisPublic { pub_token: Default::default() })
+                            visibility: syn::Visibility::Public(syn::VisPublic {
+                                pub_token: Default::default(),
+                            }),
                         }],
                     },
                 ],

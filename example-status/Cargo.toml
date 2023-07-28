@@ -4,13 +4,26 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-near-sdk = "4.0.0"
-nysa-macro = { path = "../nysa-macro" }
+odra = { path = "../../odra/core", default-features = false }
 
-[lib]
-crate-type = ["cdylib"]
+[build-dependencies]
+nysa = { path = "../nysa", features = ["builder"] }
+quote = "1.0.32"
+
+# [lib]
+# crate-type = ["cdylib"]
 
 [features]
-default = ["solidity"]
+default = ["solidity", "mock-vm"]
+native-odra = []
 solidity = []
-near = []
+mock-vm = ["odra/mock-vm"]
+casper = ["odra/casper"]
+
+[[bin]]
+name = "casper_gen"
+path = "src/bin/casper_gen.rs"
+
+[[bin]]
+name = "contract"
+path = "src/status_message_wasm.rs"

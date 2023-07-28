@@ -1,1 +1,3 @@
 /target
+/src/fibonnaci_sol.rs
+/src/fibonnaci_wasm.rs

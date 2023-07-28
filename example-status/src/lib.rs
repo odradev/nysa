@@ -1,48 +1,37 @@
 #[cfg(feature = "solidity")]
-nysa_macro::nysa_file!("example-status/src/status_message.sol");
+mod status_message_sol;
 
-#[cfg(feature = "near")]
+#[cfg(feature = "solidity")]
+pub use status_message_sol::{StatusMessage, StatusMessageDeployer, StatusMessageRef};
+
+#[cfg(feature = "native-odra")]
 mod status_message;
 
-#[cfg(feature = "near")]
-pub use status_message::StatusMessage;
+#[cfg(feature = "native-odra")]
+pub use status_message::{StatusMessage, StatusMessageDeployer, StatusMessageRef};
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::test_utils::VMContextBuilder;
-    use near_sdk::{testing_env, VMContext};
-
-    fn get_context(is_view: bool) -> VMContext {
-        VMContextBuilder::new()
-            .signer_account_id("bob_near".parse().unwrap())
-            .is_view(is_view)
-            .build()
-    }
 
     #[test]
     fn set_get_message() {
-        let context = get_context(false);
-        testing_env!(context);
-        let mut contract = StatusMessage::default();
+        let mut contract = StatusMessageDeployer::default();
+
+        let address = odra::test_env::get_account(0);
+
         contract.set_status("hello".to_string());
-        let context = get_context(true);
-        testing_env!(context);
-        assert_eq!(
-            "hello".to_string(),
-            contract.get_status("bob_near".parse().unwrap())
-        );
+        assert_eq!("hello".to_string(), contract.get_status(address));
     }
 
     #[test]
     fn get_nonexistent_message() {
-        let context = get_context(true);
-        testing_env!(context);
-        let contract = StatusMessage::default();
+        let contract = StatusMessageDeployer::default();
+
         assert_eq!(
             String::new(),
-            contract.get_status("francis.near".parse().unwrap())
+            contract.get_status(odra::test_env::get_account(0))
         );
     }
 }

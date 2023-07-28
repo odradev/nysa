@@ -1,31 +1,23 @@
 #[cfg(feature = "solidity")]
-nysa_macro::nysa_file!("example-fibonacci/src/fibonacci.sol");
+mod fibonacci_sol;
 
-#[cfg(feature = "near")]
+#[cfg(feature = "solidity")]
+pub use fibonacci_sol::{Fibonacci, FibonacciDeployer, FibonacciRef};
+
+#[cfg(feature = "native-odra")]
 mod fibonacci;
 
-#[cfg(feature = "near")]
+#[cfg(feature = "native-odra")]
 pub use fibonacci::Fibonacci;
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::test_utils::VMContextBuilder;
-    use near_sdk::{testing_env, VMContext};
-
-    fn get_context(is_view: bool) -> VMContext {
-        VMContextBuilder::new()
-            .signer_account_id("bob_near".parse().unwrap())
-            .is_view(is_view)
-            .build()
-    }
 
     #[test]
     fn test_fibonacci() {
-        let context = get_context(false);
-        testing_env!(context);
-        let mut contract = Fibonacci::default();
+        let mut contract = FibonacciDeployer::default();
 
         let mut test = |n: u32, expected: u32| {
             contract.compute(n);

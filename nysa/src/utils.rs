@@ -1,4 +1,4 @@
-use convert_case::{Casing, Case};
+use convert_case::{Case, Casing};
 use quote::format_ident;
 
 pub fn to_snake_case_ident(name: &str) -> proc_macro2::Ident {

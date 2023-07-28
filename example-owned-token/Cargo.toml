@@ -1,5 +1,5 @@
 [package]
-name = "example-fibonacci"
+name = "example-owned-token"
 version = "0.1.0"
 edition = "2021"
 
@@ -26,4 +26,4 @@ path = "src/bin/casper_gen.rs"
 
 [[bin]]
 name = "contract"
-path = "src/fibonacci_wasm.rs"
+path = "src/owned_token_wasm.rs"

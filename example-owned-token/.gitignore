@@ -1,0 +1,3 @@
+/target
+/src/owned_token_sol.rs
+/src/owned_token_wasm.rs

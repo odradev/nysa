@@ -1,23 +1,18 @@
-use near_sdk::{
-    borsh::{self, BorshDeserialize, BorshSerialize},
-    near_bindgen,
-};
-use std::collections::HashMap;
+use odra::Mapping;
 
-#[near_bindgen]
-#[derive(Default, BorshDeserialize, BorshSerialize)]
+#[odra::module]
 pub struct Fibonacci {
-    results: HashMap<u32, u32>,
+    results: Mapping<u32, u32>,
 }
 
-#[near_bindgen]
+#[odra::module]
 impl Fibonacci {
     pub fn compute(&mut self, input: u32) {
-        self.results.insert(input, self.fibb(input));
+        self.results.set(input, self.fibb(input));
     }
 
     pub fn get_result(&self, input: u32) -> u32 {
-        self.results.get(&input).cloned().unwrap_or_default()
+        self.results.get_or_default(&input)
     }
 
     fn fibb(&self, n: u32) -> u32 {
