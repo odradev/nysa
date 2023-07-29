@@ -4,7 +4,7 @@ use solidity_parser::pt;
 use syn::parse_quote;
 use quote::quote;
 
-use crate::utils::to_snake_case_ident;
+use crate::{utils::to_snake_case_ident, var::IsField};
 
 /// Parses solidity expression into a syn expression.
 ///
@@ -17,6 +17,7 @@ pub fn parse_expression(expression: &pt::Expression, storage_fields: &[VarDef]) 
             if let Some(exp) = key_expression {
                 let key = parse_expression(exp, storage_fields)?;
                 // TODO: check if it is a local array or contract storage.
+                // TODO: what if the type does not implement Default trait.
                 Ok(parse_quote!(#array.get(&#key).unwrap_or_default()))
             } else {
                 Err("Unspecified key")
@@ -44,6 +45,8 @@ pub fn parse_expression(expression: &pt::Expression, storage_fields: &[VarDef]) 
                 let key = parse_expression(&key_expr.clone().unwrap(), storage_fields)?;
                 let value = parse_expression(re, storage_fields)?;
                 Ok(parse_quote!(#array.set(&#key, #value)))
+            } else if let pt::Expression::Variable(id) = le {
+                parse_write_variable_expression(id, re, storage_fields)
             } else {
                 Err("Unsupported expr assign")
             }
@@ -54,8 +57,7 @@ pub fn parse_expression(expression: &pt::Expression, storage_fields: &[VarDef]) 
                 "require" => Err("Require call"),
                 ident => {
                     let ident = to_snake_case_ident(ident);
-                    let fields = storage_fields.iter().map(|f| f.ident.to_string()).collect::<Vec<_>>();
-                    let self_ty = fields.contains(&id.name).then(|| quote!(self.));
+                    let self_ty = id.is_field(storage_fields).then(|| quote!(self.));
                     Ok(parse_quote!(#self_ty #ident))
                 }
             }
@@ -154,6 +156,24 @@ fn parse_read_variable_expression(id: &pt::Identifier, storage_fields: &[VarDef]
             let fields = storage_fields.iter().map(|f| f.ident.to_string()).collect::<Vec<_>>();
             let self_ty = fields.contains(&id.name).then(|| quote!(self.));
             Ok(parse_quote!(#self_ty #ident.get()))
+        }
+    }
+}
+
+fn parse_write_variable_expression(id: &pt::Identifier, value: &pt::Expression, storage_fields: &[VarDef]) -> Result<syn::Expr, &'static str> {
+    match id.name.as_str() {
+        "_" => Err("Empty identifier"),
+        "require" => Err("Require call"),
+        ident => {
+            let ident = to_snake_case_ident(ident);
+            let val = parse_expression(value, storage_fields)?;
+            if id.is_field(storage_fields) {
+                // Variable update must use the `set` function
+                Ok(parse_quote!(self.#ident.set(#val)))
+            } else {
+                // regular, local value
+                Ok(parse_quote!(#ident = #val))
+            }
         }
     }
 }

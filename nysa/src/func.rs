@@ -17,7 +17,6 @@ pub fn functions_def(contract: &ContractDefinition, storage_fields: &[VarDef]) -
             ContractPart::FunctionDefinition(func) => Some(func),
             _ => None,
         })
-        .filter(|func| func.name.is_some())
         .map(|func| function_def(func, storage_fields, class.clone()))
         .collect::<Vec<_>>()
 }
@@ -26,7 +25,11 @@ pub fn functions_def(contract: &ContractDefinition, storage_fields: &[VarDef]) -
 fn function_def(func: &FunctionDefinition, storage_fields: &[VarDef], class: Class) -> FnDef {
     check_function_type(&func.ty);
 
-    let name: Fn = func.name.to_owned().unwrap().name.to_case(Case::Snake).into();
+    let name: Fn = match &func.ty {
+        // TODO: handle multiple constructors
+        pt::FunctionTy::Constructor => "init".into(),
+        _ =>  func.name.to_owned().unwrap().name.to_case(Case::Snake).into()
+    };
 
     let mut args: Vec<FnArg> = func
         .params
@@ -35,13 +38,19 @@ fn function_def(func: &FunctionDefinition, storage_fields: &[VarDef], class: Cla
         .map(parse_parameter)
         .collect();
 
-    if let Some(receiver) = parse_attrs_to_receiver_param(&func.attributes) {
+    if matches!(func.ty, pt::FunctionTy::Constructor) {
+        args.insert(0, parse_quote!(&mut self));
+    } else if let Some(receiver) = parse_attrs_to_receiver_param(&func.attributes) {
         args.insert(0, receiver);
     }
 
-    let attrs = parse_attrs(&func.attributes);
+    let mut attrs = parse_attrs(&func.attributes);
     let ret = parse_ret_type(func);
     let block: syn::Block = parse_body(&func.body, storage_fields);
+
+    if func.ty == pt::FunctionTy::Constructor {
+        attrs.push(parse_quote!(#[odra(init)]))
+    }
 
     FnDef {
         attrs,
@@ -154,7 +163,7 @@ fn parse_ret_type(func: &pt::FunctionDefinition) -> syn::ReturnType {
 
 fn check_function_type(ty: &pt::FunctionTy) {
     match ty {
-        pt::FunctionTy::Constructor => todo!("constructor"),
+        pt::FunctionTy::Constructor => {},
         pt::FunctionTy::Function => {}
         pt::FunctionTy::Fallback => todo!("fallback"),
         pt::FunctionTy::Receive => todo!("receive"),

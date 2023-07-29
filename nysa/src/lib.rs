@@ -131,6 +131,10 @@ mod tests {
     contract Owner {
         address private owner;
     
+        constructor() {
+            owner = msg.sender;
+        }
+        
         modifier onlyOwner() {
             require(msg.sender == owner, "Only the contract owner can call this function.");
             _;
@@ -201,10 +205,10 @@ mod tests {
     #[test]
     fn test_owner() {
         let result: PackageDef = parse(String::from(INPUT_OWNABLE));
-        // let f = result.classes.get(0).unwrap();
-        // let f = f.functions.get(0).unwrap();
-        // let f = f.implementations.get(0).unwrap();
-        // let code = f.implementation.clone().into_token_stream().to_string();
+        let f = result.classes.get(0).unwrap();
+        let f = f.functions.get(0).unwrap();
+        let f = f.implementations.get(0).unwrap();
+        let code = f.implementation.clone().into_token_stream().to_string();
         // dbg!(code);
         // assert!(false); 
         assert_eq!(result, PackageDef {
@@ -224,12 +228,12 @@ mod tests {
                 functions: vec![
                     FnDef {
                         attrs: vec![parse_quote!(#[odra(init)])],
-                        name: Fn::from("constructor"),
+                        name: Fn::from("init"),
                         args: vec![parse_quote!(&mut self)],
                         ret: parse_quote! {},
                         implementations: vec![ClassFnImpl {
                             class: Class::from("Owner"),
-                            fun: Fn::from("constructor"),
+                            fun: Fn::from("init"),
                             implementation: parse_quote! {{
                                 self.owner.set(odra::contract_env::caller());
                             }},
