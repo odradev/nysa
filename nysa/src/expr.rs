@@ -1,6 +1,8 @@
+use std::ops::Deref;
+
 use c3_lang_parser::c3_ast::VarDef;
 use quote::format_ident;
-use solidity_parser::pt;
+use solidity_parser::pt::{self, Expression};
 use syn::parse_quote;
 use quote::quote;
 
@@ -44,9 +46,12 @@ pub fn parse_expression(expression: &pt::Expression, storage_fields: &[VarDef]) 
                 let array = parse_expression(array_expr, storage_fields)?;
                 let key = parse_expression(&key_expr.clone().unwrap(), storage_fields)?;
                 let value = parse_expression(re, storage_fields)?;
-                Ok(parse_quote!(#array.set(&#key, #value)))
+                Ok(parse_quote!(
+
+                    #array.set(&#key, #value)
+                ))
             } else if let pt::Expression::Variable(id) = le {
-                parse_write_variable_expression(id, re, storage_fields)
+                parse_variable_expression(id, Some(re), storage_fields)
             } else {
                 Err("Unsupported expr assign")
             }
@@ -70,11 +75,9 @@ pub fn parse_expression(expression: &pt::Expression, storage_fields: &[VarDef]) 
                 },
                 Err(err) => match err {
                     "Require call" => {
-                        // dbg!(args.first());
                         let args = args.iter().map(|e| parse_expression(e, storage_fields)).collect::<Result<Vec<syn::Expr>, _>>()?;
                         // TODO: Consider various `require` implementations
                         let check = args.get(0).expect("Should be revert condition");
-                        // dbg!(check);
                         let err = args.get(1).expect("Should be the error message");
                         // TODO: find a way the enumerate errors
                         Ok(parse_quote!(if #check { return; } else { odra::contract_env::revert(odra::types::ExecutionError::new(1, #err)) }))
@@ -128,11 +131,11 @@ pub fn parse_expression(expression: &pt::Expression, storage_fields: &[VarDef]) 
         }
         solidity_parser::pt::Expression::Equal(_, left , right) => {
             let left = match &**left {
-                pt::Expression::Variable(id) => parse_read_variable_expression(id, storage_fields),
+                pt::Expression::Variable(id) => parse_variable_expression(id, None,storage_fields),
                 _ => parse_expression(left, storage_fields)
             }?; 
             let right = match &**right {
-                pt::Expression::Variable(id) => parse_read_variable_expression(id, storage_fields),
+                pt::Expression::Variable(id) => parse_variable_expression(id, None, storage_fields),
                 _ => parse_expression(right, storage_fields)
             }?; 
             Ok(parse_quote!(#left == #right))
@@ -142,38 +145,76 @@ pub fn parse_expression(expression: &pt::Expression, storage_fields: &[VarDef]) 
             let string = strings.join(",");
             Ok(parse_quote!(#string))
         }
+        solidity_parser::pt::Expression::AssignSubtract(_, left, right) => {
+            let expr = match &**left {
+                pt::Expression::ArraySubscript(id, array_expr, key_expr) => {
+                    let key_expr = key_expr.clone().map(|boxed| boxed.deref().clone());
+                    let value_expr = parse_expression(&right, storage_fields)?;
+                    let current_value_expr = parse_mapping_expression(array_expr, key_expr.clone(), None, storage_fields)?;
+                    let new_value: syn::Expr = parse_quote!(#current_value_expr - #value_expr);
+                    parse_mapping_expression(array_expr, key_expr, Some(new_value), storage_fields)
+                },
+                _ => parse_expression(left, storage_fields)
+            }?; 
+            Ok(expr)
+        }
+        solidity_parser::pt::Expression::AssignAdd(_, left, right) => {
+            let expr = match &**left {
+                pt::Expression::ArraySubscript(id, array_expr, key_expr) => {
+                    let key_expr = key_expr.clone().map(|boxed| boxed.deref().clone());
+                    let value_expr = parse_expression(&right, storage_fields)?;
+                    let current_value_expr = parse_mapping_expression(array_expr, key_expr.clone(), None, storage_fields)?;
+                    let new_value: syn::Expr = parse_quote!(#current_value_expr + #value_expr);
+                    parse_mapping_expression(array_expr, key_expr, Some(new_value), storage_fields)
+                },
+                _ => parse_expression(left, storage_fields)
+            }?; 
+            Ok(expr)
+        }
         _ => panic!("Unsupported expression {:?}", expression),
     }
 }
 
 
-fn parse_read_variable_expression(id: &pt::Identifier, storage_fields: &[VarDef]) -> Result<syn::Expr, &'static str> {
+pub fn parse_variable_expression(id: &pt::Identifier, value: Option<&pt::Expression>, storage_fields: &[VarDef]) -> Result<syn::Expr, &'static str> {
+    let is_field = id.is_field(storage_fields);
     match id.name.as_str() {
         "_" => Err("Empty identifier"),
         "require" => Err("Require call"),
         ident => {
             let ident = to_snake_case_ident(ident);
-            let fields = storage_fields.iter().map(|f| f.ident.to_string()).collect::<Vec<_>>();
-            let self_ty = fields.contains(&id.name).then(|| quote!(self.));
-            Ok(parse_quote!(#self_ty #ident.get()))
+            let self_ty = is_field.then(|| quote!(self.));
+            if let Some(value) = value {
+                let val = parse_expression(value, storage_fields)?;
+                match is_field {
+                    // Variable update must use the `set` function
+                    true => Ok(parse_quote!(#self_ty #ident.set(#val))),
+                    // regular, local value
+                    false => Ok(parse_quote!(#ident = #val))
+                }
+            } else {
+                match is_field {
+                    true => Ok(parse_quote!(#self_ty #ident.get())),
+                    false => Ok(parse_quote!(#self_ty #ident))
+                }
+            }
         }
     }
 }
 
-fn parse_write_variable_expression(id: &pt::Identifier, value: &pt::Expression, storage_fields: &[VarDef]) -> Result<syn::Expr, &'static str> {
-    match id.name.as_str() {
-        "_" => Err("Empty identifier"),
-        "require" => Err("Require call"),
-        ident => {
-            let ident = to_snake_case_ident(ident);
-            let val = parse_expression(value, storage_fields)?;
-            if id.is_field(storage_fields) {
-                // Variable update must use the `set` function
-                Ok(parse_quote!(self.#ident.set(#val)))
-            } else {
-                // regular, local value
-                Ok(parse_quote!(#ident = #val))
-            }
+pub fn parse_mapping_expression(array_expr: &Expression, key_expr: Option<Expression>, value_expr: Option<syn::Expr>, storage_fields: &[VarDef]) -> Result<syn::Expr, &'static str> {
+    let array = parse_expression(array_expr, storage_fields)?;
+
+    if let Some(expr) = key_expr {
+        let key = parse_expression(&expr, storage_fields)?;
+        // TODO: check if it is a local array or contract storage.
+        // TODO: what if the type does not implement Default trait.
+        if let Some(value) = value_expr {
+            Ok(parse_quote!(#array.set(&#key, #value)))
+        } else {
+            Ok(parse_quote!(#array.get(&#key).unwrap_or_default()))
         }
+    } else {
+        Err("Unspecified key")
     }
 }

@@ -1,7 +1,7 @@
 use c3_lang_parser::c3_ast::VarDef;
 use solidity_parser::pt::{ContractDefinition, ContractPart, VariableDefinition, Identifier};
 
-use crate::{ty, utils::to_snake_case_ident};
+use crate::{ty, utils::{to_snake_case_ident, self}};
 
 /// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
 pub fn variables_def(contract: &ContractDefinition) -> Vec<VarDef> {
@@ -25,16 +25,10 @@ pub trait IsField {
     fn is_field(&self, fields: &[VarDef]) -> bool;
 }
 
-// impl <T: AsRef<str>> IsField for T {
-//     fn is_field(&self, fields: &[VarDef]) -> bool {
-//         let fields = fields.iter().map(|f| f.ident.to_string().as_str()).collect::<Vec<_>>();
-//         fields.contains(&self.as_ref())
-//     }
-// }
-
 impl IsField for &Identifier {
     fn is_field(&self, fields: &[VarDef]) -> bool {
         let fields = fields.iter().map(|f| f.ident.to_string()).collect::<Vec<_>>();
-        fields.contains(&self.name)
+        let name = utils::to_snake_case(&self.name);
+        fields.contains(&name)
     }
 }

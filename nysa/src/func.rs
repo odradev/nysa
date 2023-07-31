@@ -1,11 +1,9 @@
 use c3_lang_linearization::{Class, Fn};
 use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, VarDef};
-use convert_case::{Casing, Case};
-use quote::format_ident;
 use solidity_parser::pt::{self, ContractDefinition, ContractPart, FunctionDefinition};
-use syn::{parse_quote, FnArg};
+use syn::{parse_quote, FnArg, Attribute};
 
-use crate::{class, stmt, ty::parse_plain_type_from_expr};
+use crate::{class, stmt, ty::parse_plain_type_from_expr, utils};
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
 pub fn functions_def(contract: &ContractDefinition, storage_fields: &[VarDef]) -> Vec<FnDef> {
@@ -25,11 +23,7 @@ pub fn functions_def(contract: &ContractDefinition, storage_fields: &[VarDef]) -
 fn function_def(func: &FunctionDefinition, storage_fields: &[VarDef], class: Class) -> FnDef {
     check_function_type(&func.ty);
 
-    let name: Fn = match &func.ty {
-        // TODO: handle multiple constructors
-        pt::FunctionTy::Constructor => "init".into(),
-        _ =>  func.name.to_owned().unwrap().name.to_case(Case::Snake).into()
-    };
+    let name: Fn = parse_id(func);
 
     let mut args: Vec<FnArg> = func
         .params
@@ -37,20 +31,26 @@ fn function_def(func: &FunctionDefinition, storage_fields: &[VarDef], class: Cla
         .filter_map(|p| p.1.as_ref())
         .map(parse_parameter)
         .collect();
-
-    if matches!(func.ty, pt::FunctionTy::Constructor) {
-        args.insert(0, parse_quote!(&mut self));
-    } else if let Some(receiver) = parse_attrs_to_receiver_param(&func.attributes) {
-        args.insert(0, receiver);
-    }
+    try_add_receiver_param(func, &mut args);
 
     let mut attrs = parse_attrs(&func.attributes);
+    add_extra_attributes(func, &mut attrs);
     let ret = parse_ret_type(func);
     let block: syn::Block = parse_body(&func.body, storage_fields);
 
-    if func.ty == pt::FunctionTy::Constructor {
-        attrs.push(parse_quote!(#[odra(init)]))
-    }
+    let mut stmts = func.attributes.iter()
+        .filter_map(|attr| match attr {
+            pt::FunctionAttribute::BaseOrModifier(_, base) => Some(base.name.name.clone()),
+            _ => None
+        })
+        .map(|f| utils::to_snake_case_ident(f.as_str()))
+        .map(|i| parse_quote!(self.#i();))
+        .collect::<Vec<syn::Stmt>>();
+    stmts.extend(block.stmts);
+    let block = syn::Block {
+        stmts,
+        ..block
+    };
 
     FnDef {
         attrs,
@@ -61,9 +61,7 @@ fn function_def(func: &FunctionDefinition, storage_fields: &[VarDef], class: Cla
             class,
             fun: name,
             implementation: block,
-            visibility: syn::Visibility::Public(syn::VisPublic {
-                pub_token: Default::default(),
-            }),
+            visibility: parse_quote!(pub),
         }],
     }
 }
@@ -92,6 +90,30 @@ pub fn parse_body(body: &Option<pt::Statement>, storage_fields: &[VarDef]) -> sy
     }
 }
 
+fn try_add_receiver_param(func: &FunctionDefinition, args: &mut Vec<FnArg>) {
+    if matches!(func.ty, pt::FunctionTy::Constructor) {
+        args.insert(0, parse_quote!(&mut self));
+    } else if matches!(func.ty, pt::FunctionTy::Modifier) {
+        args.insert(0, parse_quote!(&self));
+    } else if let Some(receiver) = parse_attrs_to_receiver_param(&func.attributes) {
+        args.insert(0, receiver);
+    }
+}
+
+fn add_extra_attributes(func: &FunctionDefinition, attrs: &mut Vec<Attribute>) {
+    if func.ty == pt::FunctionTy::Constructor {
+        attrs.push(parse_quote!(#[odra(init)]))
+    }
+}
+
+fn parse_id(func: &FunctionDefinition) -> Fn {
+    match &func.ty {
+        // TODO: handle multiple constructors
+        pt::FunctionTy::Constructor => "init".into(),
+        _ => func.name.as_ref().map(|id| utils::to_snake_case(&id.name)).expect("Invalid func name").into()
+    }
+}
+
 pub fn parse_attrs_to_receiver_param(attrs: &[pt::FunctionAttribute]) -> Option<syn::FnArg> {
     if let Some(attr) = attrs
         .iter()
@@ -107,7 +129,7 @@ pub fn parse_attrs_to_receiver_param(attrs: &[pt::FunctionAttribute]) -> Option<
             _ => None,
         }
     } else {
-        Some(parse_quote!(&self))
+        Some(parse_quote!(&mut self))
     }
 }
 
@@ -116,9 +138,8 @@ fn parse_parameter(param: &pt::Parameter) -> syn::FnArg {
     let name = param
         .name
         .as_ref()
-        .map(|id| id.name.clone())
-        .unwrap_or_default();
-    let name = format_ident!("{}", name);
+        .map(|id| utils::to_snake_case_ident(&id.name))
+        .unwrap();
     parse_quote!( #name: #ty )
 }
 
