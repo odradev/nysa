@@ -1,93 +1,126 @@
-use c3_lang_linearization::{Class, Fn};
-use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, VarDef};
-use solidity_parser::pt::{self, ContractDefinition, ContractPart, FunctionDefinition};
-use syn::{parse_quote, FnArg, Attribute};
+use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef};
+use solidity_parser::pt::{self, FunctionDefinition};
+use syn::{parse_quote, Attribute, FnArg};
 
-use crate::{class, stmt, ty::parse_plain_type_from_expr, utils};
+use crate::{expr, model::ContractData, stmt, ty::parse_plain_type_from_expr, utils};
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
-pub fn functions_def(contract: &ContractDefinition, storage_fields: &[VarDef]) -> Vec<FnDef> {
-    let class: Class = class(contract);
-    contract
-        .parts
+pub fn functions_def(data: &ContractData) -> Vec<FnDef> {
+    let storage_fields = data.c3_vars();
+
+    let names = data.c3_fn_names();
+
+    data.c3_fn_implementations()
         .iter()
-        .filter_map(|part| match part {
-            ContractPart::FunctionDefinition(func) => Some(func),
-            _ => None,
-        })
-        .map(|func| function_def(func, storage_fields, class.clone()))
-        .collect::<Vec<_>>()
+        .map(|(name, impls)| function_def(name, &names, impls, &storage_fields))
+        .collect()
 }
 
 /// Transforms solidity [VariableDefinition] into a c3 ast [VarDef].
-fn function_def(func: &FunctionDefinition, storage_fields: &[VarDef], class: Class) -> FnDef {
-    check_function_type(&func.ty);
+fn function_def(
+    name: &str,
+    names: &[String],
+    definitions: &[(String, &FunctionDefinition)],
+    storage_fields: &[&pt::VariableDefinition],
+) -> FnDef {
+    let (class, top_lvl_func) = definitions
+        .last()
+        .expect("At least one implementation expected");
+    FnDef {
+        attrs: attrs(&top_lvl_func),
+        name: name.into(),
+        args: args(top_lvl_func),
+        ret: parse_ret_type(top_lvl_func),
+        implementations: implementations(name, names, definitions, storage_fields),
+    }
+}
 
-    let name: Fn = parse_id(func);
+fn attrs(function: &FunctionDefinition) -> Vec<Attribute> {
+    let mut attrs = parse_attrs(&function.attributes);
+    add_extra_attributes(function, &mut attrs);
+    attrs
+}
 
-    let mut args: Vec<FnArg> = func
+fn args(function: &FunctionDefinition) -> Vec<FnArg> {
+    let mut args: Vec<FnArg> = function
         .params
         .iter()
         .filter_map(|p| p.1.as_ref())
         .map(parse_parameter)
         .collect();
-    try_add_receiver_param(func, &mut args);
-
-    let mut attrs = parse_attrs(&func.attributes);
-    add_extra_attributes(func, &mut attrs);
-    let ret = parse_ret_type(func);
-    let block: syn::Block = parse_body(&func.body, storage_fields);
-
-    let mut stmts = func.attributes.iter()
-        .filter_map(|attr| match attr {
-            pt::FunctionAttribute::BaseOrModifier(_, base) => Some(base.name.name.clone()),
-            _ => None
-        })
-        .map(|f| utils::to_snake_case_ident(f.as_str()))
-        .map(|i| parse_quote!(self.#i();))
-        .collect::<Vec<syn::Stmt>>();
-    stmts.extend(block.stmts);
-    let block = syn::Block {
-        stmts,
-        ..block
-    };
-
-    FnDef {
-        attrs,
-        name: name.clone(),
-        args,
-        ret,
-        implementations: vec![ClassFnImpl {
-            class,
-            fun: name,
-            implementation: block,
-            visibility: parse_quote!(pub),
-        }],
-    }
+    try_add_receiver_param(function, &mut args);
+    args
 }
 
-pub fn parse_body(body: &Option<pt::Statement>, storage_fields: &[VarDef]) -> syn::Block {
-    if let Some(v) = &body {
-        match v {
+fn implementations(
+    name: &str,
+    names: &[String],
+    definitions: &[(String, &FunctionDefinition)],
+    storage_fields: &[&pt::VariableDefinition],
+) -> Vec<ClassFnImpl> {
+    let mut implementations = vec![];
+    for (class_name, def) in definitions {
+        implementations.push(ClassFnImpl {
+            class: class_name.as_str().into(),
+            fun: name.into(),
+            implementation: parse_body(&def, names, storage_fields),
+            visibility: parse_quote!(pub),
+        });
+    }
+    implementations
+}
+
+fn parse_body(
+    definition: &FunctionDefinition,
+    names: &[String],
+    storage_fields: &[&pt::VariableDefinition],
+) -> syn::Block {
+    // parse solidity function body
+    let stmts: Vec<syn::Stmt> = match &definition.body {
+        Some(v) => match v {
             pt::Statement::Block {
                 loc,
                 unchecked,
                 statements,
-            } => {
-                let stmts = statements
-                    .iter()
-                    .map(|stmt| stmt::parse_statement(stmt, storage_fields))
-                    .filter_map(|r| r.ok())
-                    .collect::<Vec<_>>();
-                parse_quote!({
-                    #(#stmts)*
-                })
-            }
+            } => statements
+                .iter()
+                .map(|stmt| stmt::parse_statement(stmt, storage_fields))
+                .filter_map(|r| r.ok())
+                .collect::<Vec<_>>(),
             _ => panic!("Invalid statement - pt::Statement::Block expected"),
-        }
-    } else {
-        parse_quote!({})
-    }
+        },
+        None => vec![],
+    };
+    // handle constructor of modifiers calls;
+    // Eg `constructor(string memory _name) Named(_name) {}`
+    // Eg `function mint(address _to, uint256 _amount) public onlyOwner {}`
+    let extra_stmts = definition
+        .attributes
+        .iter()
+        .filter_map(|attr| match attr {
+            pt::FunctionAttribute::BaseOrModifier(_, base) => Some(base.clone()),
+            _ => None,
+        })
+        .map(|base| {
+            let base_name = base.name.name;
+            let args = base
+                .args
+                .map(|args| expr::parse_many(&args, storage_fields).unwrap_or(vec![]))
+                .unwrap_or_default();
+            if names.contains(&utils::to_snake_case(&base_name)) {
+                // modifier call
+                let ident = utils::to_snake_case_ident(&base_name);
+                parse_quote!(self.#ident( #(#args),* );)
+            } else {
+                // super constructor call
+                parse_quote!(self.super_init( #(#args),* );)
+            }
+        })
+        .collect::<Vec<syn::Stmt>>();
+    parse_quote!({
+        #(#extra_stmts)*
+        #(#stmts)*
+    })
 }
 
 fn try_add_receiver_param(func: &FunctionDefinition, args: &mut Vec<FnArg>) {
@@ -106,15 +139,7 @@ fn add_extra_attributes(func: &FunctionDefinition, attrs: &mut Vec<Attribute>) {
     }
 }
 
-fn parse_id(func: &FunctionDefinition) -> Fn {
-    match &func.ty {
-        // TODO: handle multiple constructors
-        pt::FunctionTy::Constructor => "init".into(),
-        _ => func.name.as_ref().map(|id| utils::to_snake_case(&id.name)).expect("Invalid func name").into()
-    }
-}
-
-pub fn parse_attrs_to_receiver_param(attrs: &[pt::FunctionAttribute]) -> Option<syn::FnArg> {
+fn parse_attrs_to_receiver_param(attrs: &[pt::FunctionAttribute]) -> Option<syn::FnArg> {
     if let Some(attr) = attrs
         .iter()
         .find(|attr| matches!(attr, pt::FunctionAttribute::Mutability(_)))
@@ -139,7 +164,7 @@ fn parse_parameter(param: &pt::Parameter) -> syn::FnArg {
         .name
         .as_ref()
         .map(|id| utils::to_snake_case_ident(&id.name))
-        .unwrap();
+        .expect("A parameter must be named");
     parse_quote!( #name: #ty )
 }
 
@@ -148,47 +173,32 @@ fn parse_attrs(attrs: &[pt::FunctionAttribute]) -> Vec<syn::Attribute> {
         .iter()
         .filter_map(|attr| match attr {
             pt::FunctionAttribute::Mutability(m) => parse_mutability(m),
-            pt::FunctionAttribute::Visibility(_) => None,
-            pt::FunctionAttribute::Virtual(_) => None,
-            pt::FunctionAttribute::Override(_, _) => None,
-            pt::FunctionAttribute::BaseOrModifier(_, _) => None,
+            _ => None,
         })
         .collect::<Vec<_>>()
 }
 
 fn parse_ret_type(func: &pt::FunctionDefinition) -> syn::ReturnType {
     if func.return_not_returns.is_some() {
-        syn::ReturnType::Default
+        parse_quote!()
     } else {
         let returns = &func.returns;
-        if returns.is_empty() {
-            syn::ReturnType::Default
-        } else if returns.len() == 1 {
-            let param = returns.first().cloned().unwrap();
-            let param = param.1.unwrap();
-            let ty = parse_plain_type_from_expr(&param.ty);
-            syn::ReturnType::Type(Default::default(), Box::new(ty))
-        } else {
-            let types: syn::punctuated::Punctuated<syn::Type, syn::Token![,]> = returns
-                .iter()
-                .map(|ret| parse_plain_type_from_expr(&ret.1.as_ref().unwrap().ty))
-                .collect();
-            let tuple = syn::TypeTuple {
-                paren_token: Default::default(),
-                elems: types,
-            };
-            syn::ReturnType::Type(Default::default(), Box::new(syn::Type::Tuple(tuple)))
+        match returns.len() {
+            0 => parse_quote!(),
+            1 => {
+                let param = returns.get(0).unwrap().clone();
+                let param = param.1.unwrap();
+                let ty = parse_plain_type_from_expr(&param.ty);
+                parse_quote!(-> #ty)
+            }
+            _ => {
+                let types: syn::punctuated::Punctuated<syn::Type, syn::Token![,]> = returns
+                    .iter()
+                    .map(|ret| parse_plain_type_from_expr(&ret.1.as_ref().unwrap().ty))
+                    .collect();
+                parse_quote!(-> #types)
+            }
         }
-    }
-}
-
-fn check_function_type(ty: &pt::FunctionTy) {
-    match ty {
-        pt::FunctionTy::Constructor => {},
-        pt::FunctionTy::Function => {}
-        pt::FunctionTy::Fallback => todo!("fallback"),
-        pt::FunctionTy::Receive => todo!("receive"),
-        pt::FunctionTy::Modifier => {},
     }
 }
 
@@ -197,6 +207,6 @@ fn parse_mutability(mutability: &pt::Mutability) -> Option<syn::Attribute> {
         pt::Mutability::Pure(_) => None,
         pt::Mutability::View(_) => None,
         pt::Mutability::Constant(_) => None,
-        pt::Mutability::Payable(_) => Some(parse_quote!( #[odra(payable)] )),
+        pt::Mutability::Payable(_) => Some(parse_quote!(#[odra(payable)])),
     }
 }

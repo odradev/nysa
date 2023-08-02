@@ -1,17 +1,11 @@
 use c3_lang_parser::c3_ast::VarDef;
-use solidity_parser::pt::{ContractDefinition, ContractPart, VariableDefinition, Identifier};
+use solidity_parser::pt::{Identifier, VariableDefinition};
 
-use crate::{ty, utils::{to_snake_case_ident, self}};
+use crate::{model::ContractData, ty, utils::to_snake_case_ident};
 
 /// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
-pub fn variables_def(contract: &ContractDefinition) -> Vec<VarDef> {
-    let mut result = Vec::new();
-    for maybe_var in &contract.parts {
-        if let ContractPart::VariableDefinition(var_def) = maybe_var {
-            result.push(variable_def(var_def));
-        }
-    }
-    result
+pub fn variables_def(data: &ContractData) -> Vec<VarDef> {
+    data.c3_vars().iter().map(|var| variable_def(var)).collect()
 }
 
 /// Transforms solidity [VariableDefinition] into a c3 ast [VarDef].
@@ -22,13 +16,16 @@ fn variable_def(v: &VariableDefinition) -> VarDef {
 }
 
 pub trait IsField {
-    fn is_field(&self, fields: &[VarDef]) -> bool;
+    fn is_field(&self, fields: &[&VariableDefinition]) -> bool;
 }
 
 impl IsField for &Identifier {
-    fn is_field(&self, fields: &[VarDef]) -> bool {
-        let fields = fields.iter().map(|f| f.ident.to_string()).collect::<Vec<_>>();
-        let name = utils::to_snake_case(&self.name);
-        fields.contains(&name)
+    fn is_field(&self, fields: &[&VariableDefinition]) -> bool {
+        let fields = fields
+            .iter()
+            .map(|f| f.name.name.clone())
+            .collect::<Vec<_>>();
+        let result = fields.contains(&self.name);
+        result
     }
 }

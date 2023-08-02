@@ -25,23 +25,25 @@ contract Owner {
 contract ERC20 {
     string public name;
     string public symbol;
-    uint8 public decimals = 18;
+    uint8 public decimals;
     uint256 public totalSupply;
 
     mapping(address => uint256) public balanceOf;
 
     event Transfer(address indexed from, address indexed to, uint256 value);
 
-    constructor(string memory _name, string memory _symbol, uint256 _initialSupply) {
+    constructor(string memory _name, string memory _symbol, uint8 _decimals, uint256 _initialSupply) {
         name = _name;
         symbol = _symbol;
-        totalSupply = _initialSupply * 10**uint256(decimals);
+        decimals = _decimals;
+        // totalSupply = _initialSupply * 10**uint256(decimals);
+        totalSupply = _initialSupply;
         balanceOf[msg.sender] = totalSupply;
     }
 
     function _transfer(address _from, address _to, uint256 _value) internal {
-        require(_to != address(0), "Invalid recipient address.");
-        require(balanceOf[_from] >= _value, "Insufficient balance.");
+        // require(_to != address(0), "Invalid recipient address.");
+        // require(balanceOf[_from] >= _value, "Insufficient balance.");
 
         balanceOf[_from] -= _value;
         balanceOf[_to] += _value;
@@ -55,21 +57,21 @@ contract ERC20 {
 }
 
 contract OwnedToken is Owner, ERC20 {
-    constructor(string memory _name, string memory _symbol, uint256 _initialSupply)
-        ERC20(_name, _symbol, _initialSupply)
+    constructor(string memory _name, string memory _symbol, uint8 _decimals, uint256 _initialSupply)
+        ERC20(_name, _symbol, _decimals, _initialSupply)
     {}
 
     function mint(address _to, uint256 _amount) public onlyOwner {
-        require(_to != address(0), "Invalid recipient address.");
+        // require(_to != address(0), "Invalid recipient address.");
         totalSupply += _amount;
         balanceOf[_to] += _amount;
-        emit Transfer(address(0), _to, _amount);
+        // emit Transfer(address(0), _to, _amount);
     }
 
     function burn(uint256 _amount) public onlyOwner {
-        require(balanceOf[msg.sender] >= _amount, "Insufficient balance.");
+        // require(balanceOf[msg.sender] >= _amount, "Insufficient balance.");
         totalSupply -= _amount;
         balanceOf[msg.sender] -= _amount;
-        emit Transfer(msg.sender, address(0), _amount);
+        // emit Transfer(msg.sender, address(0), _amount);
     }
 }

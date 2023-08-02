@@ -33,7 +33,7 @@ fn parse_odra_type(ty: &pt::Type) -> syn::Type {
             256 => parse_quote!(odra::Variable<odra::types::U256>),
             512 => parse_quote!(odra::Variable<odra::types::U512>),
             _ => panic!("Unsupported unit {}.", size),
-        }
+        },
         _ => panic!("Unsupported type."),
     }
 }
@@ -55,7 +55,7 @@ pub fn parse_plain_type_from_expr(expr: &pt::Expression) -> syn::Type {
                 256 => parse_quote!(odra::types::U256),
                 512 => parse_quote!(odra::types::U512),
                 _ => panic!("Unsupported unit {}.", size),
-            } 
+            },
             _ => panic!("Unsupported type."),
         },
         _ => panic!("Not a type. {:?}", expr),
