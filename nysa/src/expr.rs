@@ -164,6 +164,12 @@ pub fn parse(
                     let new_value: syn::Expr = parse_quote!(#current_value_expr - #value_expr);
                     parse_mapping(array_expr, key_expr, Some(new_value), storage_fields)
                 }
+                pt::Expression::Variable(id) => {
+                    let current_value_expr = parse_variable(id, None, storage_fields)?;
+                    let value_expr = parse(&right, storage_fields)?;
+                    let new_value: syn::Expr = parse_quote!(#current_value_expr - #value_expr);
+                    parse_variable(id, Some(new_value), storage_fields)
+                }
                 _ => parse(left, storage_fields),
             }?;
             Ok(expr)
@@ -213,7 +219,9 @@ pub fn parse_variable(
                 }
             } else {
                 match is_field {
-                    true => Ok(parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#self_ty #ident.get()))),
+                    true => Ok(
+                        parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#self_ty #ident.get())),
+                    ),
                     false => Ok(parse_quote!(#self_ty #ident)),
                 }
             }

@@ -62,7 +62,7 @@ pub fn parse_statement(
                     .collect::<Result<Vec<syn::Expr>, _>>()?;
                 Ok(parse_quote!(
                     <#event_ident as odra::types::event::OdraEvent>::emit(
-                        #event_ident { #(#args),* }
+                        #event_ident::new(#(#args),*)
                     );
                 ))
             }

@@ -2,7 +2,8 @@ use c3_lang_linearization::{Class, C3};
 use convert_case::{Case, Casing};
 use quote::format_ident;
 use solidity_parser::pt::{
-    ContractDefinition, ContractPart, FunctionDefinition, SourceUnitPart, VariableDefinition,
+    ContractDefinition, ContractPart, EventDefinition, FunctionDefinition, SourceUnitPart,
+    VariableDefinition,
 };
 
 pub fn to_snake_case_ident(name: &str) -> proc_macro2::Ident {
@@ -18,6 +19,7 @@ pub fn to_snake_case(input: &str) -> String {
     }
 }
 
+/// Filters [ContractDefinition] from solidity ast.
 pub(crate) fn extract_contracts<'a>(ast: &[SourceUnitPart]) -> Vec<&ContractDefinition> {
     ast.iter()
         .filter_map(|unit| match unit {
@@ -27,25 +29,42 @@ pub(crate) fn extract_contracts<'a>(ast: &[SourceUnitPart]) -> Vec<&ContractDefi
         .collect::<Vec<_>>()
 }
 
+/// Filters [FunctionDefinition] from a contract.
 pub(crate) fn extract_functions(contract: &ContractDefinition) -> Vec<&FunctionDefinition> {
-    contract
-        .parts
-        .iter()
-        .filter_map(|part| match part {
-            ContractPart::FunctionDefinition(func) => Some(func.as_ref()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
+    filter_source_part(contract, |part| match part {
+        ContractPart::FunctionDefinition(func) => Some(func.as_ref()),
+        _ => None,
+    })
 }
 
+/// Filters [VariableDefinition] from a contract.
 pub(crate) fn extract_vars(contract: &ContractDefinition) -> Vec<&VariableDefinition> {
-    contract
-        .parts
-        .iter()
-        .filter_map(|part| match part {
-            ContractPart::VariableDefinition(var) => Some(var.as_ref()),
+    filter_source_part(contract, |part| match part {
+        ContractPart::VariableDefinition(var) => Some(var.as_ref()),
+        _ => None,
+    })
+}
+
+/// Iterates over [SourceUnitPart]s and collects all [EventDefinition]s. An [EventDefinition] may be
+/// at the top level or inside a [ContractDefinition].
+pub(crate) fn extract_events(ast: &[SourceUnitPart]) -> Vec<&EventDefinition> {
+    ast.iter()
+        .filter_map(|unit| match unit {
+            SourceUnitPart::ContractDefinition(contract) => {
+                let events = contract
+                    .parts
+                    .iter()
+                    .filter_map(|part| match part {
+                        ContractPart::EventDefinition(ev) => Some(ev.as_ref()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                Some(events)
+            }
+            SourceUnitPart::EventDefinition(ev) => Some(vec![ev.as_ref()]),
             _ => None,
         })
+        .flatten()
         .collect::<Vec<_>>()
 }
 
@@ -53,6 +72,13 @@ pub(crate) fn extract_vars(contract: &ContractDefinition) -> Vec<&VariableDefini
 pub(crate) fn classes(contract: &ContractDefinition, c3: &C3) -> Vec<Class> {
     let contract_id = Class::from(contract.name.name.as_str());
     c3.path(&contract_id).expect("Invalid contract path")
+}
+
+fn filter_source_part<'a, F, V>(contract: &'a ContractDefinition, f: F) -> Vec<V>
+where
+    F: Fn(&'a ContractPart) -> Option<V>,
+{
+    contract.parts.iter().filter_map(f).collect::<Vec<_>>()
 }
 
 #[cfg(test)]

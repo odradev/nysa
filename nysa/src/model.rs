@@ -57,7 +57,9 @@ impl<'a> ContractData<'a> {
             let implementations = self
                 .all_functions()
                 .into_iter()
-                .filter_map(|(contract_name, functions)| find_fn(contract_name, functions, &fn_name))
+                .filter_map(|(contract_name, functions)| {
+                    find_fn(contract_name, functions, &fn_name)
+                })
                 .collect::<Vec<_>>();
             result.push((fn_name, implementations));
         }
@@ -67,7 +69,12 @@ impl<'a> ContractData<'a> {
     fn all_functions(&self) -> Vec<(String, Vec<&FunctionDefinition>)> {
         self.base_contracts
             .iter()
-            .map(|contract| (contract.name.name.clone(), utils::extract_functions(contract)))
+            .map(|contract| {
+                (
+                    contract.name.name.clone(),
+                    utils::extract_functions(contract),
+                )
+            })
             .collect::<Vec<_>>()
     }
 

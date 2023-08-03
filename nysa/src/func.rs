@@ -1,4 +1,4 @@
-use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef};
+use c3_lang_parser::c3_ast::{ClassFnImpl, ComplexFnDef, FnDef};
 use solidity_parser::pt::{self, FunctionDefinition};
 use syn::{parse_quote, Attribute, FnArg};
 
@@ -26,13 +26,13 @@ fn function_def(
     let (class, top_lvl_func) = definitions
         .last()
         .expect("At least one implementation expected");
-    FnDef {
+    FnDef::Complex(ComplexFnDef {
         attrs: attrs(&top_lvl_func),
         name: name.into(),
         args: args(top_lvl_func),
         ret: parse_ret_type(top_lvl_func),
         implementations: implementations(name, names, definitions, storage_fields),
-    }
+    })
 }
 
 fn attrs(function: &FunctionDefinition) -> Vec<Attribute> {
@@ -61,7 +61,7 @@ fn implementations(
     let mut implementations = vec![];
     for (class_name, def) in definitions {
         implementations.push(ClassFnImpl {
-            class: class_name.as_str().into(),
+            class: Some(class_name.as_str().into()),
             fun: name.into(),
             implementation: parse_body(&def, names, storage_fields),
             visibility: parse_quote!(pub),
