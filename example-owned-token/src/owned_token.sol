@@ -42,8 +42,8 @@ contract ERC20 {
     }
 
     function _transfer(address _from, address _to, uint256 _value) internal {
-        // require(_to != address(0), "Invalid recipient address.");
-        // require(balanceOf[_from] >= _value, "Insufficient balance.");
+        require(_to != address(0), "Invalid recipient address.");
+        require(balanceOf[_from] >= _value, "Insufficient balance.");
 
         balanceOf[_from] -= _value;
         balanceOf[_to] += _value;
@@ -62,16 +62,16 @@ contract OwnedToken is Owner, ERC20 {
     {}
 
     function mint(address _to, uint256 _amount) public onlyOwner {
-        // require(_to != address(0), "Invalid recipient address.");
+        require(_to != address(0), "Invalid recipient address.");
         totalSupply += _amount;
         balanceOf[_to] += _amount;
-        // emit Transfer(address(0), _to, _amount);
+        emit Transfer(address(0), _to, _amount);
     }
 
     function burn(uint256 _amount) public onlyOwner {
-        // require(balanceOf[msg.sender] >= _amount, "Insufficient balance.");
+        require(balanceOf[msg.sender] >= _amount, "Insufficient balance.");
         totalSupply -= _amount;
         balanceOf[msg.sender] -= _amount;
-        // emit Transfer(msg.sender, address(0), _amount);
+        emit Transfer(msg.sender, address(0), _amount);
     }
 }

@@ -10,9 +10,6 @@ odra = { path = "../../odra/core", default-features = false }
 nysa = { path = "../nysa", features = ["builder"] }
 quote = "1.0.32"
 
-# [lib]
-# crate-type = ["cdylib"]
-
 [features]
 default = ["solidity", "mock-vm"]
 native-odra = []
@@ -25,5 +22,5 @@ name = "casper_gen"
 path = "src/bin/casper_gen.rs"
 
 [[bin]]
-name = "contract"
+name = "owned_token"
 path = "src/owned_token_wasm.rs"

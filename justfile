@@ -2,31 +2,32 @@ lint:
     cargo clippy --all-targets -- -D warnings
     cargo fmt
 
-build-status-contract:
-    cargo build -p example-status --release --target wasm32-unknown-unknown
-    wasm-strip target/wasm32-unknown-unknown/release/example_status.wasm
+test-status-contract-solidity:
+    cd example-status && cargo gen-casper-solidity
+    cd example-status && cargo wasm-solidity
+    wasm-strip example-status/target/wasm32-unknown-unknown/release/status_message.wasm
+    cd example-status && cargo test-solidity
 
-build-fibonacci-contract:
-    cargo build -p example-fibonacci --release --target wasm32-unknown-unknown
-    wasm-strip target/wasm32-unknown-unknown/release/example_fibonacci.wasm
+test-status-contract-odra:
+    cd example-status && cargo gen-casper-odra
+    cd example-status && cargo wasm-odra
+    wasm-strip example-status/target/wasm32-unknown-unknown/release/status_message.wasm
+    cd example-status && cargo test-odra
 
-test-status-solidity:
-    cargo test -p example-status
+test-token-contract-solidity:
+    cd example-owned-token && cargo gen-casper-solidity
+    cd example-owned-token && cargo wasm-solidity
+    wasm-strip example-owned-token/target/wasm32-unknown-unknown/release/owned_token.wasm
+    cd example-owned-token && cargo test-odra
 
-test-status-near:
-    cargo test -p example-status --no-default-features --features "near"
-
-test-fibonacci-solidity:
-    cargo test -p example-fibonacci
-
-test-fibonacci-near:
-    cargo test -p example-fibonacci --no-default-features --features "near"
-
-test-nysa:
-    cargo test -p nysa
+test-token-contract-odra:
+    cd example-owned-token && cargo gen-casper-odra
+    cd example-owned-token && cargo wasm-odra
+    wasm-strip example-owned-token/target/wasm32-unknown-unknown/release/owned_token.wasm
+    cd example-owned-token && cargo test-odra
 
 test-examples:
-    just test-status-solidity
-    just test-status-near
-    just test-fibonacci-solidity
-    just test-fibonacci-near
+    just test-status-contract-solidity
+    just test-status-contract-odra
+    just test-token-contract-solidity
+    just test-token-contract-odra

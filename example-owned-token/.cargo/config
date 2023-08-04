@@ -1,7 +1,7 @@
 [alias]
-gen-casper-nysa = "run --bin casper_gen --release --no-default-features --features solidity,casper"
+gen-casper-solidity = "run --bin casper_gen --release --no-default-features --features solidity,casper"
 gen-casper-odra = "run --bin casper_gen --release --no-default-features --features native-odra,casper"
-wasm-nysa = "build --bin contract --release --target wasm32-unknown-unknown --no-default-features --features solidity,casper"
-wasm-odra = "build --bin contract --release --target wasm32-unknown-unknown --no-default-features --features native-odra,casper"
-test-nysa = "test --target wasm32-unknown-unknown --no-default-features --features solidity,casper"
-test-odra = "test --target wasm32-unknown-unknown --no-default-features --features native-odra,casper"
+wasm-solidity = "build --bin owned_token --release --target wasm32-unknown-unknown --no-default-features --features solidity,casper"
+wasm-odra = "build --bin owned_token --release --target wasm32-unknown-unknown --no-default-features --features native-odra,casper"
+test-solidity = "test --lib --no-default-features --features solidity,casper"
+test-odra = "test --lib --no-default-features --features native-odra,casper"
