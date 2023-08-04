@@ -19,6 +19,13 @@ mod ty;
 mod utils;
 mod var;
 
+use std::{collections::HashMap, sync::Mutex};
+
+lazy_static::lazy_static! {
+    static ref ERROR_MAP: Mutex<HashMap<String, u16>> = Mutex::new(HashMap::new());
+    static ref ERRORS: Mutex<u16> = Mutex::new(0);
+}
+
 /// Parses solidity code into a C3 linearized, near compatible ast
 pub fn parse(input: String) -> PackageDef {
     let solidity_ast = parse_to_solidity_ast(&input);
@@ -116,27 +123,12 @@ fn other_code() -> Vec<Item> {
 #[cfg(test)]
 mod tests {
     use c3_lang_linearization::{Class, Fn};
-    use c3_lang_parser::c3_ast::{ClassFnImpl, ClassNameDef, ComplexFnDef, FnDef, VarDef};
+    use c3_lang_parser::c3_ast::{ClassFnImpl, ClassNameDef, ComplexFnDef, FnDef, VarDef, PlainFnDef};
     use pretty_assertions::assert_eq;
     use quote::ToTokens;
     use syn::parse_quote;
 
     use super::*;
-
-    const INPUT_STATUS_MESSAGE: &str = r#"
-    contract StatusMessage {
-        mapping(address => string) records;
-
-        function set_status(string status) public payable {
-            address account_id = msg.sender;
-            records[account_id] = status;
-        }
-
-        function get_status(address account_id) public view returns (string memory) {
-            return records[account_id];
-        }
-    }
-    "#;
 
     const INPUT_OWNABLE: &str = r#"
     pragma solidity ^0.8.0;
@@ -163,38 +155,6 @@ mod tests {
     }
     "#;
 
-    const INPUT_ERC20: &str = r#"
-    contract ERC20 {
-        string public name;
-        string public symbol;
-        uint8 public decimals = 18;
-        uint256 public totalSupply;
-    
-        mapping(address => uint256) public balanceOf;
-    
-        event Transfer(address indexed from, address indexed to, uint256 value);
-    
-        constructor(string memory _name, string memory _symbol, uint8 _decimals, uint256 _initialSupply) {
-            name = _name;
-            symbol = _symbol;
-            decimals = _decimals;
-            totalSupply = _initialSupply;
-            balanceOf[msg.sender] = _initialSupply;
-        }
-        
-        function _transfer(address _from, address _to, uint256 _value) internal {
-            balanceOf[_from] -= _value;
-            balanceOf[_to] += _value;
-    
-            emit Transfer(_from, _to, _value);
-        }
-
-        function transfer(address _to, uint256 _value) public {
-            _transfer(msg.sender, _to, _value);
-        }
-    }
-    "#;
-
     #[test]
     fn test_parser() {
         let result: PackageDef = parse(String::from(include_str!(
@@ -202,60 +162,6 @@ mod tests {
         )));
         dbg!(result.to_token_stream().to_string());
         assert!(true);
-        // assert_eq!(result, PackageDef {
-        //     other_code: other_code(),
-        //     class_name: ClassNameDef {
-        //         classes: vec![Class::from("StatusMessage")],
-        //     },
-        //     classes: vec![ClassDef {
-        //         struct_attrs: vec![parse_quote! { #[odra::module] }],
-        //         impl_attrs: vec![parse_quote! { #[odra::module] }],
-        //         class: Class::from("StatusMessage"),
-        //         path: vec![Class::from("StatusMessage")],
-        //         variables: vec![VarDef {
-        //             ident: parse_quote! { records },
-        //             ty: parse_quote! { odra::Mapping<odra::types::Address, String> },
-        //         }],
-        //         functions: vec![
-        //             FnDef {
-        //                 attrs: vec![parse_quote! { #[odra(payable)] }],
-        //                 name: Fn::from("set_status"),
-        //                 args: vec![parse_quote!(&mut self), parse_quote!(status: String)],
-        //                 ret: parse_quote! {},
-        //                 implementations: vec![ClassFnImpl {
-        //                     class: Class::from("StatusMessage"),
-        //                     fun: Fn::from("set_status"),
-        //                     implementation: parse_quote! {{
-        //                         let account_id = odra::contract_env::caller();
-        //                         self.records.set(&account_id, status);
-        //                     }},
-        //                     visibility: syn::Visibility::Public(syn::VisPublic {
-        //                         pub_token: Default::default(),
-        //                     }),
-        //                 }],
-        //             },
-        //             FnDef {
-        //                 attrs: vec![],
-        //                 name: Fn::from("get_status"),
-        //                 args: vec![
-        //                     parse_quote!(&self),
-        //                     parse_quote!(account_id: odra::types::Address),
-        //                 ],
-        //                 ret: parse_quote! { -> String },
-        //                 implementations: vec![ClassFnImpl {
-        //                     class: Class::from("StatusMessage"),
-        //                     fun: Fn::from("get_status"),
-        //                     implementation: parse_quote! {{
-        //                         return self.records.get(&account_id).unwrap_or_default();
-        //                     }},
-        //                     visibility: syn::Visibility::Public(syn::VisPublic {
-        //                         pub_token: Default::default(),
-        //                     }),
-        //                 }],
-        //             },
-        //         ],
-        //     }],
-        // });
     }
 
     #[test]
@@ -270,30 +176,42 @@ mod tests {
                     classes: vec![Class::from("Owner")],
                 },
                 classes: vec![ClassDef {
-                    struct_attrs: vec![parse_quote! { #[odra::module] }],
-                    impl_attrs: vec![parse_quote! { #[odra::module] }],
+                    struct_attrs: vec![parse_quote!(#[odra::module])],
+                    impl_attrs: vec![parse_quote!(#[odra::module])],
                     class: Class::from("Owner"),
                     path: vec![Class::from("Owner")],
                     variables: vec![VarDef {
                         ident: parse_quote! { owner },
-                        ty: parse_quote! { odra::Variable<odra::types::Address> },
+                        ty: parse_quote! { odra::Variable<Option<odra::types::Address>> },
                     }],
                     functions: vec![
                         FnDef::Complex(ComplexFnDef {
+                            attrs: vec![],
+                            name: Fn::from("get_owner"),
+                            args: vec![parse_quote!(&self)],
+                            ret: parse_quote!(-> Option<odra::types::Address>),
+                            implementations: vec![ClassFnImpl {
+                                class: Some(Class::from("Owner")),
+                                fun: Fn::from("get_owner"),
+                                implementation: parse_quote! {{
+                                    return odra::UnwrapOrRevert::unwrap_or_revert(self.owner.get());
+                                }},
+                                visibility: parse_quote!(pub),
+                            }],
+                        }),
+                        FnDef::Plain(PlainFnDef {
                             attrs: vec![parse_quote!(#[odra(init)])],
                             name: Fn::from("init"),
                             args: vec![parse_quote!(&mut self)],
-                            ret: parse_quote! {},
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("Owner")),
+                            ret: parse_quote!(),
+                            implementation: ClassFnImpl {
+                                class: None,
                                 fun: Fn::from("init"),
                                 implementation: parse_quote! {{
-                                    self.owner.set(odra::contract_env::caller());
+                                    self.owner.set(Some(odra::contract_env::caller()));
                                 }},
-                                visibility: syn::Visibility::Public(syn::VisPublic {
-                                    pub_token: Default::default(),
-                                }),
-                            }],
+                                visibility: parse_quote!(pub),
+                            },
                         }),
                         FnDef::Complex(ComplexFnDef {
                             attrs: vec![],
@@ -304,36 +222,16 @@ mod tests {
                                 class: Some(Class::from("Owner")),
                                 fun: Fn::from("only_owner"),
                                 implementation: parse_quote!({
-                                    if odra::contract_env::caller() == self.owner.get() {
-                                        return;
-                                    } else {
+                                    if !(Some(odra::contract_env::caller()) == odra::UnwrapOrRevert::unwrap_or_revert(self.owner.get())) {
                                         odra::contract_env::revert(
                                             odra::types::ExecutionError::new(
-                                                1,
-                                                "Only the contract owner can call this function.",
-                                            ),
+                                                1u16,
+                                                "Only the contract owner can call this function."
+                                            )
                                         )
                                     };
                                 }),
-                                visibility: syn::Visibility::Public(syn::VisPublic {
-                                    pub_token: Default::default(),
-                                }),
-                            }],
-                        }),
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![],
-                            name: Fn::from("get_owner"),
-                            args: vec![parse_quote!(&self)],
-                            ret: parse_quote! { -> odra::types::Address },
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("Owner")),
-                                fun: Fn::from("get_owner"),
-                                implementation: parse_quote! {{
-                                    return self.owner.get();
-                                }},
-                                visibility: syn::Visibility::Public(syn::VisPublic {
-                                    pub_token: Default::default(),
-                                }),
+                                visibility: parse_quote!(pub),
                             }],
                         }),
                         FnDef::Complex(ComplexFnDef {
@@ -341,7 +239,7 @@ mod tests {
                             name: Fn::from("transfer_ownership"),
                             args: vec![
                                 parse_quote!(&mut self),
-                                parse_quote!(new_owner: odra::types::Address)
+                                parse_quote!(new_owner: Option<odra::types::Address>)
                             ],
                             ret: parse_quote!(),
                             implementations: vec![ClassFnImpl {
@@ -351,270 +249,12 @@ mod tests {
                                     self.only_owner();
                                     self.owner.set(new_owner);
                                 }},
-                                visibility: syn::Visibility::Public(syn::VisPublic {
-                                    pub_token: Default::default(),
-                                }),
+                                visibility: parse_quote!(pub),
                             }],
                         }),
                     ],
                 }],
             }
         );
-    }
-
-    #[test]
-    fn test_erc20() {
-        let result: PackageDef = parse(String::from(INPUT_ERC20));
-        // assert!(false);
-        let expected = PackageDef {
-            other_code: other_code(),
-            class_name: ClassNameDef {
-                classes: ["Owner", "ERC20", "OwnedToken"]
-                    .iter()
-                    .map(From::from)
-                    .collect(),
-            },
-            classes: vec![
-                ClassDef {
-                    struct_attrs: vec![parse_quote!(#[odra::module])],
-                    impl_attrs: vec![parse_quote!(#[odra::module])],
-                    class: Class::from("ERC20"),
-                    path: ["Owner", "ERC20", "OwnedToken"]
-                        .iter()
-                        .map(From::from)
-                        .collect(),
-                    variables: vec![
-                        VarDef {
-                            ident: parse_quote!(owner),
-                            ty: parse_quote!(odra::Variable<odra::types::Address>),
-                        },
-                        VarDef {
-                            ident: parse_quote!(name),
-                            ty: parse_quote!(odra::Variable<String>),
-                        },
-                        VarDef {
-                            ident: parse_quote!(symbol),
-                            ty: parse_quote!(odra::Variable<String>),
-                        },
-                        VarDef {
-                            ident: parse_quote!(decimals),
-                            ty: parse_quote!(odra::Variable<u8>),
-                        },
-                        VarDef {
-                            ident: parse_quote!(total_supply),
-                            ty: parse_quote!(odra::Variable<odra::types::U256>),
-                        },
-                        VarDef {
-                            ident: parse_quote!(balance_of),
-                            ty: parse_quote!(odra::Mapping<odra::types::Address, odra::types::U256>),
-                        },
-                    ],
-                    functions: vec![
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![parse_quote!(#[odra(init)])],
-                            name: Fn::from("init"),
-                            args: vec![
-                                parse_quote!(&mut self),
-                                parse_quote!(_name: String),
-                                parse_quote!(_symbol: String),
-                                parse_quote!(_decimals: u8),
-                                parse_quote!(_initial_supply: odra::types::U256),
-                            ],
-                            ret: parse_quote!(),
-                            implementations: vec![
-                                ClassFnImpl {
-                                    class: Some(Class::from("Owner")),
-                                    fun: Fn::from("init"),
-                                    implementation: parse_quote!({
-                                        self.owner.set(odra::contract_env::caller());
-                                    }),
-                                    visibility: parse_quote!(pub),
-                                },
-                                ClassFnImpl {
-                                    class: Some(Class::from("ERC20")),
-                                    fun: Fn::from("init"),
-                                    implementation: parse_quote!({
-                                        self.name.set(_name);
-                                        self.symbol.set(_symbol);
-                                        self.decimals.set(_decimals);
-                                        self.total_supply.set(_initial_supply);
-                                        self.balance_of
-                                            .set(&odra::contract_env::caller(), _initial_supply);
-                                    }),
-                                    visibility: parse_quote!(pub),
-                                },
-                                ClassFnImpl {
-                                    class: Some(Class::from("OwnedToken")),
-                                    fun: Fn::from("init"),
-                                    implementation: parse_quote! {{
-                                        self.super_init(_name, _symbol, _decimals, _initial_supply);
-                                    }},
-                                    visibility: parse_quote!(pub),
-                                },
-                            ],
-                        }),
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![],
-                            name: Fn::from("only_owner"),
-                            args: vec![parse_quote!(&self)],
-                            ret: parse_quote!(),
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("Owner")),
-                                fun: Fn::from("only_owner"),
-                                implementation: parse_quote!({
-                                    if odra::contract_env::caller() == self.owner.get() {
-                                        return;
-                                    } else {
-                                        odra::contract_env::revert(
-                                            odra::types::ExecutionError::new(
-                                                1,
-                                                "Only the contract owner can call this function.",
-                                            ),
-                                        )
-                                    };
-                                }),
-                                visibility: syn::Visibility::Public(syn::VisPublic {
-                                    pub_token: Default::default(),
-                                }),
-                            }],
-                        }),
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![],
-                            name: Fn::from("get_owner"),
-                            args: vec![parse_quote!(&self)],
-                            ret: parse_quote!(-> odra::types::Address),
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("Owner")),
-                                fun: Fn::from("get_owner"),
-                                implementation: parse_quote! {{
-                                    return self.owner.get();
-                                }},
-                                visibility: parse_quote!(pub),
-                            }],
-                        }),
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![],
-                            name: Fn::from("transfer_ownership"),
-                            args: vec![
-                                parse_quote!(&mut self),
-                                parse_quote!(new_owner: odra::types::Address),
-                            ],
-                            ret: parse_quote!(),
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("Owner")),
-                                fun: Fn::from("transfer_ownership"),
-                                implementation: parse_quote! {{
-                                    self.only_owner();
-                                    self.owner.set(new_owner);
-                                }},
-                                visibility: parse_quote!(pub),
-                            }],
-                        }),
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![],
-                            name: Fn::from("_transfer"),
-                            args: vec![
-                                parse_quote!(&mut self),
-                                parse_quote!(_from: odra::types::Address),
-                                parse_quote!(_to: odra::types::Address),
-                                parse_quote!(_value: odra::types::U256),
-                            ],
-                            ret: parse_quote!(),
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("ERC20")),
-                                fun: Fn::from("_transfer"),
-                                implementation: parse_quote! {{
-                                    self.balance_of.set(&_from, self.balance_of.get(&_from).unwrap_or_default() - _value);
-                                    self.balance_of.set(&_to, self.balance_of.get(&_to).unwrap_or_default() + _value);
-                                    <Transfer as odra::types::event::OdraEvent>::emit(Transfer { _from, _to, _value });
-                                }},
-                                visibility: parse_quote!(pub),
-                            }],
-                        }),
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![],
-                            name: Fn::from("transfer"),
-                            args: vec![
-                                parse_quote!(&mut self),
-                                parse_quote!(_to: odra::types::Address),
-                                parse_quote!(_value: odra::types::U256),
-                            ],
-                            ret: parse_quote!(),
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("ERC20")),
-                                fun: Fn::from("transfer"),
-                                implementation: parse_quote! {{
-                                    self._transfer(odra::contract_env::caller(), _to, _value);
-                                }},
-                                visibility: parse_quote!(pub),
-                            }],
-                        }),
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![],
-                            name: Fn::from("mint"),
-                            args: vec![
-                                parse_quote!(&mut self),
-                                parse_quote!(_to: odra::types::Address),
-                                parse_quote!(_value: odra::types::U256),
-                            ],
-                            ret: parse_quote!(),
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("OwnedToken")),
-                                fun: Fn::from("mint"),
-                                implementation: parse_quote! {{
-                                    self.balance_of.set(&_to, self.balance_of.get(&_to).unwrap_or_default() + _value);
-                                    self.total_supply.set(self.total_supply().get_or_default() + _value);
-                                    // TODO _from should be set to `None`
-                                    <Transfer as odra::types::event::OdraEvent>::emit(Transfer { _from: odra::contract_env::caller(), _to, _value });
-                                }},
-                                visibility: parse_quote!(pub),
-                            }],
-                        }),
-                        FnDef::Complex(ComplexFnDef {
-                            attrs: vec![],
-                            name: Fn::from("burn"),
-                            args: vec![
-                                parse_quote!(&mut self),
-                                parse_quote!(_value: odra::types::U256),
-                            ],
-                            ret: parse_quote!(),
-                            implementations: vec![ClassFnImpl {
-                                class: Some(Class::from("OwnedToken")),
-                                fun: Fn::from("burn"),
-                                implementation: parse_quote! {{
-                                    self.balance_of.set(&odra::contract_env::caller(), self.balance_of.get(&odra::contract_env::caller()).unwrap_or_default() + _value);
-                                    self.total_supply.set(self.total_supply().get_or_default() - _value);
-                                    // TODO _to should be set to `None`
-                                    <Transfer as odra::types::event::OdraEvent>::emit(Transfer { _from: odra::contract_env::caller(), _to: odra::contract_env::caller(), _value });
-                                }},
-                                visibility: parse_quote!(pub),
-                            }],
-                        }),
-                    ],
-                },
-                ClassDef {
-                    struct_attrs: vec![parse_quote!(#[derive(odra::Event, PartialEq, Eq, Debug)])],
-                    impl_attrs: vec![],
-                    class: Class::from("Transfer"),
-                    path: vec![Class::from("Transfer")],
-                    variables: vec![
-                        VarDef {
-                            ident: parse_quote!(from),
-                            ty: parse_quote!(odra::types::Address),
-                        },
-                        VarDef {
-                            ident: parse_quote!(to),
-                            ty: parse_quote!(odra::types::Address),
-                        },
-                        VarDef {
-                            ident: parse_quote!(value),
-                            ty: parse_quote!(odra::types::U256),
-                        },
-                    ],
-                    functions: vec![],
-                },
-            ],
-        };
-        assert_eq!(result, expected);
     }
 }

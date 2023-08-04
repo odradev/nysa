@@ -19,8 +19,8 @@ fn parse_odra_type(ty: &pt::Type) -> syn::Type {
             let value = parse_plain_type_from_expr(value);
             parse_quote!(odra::Mapping<#key, #value>)
         }
-        pt::Type::Address => parse_quote!(odra::Variable<odra::types::Address>),
-        pt::Type::AddressPayable => parse_quote!(odra::Variable<odra::types::Address>),
+        pt::Type::Address => parse_quote!(odra::Variable<Option<odra::types::Address>>),
+        pt::Type::AddressPayable => parse_quote!(odra::Variable<Option<odra::types::Address>>),
         pt::Type::String => parse_quote!(odra::Variable<String>),
         pt::Type::Bool => parse_quote!(odra::Variable<bool>),
         pt::Type::Int(_) => parse_quote!(odra::Variable<i16>),
@@ -41,8 +41,8 @@ fn parse_odra_type(ty: &pt::Type) -> syn::Type {
 pub fn parse_plain_type_from_expr(expr: &pt::Expression) -> syn::Type {
     match expr {
         pt::Expression::Type(_, ty) => match ty {
-            pt::Type::Address => parse_quote!(odra::types::Address),
-            pt::Type::AddressPayable => parse_quote!(odra::types::Address),
+            pt::Type::Address => parse_quote!(Option<odra::types::Address>),
+            pt::Type::AddressPayable => parse_quote!(Option<odra::types::Address>),
             pt::Type::String => parse_quote!(String),
             pt::Type::Bool => parse_quote!(bool),
             pt::Type::Int(_) => parse_quote!(i16),

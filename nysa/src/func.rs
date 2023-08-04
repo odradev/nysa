@@ -1,4 +1,5 @@
-use c3_lang_parser::c3_ast::{ClassFnImpl, ComplexFnDef, FnDef};
+use c3_lang_parser::c3_ast::{ClassFnImpl, ComplexFnDef, FnDef, PlainFnDef};
+use proc_macro2::Ident;
 use solidity_parser::pt::{self, FunctionDefinition};
 use syn::{parse_quote, Attribute, FnArg};
 
@@ -12,12 +13,13 @@ pub fn functions_def(data: &ContractData) -> Vec<FnDef> {
 
     data.c3_fn_implementations()
         .iter()
-        .map(|(name, impls)| function_def(name, &names, impls, &storage_fields))
+        .map(|(name, impls)| function_def(data, name, &names, impls, &storage_fields))
         .collect()
 }
 
 /// Transforms solidity [VariableDefinition] into a c3 ast [VarDef].
 fn function_def(
+    data: &ContractData,
     name: &str,
     names: &[String],
     definitions: &[(String, &FunctionDefinition)],
@@ -26,13 +28,30 @@ fn function_def(
     let (class, top_lvl_func) = definitions
         .last()
         .expect("At least one implementation expected");
-    FnDef::Complex(ComplexFnDef {
-        attrs: attrs(&top_lvl_func),
-        name: name.into(),
-        args: args(top_lvl_func),
-        ret: parse_ret_type(top_lvl_func),
-        implementations: implementations(name, names, definitions, storage_fields),
-    })
+
+    if name == "init" {
+        FnDef::Plain(PlainFnDef {
+            attrs: attrs(&top_lvl_func),
+            name: name.into(),
+            args: args(top_lvl_func),
+            ret: parse_ret_type(top_lvl_func),
+            implementation: constructor_implementation(
+                data,
+                name,
+                names,
+                definitions,
+                storage_fields,
+            ),
+        })
+    } else {
+        FnDef::Complex(ComplexFnDef {
+            attrs: attrs(&top_lvl_func),
+            name: name.into(),
+            args: args(top_lvl_func),
+            ret: parse_ret_type(top_lvl_func),
+            implementations: implementations(data, name, names, definitions, storage_fields),
+        })
+    }
 }
 
 fn attrs(function: &FunctionDefinition) -> Vec<Attribute> {
@@ -53,6 +72,7 @@ fn args(function: &FunctionDefinition) -> Vec<FnArg> {
 }
 
 fn implementations(
+    data: &ContractData,
     name: &str,
     names: &[String],
     definitions: &[(String, &FunctionDefinition)],
@@ -60,14 +80,45 @@ fn implementations(
 ) -> Vec<ClassFnImpl> {
     let mut implementations = vec![];
     for (class_name, def) in definitions {
+        let class = class_name.as_str().into();
+
         implementations.push(ClassFnImpl {
-            class: Some(class_name.as_str().into()),
+            class: Some(class),
             fun: name.into(),
-            implementation: parse_body(&def, names, storage_fields),
+            implementation:  parse_body(&def, names, storage_fields),
             visibility: parse_quote!(pub),
         });
     }
     implementations
+}
+
+fn constructor_implementation(
+    data: &ContractData,
+    name: &str,
+    names: &[String],
+    definitions: &[(String, &FunctionDefinition)],
+    storage_fields: &[&pt::VariableDefinition],
+) -> ClassFnImpl {
+    let mut stmts = vec![];
+    for (class_name, def) in definitions {
+        stmts.extend(match &def.body {
+            Some(v) => match v {
+                pt::Statement::Block {
+                    loc,
+                    unchecked,
+                    statements,
+                } => parse_statements(statements, storage_fields),
+                _ => panic!("Invalid statement - pt::Statement::Block expected"),
+            },
+            None => vec![],
+        });
+    }
+    ClassFnImpl {
+        class: None,
+        fun: name.into(),
+        implementation: parse_quote!({ #(#stmts)* }),
+        visibility: parse_quote!(pub),
+    }
 }
 
 fn parse_body(
@@ -82,15 +133,12 @@ fn parse_body(
                 loc,
                 unchecked,
                 statements,
-            } => statements
-                .iter()
-                .map(|stmt| stmt::parse_statement(stmt, storage_fields))
-                .filter_map(|r| r.ok())
-                .collect::<Vec<_>>(),
+            } => parse_statements(statements, storage_fields),
             _ => panic!("Invalid statement - pt::Statement::Block expected"),
         },
         None => vec![],
     };
+
     // handle constructor of modifiers calls;
     // Eg `constructor(string memory _name) Named(_name) {}`
     // Eg `function mint(address _to, uint256 _amount) public onlyOwner {}`
@@ -101,7 +149,7 @@ fn parse_body(
             pt::FunctionAttribute::BaseOrModifier(_, base) => Some(base.clone()),
             _ => None,
         })
-        .map(|base| {
+        .filter_map(|base| {
             let base_name = base.name.name;
             let args = base
                 .args
@@ -110,10 +158,10 @@ fn parse_body(
             if names.contains(&utils::to_snake_case(&base_name)) {
                 // modifier call
                 let ident = utils::to_snake_case_ident(&base_name);
-                parse_quote!(self.#ident( #(#args),* );)
+                Some(parse_quote!(self.#ident( #(#args),* );))
             } else {
-                // super constructor call
-                parse_quote!(self.super_init( #(#args),* );)
+                // super constructor call but handled already
+                None
             }
         })
         .collect::<Vec<syn::Stmt>>();
@@ -121,6 +169,17 @@ fn parse_body(
         #(#extra_stmts)*
         #(#stmts)*
     })
+}
+
+fn parse_statements(
+    statements: &[pt::Statement],
+    storage_fields: &[&pt::VariableDefinition],
+) -> Vec<syn::Stmt> {
+    statements
+        .iter()
+        .map(|stmt| stmt::parse_statement(stmt, storage_fields))
+        .filter_map(|r| r.ok())
+        .collect::<Vec<_>>()
 }
 
 fn try_add_receiver_param(func: &FunctionDefinition, args: &mut Vec<FnArg>) {
@@ -160,12 +219,16 @@ fn parse_attrs_to_receiver_param(attrs: &[pt::FunctionAttribute]) -> Option<syn:
 
 fn parse_parameter(param: &pt::Parameter) -> syn::FnArg {
     let ty = parse_plain_type_from_expr(&param.ty);
-    let name = param
+    let name = parameter_to_ident(param);
+    parse_quote!( #name: #ty )
+}
+
+fn parameter_to_ident(param: &pt::Parameter) -> Ident {
+    param
         .name
         .as_ref()
         .map(|id| utils::to_snake_case_ident(&id.name))
-        .expect("A parameter must be named");
-    parse_quote!( #name: #ty )
+        .expect("A parameter must be named")
 }
 
 fn parse_attrs(attrs: &[pt::FunctionAttribute]) -> Vec<syn::Attribute> {

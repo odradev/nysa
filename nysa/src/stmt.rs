@@ -25,7 +25,9 @@ pub fn parse_statement(
         }
         pt::Statement::Return(_, expression) => {
             let ret = match expression.as_ref().unwrap() {
-                pt::Expression::Variable(id) => expr::parse_variable(id, None, storage_fields),
+                pt::Expression::Variable(id) => {
+                    expr::primitives::parse_variable(id, None, storage_fields)
+                }
                 expr => expr::parse(expr, storage_fields),
             }?;
             Ok(parse_quote!(return #ret;))

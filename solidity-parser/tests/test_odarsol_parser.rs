@@ -10,8 +10,5 @@ fn test_parser() {
     "#;
 
     let _result = solidity_parser::parse(input, 0).unwrap();
-
-    // dbg!(result);
-
     // assert!(false);
 }

@@ -7,12 +7,9 @@ pub fn c3_linearization(contracts: &[&ContractDefinition]) -> C3 {
     let mut c3 = C3::new();
     contracts.iter().for_each(|contract| {
         register_class(contract, &mut c3);
-        // register_fns(contract, &mut c3);
-        // register_vars(contract, &mut c3);
     });
     let mut c3 = c3_lang_linearization::c3_linearization(c3).expect("Linearization failed");
     contracts.iter().for_each(|contract| {
-        // register_class(contract, &mut c3);
         register_fns(contract, &mut c3);
         register_vars(contract, &mut c3);
     });
@@ -61,30 +58,6 @@ pub(crate) fn parse_func_id(def: &FunctionDefinition) -> Fn {
         pt::FunctionTy::Fallback => "__fallback".into(),
         pt::FunctionTy::Receive => "__receive".into(),
         pt::FunctionTy::Modifier => parse_unsafe(),
-    }
-}
-
-#[cfg(test)]
-mod t {
-    use crate::{linearization::c3_linearization, utils};
-
-    const SOLIDITY_CODE: &str = include_str!("../../example-owned-token/src/owned_token.sol");
-    // const SOLIDITY_CODE: &str = include_str!("../../resources/mana_token.sol");
-
-    #[test]
-    fn test_c3() {
-        let ast = crate::parse_to_solidity_ast(SOLIDITY_CODE);
-        let contracts = utils::extract_contracts(&ast);
-
-        let c3 = c3_linearization(&contracts);
-        dbg!(c3.all_classes_str());
-        for class in c3.all_classes_str() {
-            dbg!(&class);
-            dbg!(c3.varialbes_str(&class));
-            dbg!(c3.functions_str(&class));
-        }
-        // dbg!(c3);
-        assert!(false)
     }
 }
 
