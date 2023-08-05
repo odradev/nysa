@@ -1,7 +1,11 @@
 use syn::{parse_quote, BinOp};
 
-use super::{parse, values::{NysaExpression, StorageField}};
-use crate::{utils::to_snake_case_ident, var::IsField};
+use super::parse;
+use crate::{
+    model::{NysaExpression, StorageField},
+    utils::to_snake_case_ident,
+    var::IsField,
+};
 use quote::quote;
 
 pub fn read_variable_or_parse(
@@ -15,17 +19,17 @@ pub fn read_variable_or_parse(
 }
 
 /// Parses an assign expression (=, +=, -=, *=, /=).
-/// 
-/// In solidity there is left-hand and right-hand statement 
-/// Eg. 
+///
+/// In solidity there is left-hand and right-hand statement
+/// Eg.
 /// right         left
-/// 
+///
 /// totalSupply = balanceOf[msg.sender]
-/// 
+///
 /// In Odra, if we update Variable or Mapping, there is a single expression.
 /// Eg.
 /// self.total_supply.set(self.balance_of.get(odra::contract_env::caller())).
-/// 
+///
 /// To parse any kind of an assign statement we need to treat it a single statement
 /// and parse both sides at once.
 ///
@@ -59,8 +63,7 @@ pub fn assign(
         NysaExpression::ArraySubscript { array, key } => {
             let key_expr = key.clone().map(|boxed| boxed.clone());
             let value_expr = parse(right, storage_fields)?;
-            let current_value_expr =
-                parse_mapping(array, &key_expr, None, storage_fields)?;
+            let current_value_expr = parse_mapping(array, &key_expr, None, storage_fields)?;
             let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
             parse_mapping(array, &key_expr, Some(new_value), storage_fields)
         }
@@ -75,12 +78,12 @@ pub fn assign(
 }
 
 /// Parses a single value interactions.
-/// 
+///
 /// In solidity referring to a contract storage value and a local variable is the same.
 /// When interacting with an Odra value, we need to know more context:
 /// 1. If we use a module field or a local value
 /// 2. If we reading/writing a value
-/// 
+///
 /// # Arguments
 ///
 /// * `id` - A variable identifier.

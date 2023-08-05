@@ -1,10 +1,12 @@
 use quote::ToTokens;
 use syn::parse_quote;
 
-use crate::{ERRORS, ERROR_MAP};
+use crate::{
+    model::{NysaExpression, StorageField},
+    ERRORS, ERROR_MAP,
+};
 
-use super::{values::{NysaExpression, StorageField}, parse};
-
+use super::parse;
 
 pub fn revert(
     condition: &NysaExpression,

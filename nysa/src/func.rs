@@ -3,11 +3,20 @@ use proc_macro2::Ident;
 use solidity_parser::pt::{self, FunctionDefinition};
 use syn::{parse_quote, Attribute, FnArg};
 
-use crate::{expr::{self, values::{StorageField, to_nysa_expr}}, model::ContractData, stmt, ty::parse_plain_type_from_expr, utils};
+use crate::{
+    expr,
+    model::{to_nysa_expr, ContractData, StorageField},
+    stmt,
+    ty::parse_plain_type_from_expr,
+    utils,
+};
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
 pub fn functions_def(data: &ContractData) -> Vec<FnDef> {
-    let storage_fields = data.c3_vars();
+    let storage_fields = data.c3_vars()
+        .iter()
+        .map(From::from)
+        .collect::<Vec<StorageField>>();
 
     let names = data.c3_fn_names();
 
@@ -17,13 +26,13 @@ pub fn functions_def(data: &ContractData) -> Vec<FnDef> {
         .collect()
 }
 
-/// Transforms solidity [VariableDefinition] into a c3 ast [VarDef].
+/// Transforms solidity [StorageField] into a c3 ast [VarDef].
 fn function_def(
     data: &ContractData,
     name: &str,
     names: &[String],
     definitions: &[(String, &FunctionDefinition)],
-    storage_fields: &[&pt::VariableDefinition],
+    storage_fields: &[StorageField],
 ) -> FnDef {
     let (class, top_lvl_func) = definitions
         .last()
@@ -76,7 +85,7 @@ fn implementations(
     name: &str,
     names: &[String],
     definitions: &[(String, &FunctionDefinition)],
-    storage_fields: &[&pt::VariableDefinition],
+    storage_fields: &[StorageField],
 ) -> Vec<ClassFnImpl> {
     let mut implementations = vec![];
     for (class_name, def) in definitions {
@@ -85,7 +94,7 @@ fn implementations(
         implementations.push(ClassFnImpl {
             class: Some(class),
             fun: name.into(),
-            implementation:  parse_body(&def, names, storage_fields),
+            implementation: parse_body(&def, names, storage_fields),
             visibility: parse_quote!(pub),
         });
     }
@@ -97,9 +106,8 @@ fn constructor_implementation(
     name: &str,
     names: &[String],
     definitions: &[(String, &FunctionDefinition)],
-    storage_fields: &[&pt::VariableDefinition],
+    storage_fields: &[StorageField],
 ) -> ClassFnImpl {
-    let storage_fields  = storage_fields.iter().map(From::from).collect::<Vec<StorageField>>();
     let mut stmts = vec![];
     for (class_name, def) in definitions {
         stmts.extend(match &def.body {
@@ -125,10 +133,9 @@ fn constructor_implementation(
 fn parse_body(
     definition: &FunctionDefinition,
     names: &[String],
-    storage_fields: &[&pt::VariableDefinition],
+    storage_fields: &[StorageField],
 ) -> syn::Block {
     // parse solidity function body
-    let storage_fields  = storage_fields.iter().map(From::from).collect::<Vec<StorageField>>();
     let stmts: Vec<syn::Stmt> = match &definition.body {
         Some(v) => match v {
             pt::Statement::Block {
@@ -155,7 +162,9 @@ fn parse_body(
             let base_name = base.name.name;
             let args = base
                 .args
-                .map(|args| expr::parse_many(&to_nysa_expr(args), &storage_fields).unwrap_or(vec![]))
+                .map(|args| {
+                    expr::parse_many(&to_nysa_expr(args), &storage_fields).unwrap_or(vec![])
+                })
                 .unwrap_or_default();
             if names.contains(&utils::to_snake_case(&base_name)) {
                 // modifier call
@@ -179,7 +188,8 @@ fn parse_statements(
 ) -> Vec<syn::Stmt> {
     statements
         .iter()
-        .map(|stmt| stmt::parse_statement(stmt, storage_fields))
+        .map(From::from)
+        .map(|stmt| stmt::parse_statement(&stmt, storage_fields))
         .filter_map(|r| r.ok())
         .collect::<Vec<_>>()
 }

@@ -123,7 +123,9 @@ fn other_code() -> Vec<Item> {
 #[cfg(test)]
 mod tests {
     use c3_lang_linearization::{Class, Fn};
-    use c3_lang_parser::c3_ast::{ClassFnImpl, ClassNameDef, ComplexFnDef, FnDef, VarDef, PlainFnDef};
+    use c3_lang_parser::c3_ast::{
+        ClassFnImpl, ClassNameDef, ComplexFnDef, FnDef, PlainFnDef, VarDef,
+    };
     use pretty_assertions::assert_eq;
     use quote::ToTokens;
     use syn::parse_quote;
@@ -222,12 +224,14 @@ mod tests {
                                 class: Some(Class::from("Owner")),
                                 fun: Fn::from("only_owner"),
                                 implementation: parse_quote!({
-                                    if !(Some(odra::contract_env::caller()) == odra::UnwrapOrRevert::unwrap_or_revert(self.owner.get())) {
+                                    if !(Some(odra::contract_env::caller())
+                                        == odra::UnwrapOrRevert::unwrap_or_revert(self.owner.get()))
+                                    {
                                         odra::contract_env::revert(
                                             odra::types::ExecutionError::new(
                                                 1u16,
-                                                "Only the contract owner can call this function."
-                                            )
+                                                "Only the contract owner can call this function.",
+                                            ),
                                         )
                                     };
                                 }),
