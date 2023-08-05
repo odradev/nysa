@@ -3,7 +3,7 @@ use proc_macro2::Ident;
 use solidity_parser::pt::{self, FunctionDefinition};
 use syn::{parse_quote, Attribute, FnArg};
 
-use crate::{expr, model::ContractData, stmt, ty::parse_plain_type_from_expr, utils};
+use crate::{expr::{self, values::{StorageField, to_nysa_expr}}, model::ContractData, stmt, ty::parse_plain_type_from_expr, utils};
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
 pub fn functions_def(data: &ContractData) -> Vec<FnDef> {
@@ -99,6 +99,7 @@ fn constructor_implementation(
     definitions: &[(String, &FunctionDefinition)],
     storage_fields: &[&pt::VariableDefinition],
 ) -> ClassFnImpl {
+    let storage_fields  = storage_fields.iter().map(From::from).collect::<Vec<StorageField>>();
     let mut stmts = vec![];
     for (class_name, def) in definitions {
         stmts.extend(match &def.body {
@@ -107,7 +108,7 @@ fn constructor_implementation(
                     loc,
                     unchecked,
                     statements,
-                } => parse_statements(statements, storage_fields),
+                } => parse_statements(statements, &storage_fields),
                 _ => panic!("Invalid statement - pt::Statement::Block expected"),
             },
             None => vec![],
@@ -127,13 +128,14 @@ fn parse_body(
     storage_fields: &[&pt::VariableDefinition],
 ) -> syn::Block {
     // parse solidity function body
+    let storage_fields  = storage_fields.iter().map(From::from).collect::<Vec<StorageField>>();
     let stmts: Vec<syn::Stmt> = match &definition.body {
         Some(v) => match v {
             pt::Statement::Block {
                 loc,
                 unchecked,
                 statements,
-            } => parse_statements(statements, storage_fields),
+            } => parse_statements(statements, &storage_fields),
             _ => panic!("Invalid statement - pt::Statement::Block expected"),
         },
         None => vec![],
@@ -153,7 +155,7 @@ fn parse_body(
             let base_name = base.name.name;
             let args = base
                 .args
-                .map(|args| expr::parse_many(&args, storage_fields).unwrap_or(vec![]))
+                .map(|args| expr::parse_many(&to_nysa_expr(args), &storage_fields).unwrap_or(vec![]))
                 .unwrap_or_default();
             if names.contains(&utils::to_snake_case(&base_name)) {
                 // modifier call
@@ -173,7 +175,7 @@ fn parse_body(
 
 fn parse_statements(
     statements: &[pt::Statement],
-    storage_fields: &[&pt::VariableDefinition],
+    storage_fields: &[StorageField],
 ) -> Vec<syn::Stmt> {
     statements
         .iter()

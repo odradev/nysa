@@ -1,37 +1,31 @@
 use quote::ToTokens;
-use solidity_parser::pt;
 use syn::parse_quote;
 
 use crate::{ERRORS, ERROR_MAP};
 
-use super::parse;
+use super::{values::{NysaExpression, StorageField}, parse};
+
 
 pub fn revert(
-    condition: &pt::Expression,
-    error: &pt::Expression,
-    storage_fields: &[&pt::VariableDefinition],
+    condition: &NysaExpression,
+    error: &NysaExpression,
+    storage_fields: &[StorageField],
 ) -> Result<syn::Expr, &'static str> {
     let mut error_map = ERROR_MAP.lock().unwrap();
     let mut errors = ERRORS.lock().unwrap();
 
-    if let pt::Expression::StringLiteral(strings) = error {
-        let strings = strings
-            .iter()
-            .map(|lit| lit.string.clone())
-            .collect::<Vec<_>>();
-        let error_message = strings.join(",");
-
-        let error_num = if let Some(value) = error_map.get(&error_message) {
+    if let NysaExpression::StringLiteral(message) = error {
+        let error_num = if let Some(value) = error_map.get(message) {
             value.to_token_stream()
         } else {
-            error_map.insert(error_message.clone(), *errors + 1);
+            error_map.insert(message.clone(), *errors + 1);
             *errors += 1;
             errors.to_token_stream()
         };
         let condition = parse(condition, storage_fields)?;
 
         return Ok(
-            parse_quote!(if !(#condition) { odra::contract_env::revert(odra::types::ExecutionError::new(#error_num, #error_message)) }),
+            parse_quote!(if !(#condition) { odra::contract_env::revert(odra::types::ExecutionError::new(#error_num, #message)) }),
         );
     } else {
         Err("Error should be pt::Expression::StringLiteral")

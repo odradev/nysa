@@ -1,7 +1,7 @@
 use c3_lang_parser::c3_ast::VarDef;
 use solidity_parser::pt::{Identifier, VariableDefinition};
 
-use crate::{model::ContractData, ty, utils::to_snake_case_ident};
+use crate::{model::ContractData, ty, utils::to_snake_case_ident, expr::values::StorageField};
 
 /// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
 pub fn variables_def(data: &ContractData) -> Vec<VarDef> {
@@ -16,16 +16,28 @@ fn variable_def(v: &VariableDefinition) -> VarDef {
 }
 
 pub trait IsField {
-    fn is_field(&self, fields: &[&VariableDefinition]) -> bool;
+    fn is_field(&self, fields: &[StorageField]) -> bool;
 }
 
-impl IsField for &Identifier {
-    fn is_field(&self, fields: &[&VariableDefinition]) -> bool {
+// impl IsField for &Identifier {
+//     fn is_field(&self, fields: &[StorageField]) -> bool {
+//         let fields = fields
+//             .iter()
+//             .map(|f| f.name.clone())
+//             .collect::<Vec<_>>();
+//         let result = fields.contains(&self.name);
+//         result
+//     }
+// }
+
+
+impl <T: AsRef<str>> IsField for T {
+    fn is_field(&self, fields: &[StorageField]) -> bool {
         let fields = fields
             .iter()
-            .map(|f| f.name.name.clone())
+            .map(|f| f.name.clone())
             .collect::<Vec<_>>();
-        let result = fields.contains(&self.name);
+        let result = fields.contains(&self.as_ref().to_string());
         result
     }
 }
