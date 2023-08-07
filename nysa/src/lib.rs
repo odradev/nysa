@@ -4,7 +4,7 @@ use c3_lang_linearization::C3;
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use model::ContractData;
 use solidity_parser::pt::{ContractDefinition, SourceUnitPart};
-use syn::{parse_quote, Item, Attribute};
+use syn::{parse_quote, Attribute, Item};
 use utils::classes;
 
 #[cfg(feature = "builder")]

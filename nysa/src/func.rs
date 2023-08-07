@@ -11,9 +11,12 @@ use crate::{
     utils,
 };
 
+const CONSTRUCTOR_NAME: &str = "init";
+
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
 pub fn functions_def(data: &ContractData) -> Vec<FnDef> {
-    let storage_fields = data.c3_vars()
+    let storage_fields = data
+        .c3_vars()
         .iter()
         .map(From::from)
         .collect::<Vec<StorageField>>();
@@ -38,7 +41,7 @@ fn function_def(
         .last()
         .expect("At least one implementation expected");
 
-    if name == "init" {
+    if name == CONSTRUCTOR_NAME {
         FnDef::Plain(PlainFnDef {
             attrs: attrs(&top_lvl_func),
             name: name.into(),
@@ -91,11 +94,20 @@ fn implementations(
     for (class_name, def) in definitions {
         let class = class_name.as_str().into();
 
+        let vis = def
+            .attributes
+            .iter()
+            .filter_map(|a| match a {
+                pt::FunctionAttribute::Visibility(v) => Some(v),
+                _ => None,
+            })
+            .last();
+
         implementations.push(ClassFnImpl {
             class: Some(class),
             fun: name.into(),
             implementation: parse_body(&def, names, storage_fields),
-            visibility: parse_quote!(pub),
+            visibility: parse_visibility(vis),
         });
     }
     implementations
@@ -283,5 +295,17 @@ fn parse_mutability(mutability: &pt::Mutability) -> Option<syn::Attribute> {
         pt::Mutability::View(_) => None,
         pt::Mutability::Constant(_) => None,
         pt::Mutability::Payable(_) => Some(parse_quote!(#[odra(payable)])),
+    }
+}
+
+fn parse_visibility(vis: Option<&pt::Visibility>) -> syn::Visibility {
+    // Internal is the default modifier
+    match vis.unwrap_or(&pt::Visibility::Internal(None)) {
+        // Not exactly the same meaning, but if in the context of a single contract,
+        // we can allow such simplification
+        pt::Visibility::External(_) => parse_quote!(pub),
+        pt::Visibility::Public(_) => parse_quote!(pub),
+        pt::Visibility::Internal(_) => parse_quote!(),
+        pt::Visibility::Private(_) => parse_quote!(),
     }
 }
