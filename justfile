@@ -3,28 +3,18 @@ lint:
     cargo fmt
 
 test-status-contract-solidity:
-    cd example-status && cargo gen-casper-solidity
-    cd example-status && cargo wasm-solidity
-    wasm-strip example-status/target/wasm32-unknown-unknown/release/status_message.wasm
-    cd example-status && cargo test-solidity
+    rm -f examples/status-message/nysa/src/status_message.rs
+    cd examples/status-message/nysa && cargo odra test -b casper
 
 test-status-contract-odra:
-    cd example-status && cargo gen-casper-odra
-    cd example-status && cargo wasm-odra
-    wasm-strip example-status/target/wasm32-unknown-unknown/release/status_message.wasm
-    cd example-status && cargo test-odra
+    cd examples/status-message/native-odra && cargo odra test -b casper
 
 test-token-contract-solidity:
-    cd example-owned-token && cargo gen-casper-solidity
-    cd example-owned-token && cargo wasm-solidity
-    wasm-strip example-owned-token/target/wasm32-unknown-unknown/release/owned_token.wasm
-    cd example-owned-token && cargo test-odra
+    rm -f examples/owned-token/nysa/src/owned_token.rs
+    cd examples/owned-token/nysa && cargo odra test -b casper
 
 test-token-contract-odra:
-    cd example-owned-token && cargo gen-casper-odra
-    cd example-owned-token && cargo wasm-odra
-    wasm-strip example-owned-token/target/wasm32-unknown-unknown/release/owned_token.wasm
-    cd example-owned-token && cargo test-odra
+    cd examples/owned-token/native-odra && cargo odra test -b casper
 
 test-examples:
     just test-status-contract-solidity

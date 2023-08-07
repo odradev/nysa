@@ -1,4 +1,4 @@
-const DEST_FILE_PATH: &str = "src/status_message_sol.rs";
+const DEST_FILE_PATH: &str = "src/status_message.rs";
 const SOURCE_FILE_PATH: &str = "src/status_message.sol";
 
 fn main() {

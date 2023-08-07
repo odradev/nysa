@@ -1,7 +1,0 @@
-[alias]
-gen-casper-solidity = "run --bin casper_gen --release --no-default-features --features solidity,casper"
-gen-casper-odra = "run --bin casper_gen --release --no-default-features --features native-odra,casper"
-wasm-solidity = "build --bin status_message --release --target wasm32-unknown-unknown --no-default-features --features solidity,casper"
-wasm-odra = "build --bin status_message --release --target wasm32-unknown-unknown --no-default-features --features native-odra,casper"
-test-solidity = "test --no-default-features --features solidity,casper"
-test-odra = "test --no-default-features --features native-odra,casper"

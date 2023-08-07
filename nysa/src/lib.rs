@@ -4,7 +4,7 @@ use c3_lang_linearization::C3;
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use model::ContractData;
 use solidity_parser::pt::{ContractDefinition, SourceUnitPart};
-use syn::{parse_quote, Item};
+use syn::{parse_quote, Item, Attribute};
 use utils::classes;
 
 #[cfg(feature = "builder")]
@@ -37,12 +37,14 @@ pub fn parse(input: String) -> PackageDef {
 
     let contract_data = ContractData::new(top_level_contract, base_contracts, c3);
 
+    let attrs = attrs();
     let other_code = other_code();
     let class_name = contract_data.c3_class_name_def();
     let mut classes = vec![];
     classes.extend(event::events_def(&solidity_ast));
     classes.push(contract_def(&contract_data));
     PackageDef {
+        attrs,
         other_code,
         class_name,
         classes,
@@ -84,6 +86,10 @@ fn contract_def(data: &ContractData) -> ClassDef {
         variables,
         functions,
     }
+}
+
+fn attrs() -> Vec<Attribute> {
+    vec![parse_quote!(#![allow(unused_braces, non_snake_case)])]
 }
 
 /// Generates code that is not a direct derivative of Solidity code.
@@ -160,7 +166,7 @@ mod tests {
     #[test]
     fn test_parser() {
         let result: PackageDef = parse(String::from(include_str!(
-            "../../example-owned-token/src/owned_token.sol"
+            "../../examples/owned-token/nysa/src/owned_token.sol"
         )));
         dbg!(result.to_token_stream().to_string());
         assert!(true);
@@ -173,6 +179,7 @@ mod tests {
         assert_eq!(
             result,
             PackageDef {
+                attrs: attrs(),
                 other_code: other_code(),
                 class_name: ClassNameDef {
                     classes: vec![Class::from("Owner")],

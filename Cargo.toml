@@ -5,7 +5,12 @@ members = [
     "solidity-parser"
 ]
 
-exclude = [ "example-status", "example-fibonacci", "example-owned-token" ]
+exclude = [ 
+    "examples/owned-token/native-odra", 
+    "examples/owned-token/nysa", 
+    "examples/status-message/native-odra", 
+    "examples/status-message/nysa", 
+]
 
 [profile.release]
 codegen-units = 1

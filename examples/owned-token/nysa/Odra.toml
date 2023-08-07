@@ -1,0 +1,3 @@
+[[contracts]]
+name = "owned_token"
+fqn = "nysa_owned_token::OwnedToken"
