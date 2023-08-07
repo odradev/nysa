@@ -1,4 +1,4 @@
-./builder_casper
+/.builder_casper
 /resources
 /target
-wasm
+/wasm
