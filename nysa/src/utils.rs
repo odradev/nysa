@@ -19,6 +19,28 @@ pub fn to_snake_case(input: &str) -> String {
     }
 }
 
+pub(crate) fn parse_to_solidity_ast(input: &str) -> Vec<SourceUnitPart> {
+    let solidity_ast = solidity_parser::parse(&input, 0).unwrap();
+    let solidity_ast: Vec<SourceUnitPart> = solidity_ast.0 .0;
+    solidity_ast
+}
+
+pub(crate) fn get_base_contracts<'a>(
+    top_lvl_contract: &'a ContractDefinition,
+    contracts: Vec<&'a ContractDefinition>,
+    c3: &C3,
+) -> Vec<&'a ContractDefinition> {
+    let classes = classes(top_lvl_contract, c3)
+        .iter()
+        .map(|id| id.to_string())
+        .collect::<Vec<_>>();
+    contracts
+        .iter()
+        .filter(|c| classes.contains(&c.name.name))
+        .map(|c| *c)
+        .collect::<Vec<_>>()
+}
+
 /// Filters [ContractDefinition] from solidity ast.
 pub(crate) fn extract_contracts<'a>(ast: &[SourceUnitPart]) -> Vec<&ContractDefinition> {
     ast.iter()

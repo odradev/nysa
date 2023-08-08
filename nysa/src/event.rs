@@ -3,15 +3,16 @@ use std::vec;
 use c3_lang_linearization::Class;
 use c3_lang_parser::c3_ast::{ClassDef, ClassFnImpl, FnDef, PlainFnDef, VarDef};
 use quote::quote;
-use solidity_parser::pt::{EventDefinition, SourceUnitPart};
+use solidity_parser::pt::EventDefinition;
 use syn::parse_quote;
 
-use crate::{ty, utils};
+use crate::{ty, utils, model::ContractData};
 
-pub(crate) fn events_def(ast: &[SourceUnitPart]) -> Vec<ClassDef> {
-    let events = utils::extract_events(ast);
-
-    events.iter().map(|ev| event_def(ev)).collect::<Vec<_>>()
+pub(crate) fn events_def(data: &ContractData) -> Vec<ClassDef> {
+    data.c3_events()
+        .iter()
+        .map(|ev| event_def(ev))
+        .collect::<Vec<_>>()
 }
 
 fn event_def(ev: &EventDefinition) -> ClassDef {

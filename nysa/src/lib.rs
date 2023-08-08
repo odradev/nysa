@@ -1,11 +1,9 @@
 #![allow(unused_variables)]
 
-use c3_lang_linearization::C3;
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use model::ContractData;
-use solidity_parser::pt::{ContractDefinition, SourceUnitPart};
+use quote::format_ident;
 use syn::{parse_quote, Attribute, Item};
-use utils::classes;
 
 #[cfg(feature = "builder")]
 pub mod builder;
@@ -28,58 +26,38 @@ lazy_static::lazy_static! {
 
 /// Parses solidity code into a C3 linearized, near compatible ast
 pub fn parse(input: String) -> PackageDef {
-    let solidity_ast = parse_to_solidity_ast(&input);
-    let contracts: Vec<&ContractDefinition> = utils::extract_contracts(&solidity_ast);
-    let top_level_contract = contracts.last().expect("Contract not found");
-
-    let c3 = linearization::c3_linearization(&contracts);
-    let base_contracts = get_base_contracts(top_level_contract, &contracts, &c3);
-
-    let contract_data = ContractData::new(top_level_contract, base_contracts, c3);
-
-    let attrs = attrs();
-    let other_code = other_code();
+    let solidity_ast = utils::parse_to_solidity_ast(&input);
+    
+    
+    let contract_data = ContractData::new(&solidity_ast);
+    
+    let events = event::events_def(&contract_data);
     let class_name = contract_data.c3_class_name_def();
+    
     let mut classes = vec![];
-    classes.extend(event::events_def(&solidity_ast));
+    classes.extend(events);
     classes.push(contract_def(&contract_data));
     PackageDef {
-        attrs,
-        other_code,
+        attrs: attrs(),
+        other_code: other_code(),
         class_name,
         classes,
     }
-}
-
-pub(crate) fn parse_to_solidity_ast(input: &str) -> Vec<SourceUnitPart> {
-    let solidity_ast = solidity_parser::parse(&input, 0).unwrap();
-    let solidity_ast: Vec<SourceUnitPart> = solidity_ast.0 .0;
-    solidity_ast
-}
-
-fn get_base_contracts<'a>(
-    top_lvl_contract: &'a ContractDefinition,
-    contracts: &'a [&ContractDefinition],
-    c3: &C3,
-) -> Vec<&'a ContractDefinition> {
-    let classes = classes(top_lvl_contract, c3)
-        .iter()
-        .map(|id| id.to_string())
-        .collect::<Vec<_>>();
-    contracts
-        .iter()
-        .filter(|c| classes.contains(&c.name.name))
-        .map(|c| *c)
-        .collect::<Vec<_>>()
 }
 
 /// Builds a c3 contract class definition
 fn contract_def(data: &ContractData) -> ClassDef {
     let variables = var::variables_def(data);
     let functions = func::functions_def(data);
+    
+    let events = data.c3_events_str().iter().map(|ev| format_ident!("{}", ev)).collect::<Vec<_>>();
+    let struct_attrs = match events.len() {
+        0 => vec![parse_quote!(#[odra::module])],
+        _ => vec![parse_quote!(#[odra::module(events = [ #(#events),* ])])]
+    };
 
     ClassDef {
-        struct_attrs: vec![parse_quote!(#[odra::module])],
+        struct_attrs,
         impl_attrs: vec![parse_quote!(#[odra::module])],
         class: data.c3_class(),
         path: data.c3_path(),

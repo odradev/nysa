@@ -21,7 +21,7 @@ pub fn functions_def(data: &ContractData) -> Vec<FnDef> {
         .map(From::from)
         .collect::<Vec<StorageField>>();
 
-    let names = data.c3_fn_names();
+    let names = data.c3_functions_str();
 
     data.c3_fn_implementations()
         .iter()
