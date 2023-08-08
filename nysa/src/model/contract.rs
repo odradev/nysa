@@ -1,6 +1,8 @@
+use std::error::Error;
+
 use c3_lang_linearization::{Class, Fn, C3};
 use c3_lang_parser::c3_ast::ClassNameDef;
-use solidity_parser::pt::{ContractDefinition, FunctionDefinition, VariableDefinition, SourceUnitPart, EventDefinition};
+use solidity_parser::pt::{ContractDefinition, FunctionDefinition, VariableDefinition, SourceUnitPart, EventDefinition, ErrorDefinition};
 
 use crate::{linearization::{parse_func_id, self}, utils};
 
@@ -9,6 +11,7 @@ pub struct ContractData<'a> {
     contract: &'a ContractDefinition,
     base_contracts: Vec<&'a ContractDefinition>,
     events: Vec<&'a EventDefinition>,
+    errors: Vec<&'a ErrorDefinition>,
     c3: C3,
 }
 
@@ -20,6 +23,7 @@ impl<'a> ContractData<'a> {
         let contract = contracts.last().expect("Contract not found").to_owned();
 
         let events = utils::extract_events(solidity_ast);
+        let errors = utils::extract_errors(solidity_ast);
 
         let c3 = linearization::c3_linearization(&contracts);
         let base_contracts = utils::get_base_contracts(contract, contracts, &c3);
@@ -27,6 +31,7 @@ impl<'a> ContractData<'a> {
             contract,
             base_contracts,
             events,
+            errors,
             c3,
         }
     }
@@ -85,6 +90,10 @@ impl<'a> ContractData<'a> {
 
     pub fn c3_events(&self) -> &[&EventDefinition] {
         &self.events
+    }
+
+    pub fn c3_errors(&self) -> &[&ErrorDefinition] {
+        &self.errors
     }
 
     pub fn c3_events_str(&self) -> Vec<String> {

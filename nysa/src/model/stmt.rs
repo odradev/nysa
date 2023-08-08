@@ -33,6 +33,8 @@ pub enum NysaStmt {
     Emit {
         expr: NysaExpression,
     },
+    RevertWithError { error: String },
+    Revert { msg: Option<NysaExpression> },
     Unknown,
 }
 
@@ -82,7 +84,17 @@ impl From<&pt::Statement> for NysaStmt {
                 Some(expr) => Self::Return { expr: expr.into() },
                 None => Self::ReturnVoid,
             },
-            pt::Statement::Revert(_, _, _) => Self::Unknown,
+            pt::Statement::Revert(_, error_id, err) => {
+                if let Some(id) = error_id {
+                    Self::RevertWithError { error: id.name.to_owned() }
+                } else {
+                    if err.is_empty() {
+                        Self::Revert { msg: None }
+                    } else {
+                        Self::Revert { msg: err.first().map(|e| e.into()) }
+                    }
+                }
+            },
             pt::Statement::Emit(_, expr) => Self::Emit { expr: expr.into() },
             pt::Statement::Try(_, _, _, _) => Self::Unknown,
             pt::Statement::DocComment(_, _, _) => Self::Unknown,

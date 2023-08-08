@@ -3,7 +3,7 @@ use convert_case::{Case, Casing};
 use quote::format_ident;
 use solidity_parser::pt::{
     ContractDefinition, ContractPart, EventDefinition, FunctionDefinition, SourceUnitPart,
-    VariableDefinition,
+    VariableDefinition, ErrorDefinition,
 };
 
 pub fn to_snake_case_ident(name: &str) -> proc_macro2::Ident {
@@ -70,24 +70,40 @@ pub(crate) fn extract_vars(contract: &ContractDefinition) -> Vec<&VariableDefini
 /// Iterates over [SourceUnitPart]s and collects all [EventDefinition]s. An [EventDefinition] may be
 /// at the top level or inside a [ContractDefinition].
 pub(crate) fn extract_events(ast: &[SourceUnitPart]) -> Vec<&EventDefinition> {
-    ast.iter()
-        .filter_map(|unit| match unit {
+    filter_source_unit_part(ast, |unit| {
+        match unit {
             SourceUnitPart::ContractDefinition(contract) => {
-                let events = contract
-                    .parts
-                    .iter()
-                    .filter_map(|part| match part {
+                let events = filter_source_part(contract, |part| {
+                    match part {
                         ContractPart::EventDefinition(ev) => Some(ev.as_ref()),
                         _ => None,
-                    })
-                    .collect::<Vec<_>>();
+                    }
+                });
                 Some(events)
             }
             SourceUnitPart::EventDefinition(ev) => Some(vec![ev.as_ref()]),
             _ => None,
-        })
-        .flatten()
-        .collect::<Vec<_>>()
+        }
+    })
+}
+
+
+pub(crate) fn extract_errors(ast: &[SourceUnitPart]) -> Vec<&ErrorDefinition> {
+    filter_source_unit_part(ast, |unit| {
+        match unit {
+            SourceUnitPart::ContractDefinition(contract) => {
+                let errors = filter_source_part(contract, |part| {
+                    match part {
+                        ContractPart::ErrorDefinition(err) => Some(err.as_ref()),
+                        _ => None,
+                    }
+                });
+                Some(errors)
+            }
+            SourceUnitPart::ErrorDefinition(err) => Some(vec![err.as_ref()]),
+            _ => None,
+        }
+    })
 }
 
 /// Extracts contract name with inherited contracts and wraps with c3 ast abstraction.
@@ -101,6 +117,16 @@ where
     F: Fn(&'a ContractPart) -> Option<V>,
 {
     contract.parts.iter().filter_map(f).collect::<Vec<_>>()
+}
+
+fn filter_source_unit_part<'a, F, V>(ast: &'a [SourceUnitPart], f: F) -> Vec<V>
+where
+    F: Fn(&'a SourceUnitPart) -> Option<Vec<V>>,
+{
+    ast.iter()
+        .filter_map(f)
+        .flatten()
+        .collect::<Vec<_>>()
 }
 
 #[cfg(test)]

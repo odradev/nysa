@@ -6,7 +6,7 @@ use crate::model::NysaExpression;
 use crate::model::StorageField;
 use crate::{utils::to_snake_case_ident, var::IsField};
 
-mod error;
+pub mod error;
 pub mod primitives;
 
 pub fn parse(
@@ -15,7 +15,7 @@ pub fn parse(
 ) -> Result<syn::Expr, &'static str> {
     match expression {
         NysaExpression::Require { condition, error } => {
-            error::revert(condition, error, storage_fields)
+            error::revert(Some(condition), error, storage_fields)
         }
         NysaExpression::Wildcard => Err("Empty identifier"),
         NysaExpression::ZeroAddress => Ok(parse_quote!(None)),
