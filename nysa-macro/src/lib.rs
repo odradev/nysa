@@ -1,5 +1,6 @@
 use std::{fs::File, io::Read};
 
+use nysa::OdraParser;
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::parse::{Parse, ParseStream, Result};
@@ -45,7 +46,7 @@ pub fn nysa_file(input: TokenStream) -> TokenStream {
 }
 
 fn to_odra(solidity_code: String) -> TokenStream {
-    let c3_ast = nysa::parse(solidity_code);
+    let c3_ast = nysa::parse::<OdraParser>(solidity_code);
     c3_ast.to_token_stream().into()
 }
 

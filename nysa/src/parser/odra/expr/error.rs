@@ -2,8 +2,8 @@ use quote::{format_ident, ToTokens};
 use syn::parse_quote;
 
 use crate::{
-    model::{NysaExpression, StorageField},
-    ERRORS, ERROR_MAP,
+    model::{ir::NysaVar, NysaExpression},
+    parser::odra::{ERRORS, ERROR_MAP},
 };
 
 use super::parse;
@@ -11,19 +11,19 @@ use super::parse;
 pub fn revert(
     condition: Option<&NysaExpression>,
     error: &NysaExpression,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     if let NysaExpression::StringLiteral(message) = error {
         revert_with_str(condition, message, storage_fields)
     } else {
-        Err("Error should be pt::Expression::StringLiteral")
+        Err("Error should be NysaExpression::StringLiteral")
     }
 }
 
 pub fn revert_with_str(
     condition: Option<&NysaExpression>,
     message: &str,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     let mut error_map = ERROR_MAP.lock().unwrap();
     let mut errors = ERRORS.lock().unwrap();

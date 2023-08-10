@@ -3,28 +3,31 @@ use std::vec;
 use c3_lang_linearization::Class;
 use c3_lang_parser::c3_ast::{ClassDef, ClassFnImpl, FnDef, PlainFnDef, VarDef};
 use quote::quote;
-use solidity_parser::pt::EventDefinition;
 use syn::parse_quote;
 
-use crate::{model::ContractData, ty, utils};
+use crate::{
+    model::{ir::NysaEvent, ContractData},
+    utils,
+};
+
+use super::ty;
 
 pub(crate) fn events_def(data: &ContractData) -> Vec<ClassDef> {
-    data.c3_events()
+    data.events()
         .iter()
         .map(|ev| event_def(ev))
         .collect::<Vec<_>>()
 }
 
-fn event_def(ev: &EventDefinition) -> ClassDef {
-    let class: Class = ev.name.name.clone().into();
+fn event_def(ev: &NysaEvent) -> ClassDef {
+    let class: Class = ev.name.clone().into();
     let path = vec![class.clone()];
     let variables = ev
         .fields
         .iter()
-        .map(|f| {
-            let field_name = &f.name.as_ref().expect("Event field must be named").name;
-            let ident = utils::to_snake_case_ident(&field_name);
-            let ty = ty::parse_plain_type_from_expr(&f.ty);
+        .map(|(field_name, ty)| {
+            let ident = utils::to_snake_case_ident(field_name);
+            let ty = ty::parse_plain_type_from_expr(ty);
             VarDef { ident, ty }
         })
         .collect();
@@ -32,10 +35,9 @@ fn event_def(ev: &EventDefinition) -> ClassDef {
     let args = ev
         .fields
         .iter()
-        .map(|f| {
-            let field_name = &f.name.as_ref().expect("Event field must be named").name;
-            let ident = utils::to_snake_case_ident(&field_name);
-            let ty = ty::parse_plain_type_from_expr(&f.ty);
+        .map(|(field_name, ty)| {
+            let ident = utils::to_snake_case_ident(field_name);
+            let ty = ty::parse_plain_type_from_expr(ty);
             parse_quote!(#ident: #ty)
         })
         .collect::<Vec<_>>();
@@ -43,9 +45,8 @@ fn event_def(ev: &EventDefinition) -> ClassDef {
     let assign = ev
         .fields
         .iter()
-        .map(|f| {
-            let field_name = &f.name.as_ref().expect("Event field must be named").name;
-            let ident = utils::to_snake_case_ident(&field_name);
+        .map(|(field_name, ty_)| {
+            let ident = utils::to_snake_case_ident(field_name);
             quote!(#ident)
         })
         .collect::<Vec<_>>();

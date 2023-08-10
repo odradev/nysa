@@ -1,31 +1,12 @@
-use c3_lang_linearization::Fn;
-use solidity_parser::pt;
+use c3_lang_linearization::Class;
 
-pub(crate) fn find_by_name<'a>(
-    contract_name: String,
-    functions: Vec<&'a pt::FunctionDefinition>,
+use crate::model::ir::NysaFunction;
+
+pub(crate) fn find_by_name(
+    contract_name: Class,
+    functions: Vec<NysaFunction>,
     name: &str,
-) -> Option<(String, &'a pt::FunctionDefinition)> {
-    let result = functions
-        .iter()
-        .find(|f| parse_id(f) == Fn::from(name))
-        .map(|f| *f);
+) -> Option<(Class, NysaFunction)> {
+    let result = functions.iter().find(|f| f.name == name).map(|f| f.clone());
     result.map(|f| (contract_name, f))
-}
-
-pub(crate) fn parse_id(def: &pt::FunctionDefinition) -> Fn {
-    let parse_unsafe = || -> Fn {
-        def.name
-            .as_ref()
-            .map(|id| super::to_snake_case(&id.name))
-            .expect("Invalid func name")
-            .into()
-    };
-    match &def.ty {
-        pt::FunctionTy::Constructor => "init".into(),
-        pt::FunctionTy::Function => parse_unsafe(),
-        pt::FunctionTy::Fallback => "__fallback".into(),
-        pt::FunctionTy::Receive => "__receive".into(),
-        pt::FunctionTy::Modifier => parse_unsafe(),
-    }
 }

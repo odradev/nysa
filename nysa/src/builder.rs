@@ -7,9 +7,13 @@ use std::{
 
 use quote::ToTokens;
 
-use crate::parse;
+use crate::{parse, parser::Parser};
 
-pub fn generate_file<P: AsRef<Path>>(source_code_path: P, dest_code_path: P) {
+pub fn generate_file<P, T>(source_code_path: P, dest_code_path: P)
+where
+    P: AsRef<Path>,
+    T: Parser,
+{
     if file_exists(dest_code_path.as_ref()) {
         return;
     }
@@ -17,7 +21,7 @@ pub fn generate_file<P: AsRef<Path>>(source_code_path: P, dest_code_path: P) {
     let mut file = File::open(source_code_path).unwrap();
     let mut solidity_code = String::new();
     file.read_to_string(&mut solidity_code).unwrap();
-    let c3_ast = parse(solidity_code);
+    let c3_ast = parse::<T>(solidity_code);
     let code = c3_ast.to_token_stream().to_string();
 
     let mut file = File::create(dest_code_path).expect("Failed to create the output file");

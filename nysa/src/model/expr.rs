@@ -1,7 +1,9 @@
 use solidity_parser::pt;
 use syn::parse_quote;
 
-#[derive(Debug, Clone)]
+use super::ir::NysaType;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum NysaExpression {
     Require {
         condition: Box<NysaExpression>,
@@ -94,7 +96,7 @@ pub enum NysaExpression {
         property: String,
     },
     Type {
-        ty: pt::Type,
+        ty: NysaType,
     },
     Expr(pt::Expression),
 }
@@ -256,7 +258,7 @@ impl From<&pt::Expression> for NysaExpression {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
-            pt::Expression::Type(_, ty) => Self::Type { ty: ty.clone() },
+            pt::Expression::Type(_, ty) => Self::Type { ty: From::from(ty) },
             pt::Expression::Power(_, l, r) => Self::Power {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
@@ -267,7 +269,7 @@ impl From<&pt::Expression> for NysaExpression {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub enum Message {
     Sender,

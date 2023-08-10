@@ -8,18 +8,20 @@ use syn::punctuated::Punctuated;
 use syn::BinOp;
 use syn::Token;
 
+use crate::model::ir::NysaVar;
 use crate::model::NysaExpression;
-use crate::model::StorageField;
-use crate::ty;
 use crate::utils;
-use crate::{utils::to_snake_case_ident, var::IsField};
+use crate::utils::to_snake_case_ident;
+
+use super::ty;
+use super::var::IsField;
 
 pub mod error;
 pub mod primitives;
 
 pub fn parse(
     expression: &NysaExpression,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     match expression {
         NysaExpression::Require { condition, error } => {
@@ -111,9 +113,7 @@ pub fn parse(
             Err(err) => Err(err),
         },
         NysaExpression::SuperCall { name, args } => {
-            dbg!(name);
             let name = utils::to_prefixed_snake_case_ident("super_", name);
-            dbg!(&name);
             let args = parse_many(&args, storage_fields)?;
             Ok(parse_quote!(self.#name(#(#args),*)))
         }
@@ -142,7 +142,7 @@ pub fn parse(
 
 pub fn parse_many(
     expressions: &[NysaExpression],
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<Vec<syn::Expr>, &'static str> {
     expressions
         .iter()
@@ -154,7 +154,7 @@ fn bin_op(
     left: &NysaExpression,
     right: &NysaExpression,
     op: BinOp,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     let left = primitives::read_variable_or_parse(left, storage_fields)?;
     let right = primitives::read_variable_or_parse(right, storage_fields)?;

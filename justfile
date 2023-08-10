@@ -11,6 +11,7 @@ test-status-contract-odra:
 
 test-token-contract-solidity:
     rm -f examples/owned-token/nysa/src/owned_token.rs
+    cd examples/owned-token/nysa && cargo check
     cd examples/owned-token/nysa && cargo odra test -b casper
 
 test-token-contract-odra:

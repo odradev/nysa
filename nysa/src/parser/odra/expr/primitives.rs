@@ -2,15 +2,15 @@ use syn::{parse_quote, BinOp};
 
 use super::parse;
 use crate::{
-    model::{NysaExpression, StorageField},
+    model::{ir::NysaVar, NysaExpression},
+    parser::odra::var::IsField,
     utils::to_snake_case_ident,
-    var::IsField,
 };
 use quote::quote;
 
 pub fn read_variable_or_parse(
     expr: &NysaExpression,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     match expr {
         NysaExpression::Variable { name } => parse_variable(name, None, storage_fields),
@@ -43,7 +43,7 @@ pub fn assign(
     left: &NysaExpression,
     right: &NysaExpression,
     operator: Option<BinOp>,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     if operator.is_none() {
         return if let NysaExpression::ArraySubscript { array, key } = left {
@@ -96,7 +96,7 @@ pub fn assign(
 pub fn parse_variable(
     id: &str,
     value_expr: Option<syn::Expr>,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     let is_field = id.is_field(storage_fields);
     let ident = to_snake_case_ident(id);
@@ -120,7 +120,7 @@ pub fn parse_mapping(
     array_expr: &NysaExpression,
     key_expr: &Option<NysaExpression>,
     value_expr: Option<syn::Expr>,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     let array = parse(array_expr, storage_fields)?;
 

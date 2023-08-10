@@ -2,7 +2,7 @@ use solidity_parser::pt;
 
 use super::expr::NysaExpression;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NysaStmt {
     ReturnVoid,
     Return {

@@ -1,9 +1,8 @@
 use convert_case::{Case, Casing};
 use quote::format_ident;
 
-pub mod func;
 pub mod ast;
-pub mod c3;
+pub mod func;
 
 /// Converts a &str into snake-cased Ident preserving the heading `_`
 pub fn to_snake_case_ident(name: &str) -> proc_macro2::Ident {
@@ -30,6 +29,13 @@ pub fn convert_to_array<const T: usize>(input: &Vec<u8>) -> [u8; T] {
     let mut array: [u8; T] = [0; T];
     array.copy_from_slice(&input[..T]);
     array
+}
+
+pub fn map_collection<'a, T, R>(collection: Vec<T>) -> Vec<R>
+where
+    R: for<'b> From<&'b T>,
+{
+    collection.iter().map(|item| R::from(item)).collect()
 }
 
 #[cfg(test)]

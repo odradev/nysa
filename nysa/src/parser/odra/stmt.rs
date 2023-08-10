@@ -2,17 +2,18 @@ use quote::format_ident;
 use syn::parse_quote;
 
 use crate::{
-    expr,
-    model::{NysaExpression, NysaStmt, StorageField},
+    model::{ir::NysaVar, NysaExpression, NysaStmt},
     utils,
 };
+
+use super::expr;
 
 /// Parses solidity statement into a syn statement.
 ///
 /// Todo: to handle remaining statements.
 pub fn parse_statement(
     stmt: &NysaStmt,
-    storage_fields: &[StorageField],
+    storage_fields: &[NysaVar],
 ) -> Result<syn::Stmt, &'static str> {
     match stmt {
         NysaStmt::Expression { expr } => {
@@ -105,10 +106,8 @@ mod t {
     use quote::ToTokens;
     use syn::parse_quote;
 
-    use crate::{
-        model::{NysaExpression, NysaStmt},
-        stmt::parse_statement,
-    };
+    use super::parse_statement;
+    use crate::model::{NysaExpression, NysaStmt};
 
     #[test]
     fn revert_with_no_msg() {

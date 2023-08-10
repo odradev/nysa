@@ -1,46 +1,72 @@
+use std::collections::HashMap;
+
 use c3_lang_linearization::{Class, C3};
 use c3_lang_parser::c3_ast::ClassNameDef;
-use solidity_parser::pt::{
-    ContractDefinition, ErrorDefinition, EventDefinition, FunctionDefinition, SourceUnitPart,
-    VariableDefinition,
-};
+use solidity_parser::pt::{ContractDefinition, SourceUnitPart};
 
 use crate::{
     linearization,
-    utils,
+    utils::{self, ast, map_collection},
 };
 
-type FnImpls<'a> = (String, Vec<(String, &'a FunctionDefinition)>);
-pub struct ContractData<'a> {
-    contract: &'a ContractDefinition,
-    base_contracts: Vec<&'a ContractDefinition>,
-    events: Vec<&'a EventDefinition>,
-    errors: Vec<&'a ErrorDefinition>,
+use super::ir::{NysaContract, NysaError, NysaEvent, NysaFunction, NysaVar};
+
+type FnName = String;
+type FnImpls<'a> = (FnName, Vec<(Class, NysaFunction)>);
+
+pub struct ContractData {
+    contract: NysaContract,
+    events: Vec<NysaEvent>,
+    errors: Vec<NysaError>,
+    fn_map: HashMap<Class, Vec<NysaFunction>>,
+    var_map: HashMap<Class, Vec<NysaVar>>,
     c3: C3,
 }
 
-impl<'a> ContractData<'a> {
-    pub fn new(solidity_ast: &'a [SourceUnitPart]) -> Self {
-        let contracts: Vec<&ContractDefinition> = utils::ast::extract_contracts(solidity_ast);
+impl ContractData {
+    pub fn new(solidity_ast: &[SourceUnitPart]) -> Self {
+        let contracts: Vec<&ContractDefinition> = ast::extract_contracts(solidity_ast);
         let contract = contracts.last().expect("Contract not found").to_owned();
+        let contract = NysaContract::from(contract);
 
-        let events = utils::ast::extract_events(solidity_ast);
-        let errors = utils::ast::extract_errors(solidity_ast);
+        let events = map_collection(ast::extract_events(solidity_ast));
+        let errors = map_collection(ast::extract_errors(solidity_ast));
 
-        let c3 = linearization::c3_linearization(&contracts);
-        let base_contracts = utils::c3::get_base_contracts(contract, contracts, &c3);
+        let mut c3 = linearization::c3_linearization(&contracts);
+        let mut fn_map = HashMap::new();
+        let mut var_map = HashMap::new();
+
+        contracts.iter().for_each(|c| {
+            let class = Class::from(c.name.name.as_str());
+            let fns: Vec<NysaFunction> = map_collection(ast::extract_functions(c));
+
+            for func in fns.iter() {
+                let fn_class = Class::from(func.name.as_str());
+                c3.register_fn(class.clone(), fn_class);
+            }
+
+            let vars: Vec<NysaVar> = map_collection(ast::extract_vars(c));
+            for var in vars.iter() {
+                let var_class = Class::from(var.name.as_str());
+                c3.register_var(class.clone(), var_class)
+            }
+            fn_map.insert(class.clone(), fns);
+            var_map.insert(class, vars);
+        });
+
         Self {
             contract,
-            base_contracts,
             events,
             errors,
+            fn_map,
+            var_map,
             c3,
         }
     }
 
     /// Extracts contract name and wraps with c3 ast abstraction.
     pub fn c3_class(&self) -> Class {
-        Class::from(self.contract.name.name.as_str())
+        Class::from(self.contract.name())
     }
 
     // Extracts contract name and wraps with c3 ast abstraction.
@@ -58,15 +84,14 @@ impl<'a> ContractData<'a> {
         self.c3.path(&contract_id).expect("Invalid contract path")
     }
 
-    pub fn c3_fn_implementations(&self) -> Vec<FnImpls> {
-        let all_functions = self.all_functions();
+    pub fn fn_implementations(&self) -> Vec<FnImpls> {
         let mut result = vec![];
-        for fn_name in self.c3_functions_str() {
+        for fn_name in self.functions_str() {
             let implementations = self
-                .all_functions()
-                .into_iter()
-                .filter_map(|(contract_name, functions)| {
-                    utils::func::find_by_name(contract_name, functions, &fn_name)
+                .fn_map
+                .iter()
+                .filter_map(|(class, fns)| {
+                    utils::func::find_by_name(class.clone(), fns.to_vec(), &fn_name)
                 })
                 .collect::<Vec<_>>();
             result.push((fn_name, implementations));
@@ -74,47 +99,26 @@ impl<'a> ContractData<'a> {
         result
     }
 
-    pub fn c3_functions_str(&self) -> Vec<String> {
-        let contract_name_str = self.contract.name.name.as_str();
-        self.c3.functions_str(contract_name_str)
+    pub fn functions_str(&self) -> Vec<String> {
+        self.c3.functions_str(self.contract.name())
     }
 
-    pub fn c3_vars(&self) -> Vec<&VariableDefinition> {
+    pub fn vars(&self) -> Vec<NysaVar> {
         let mut vars = self
-            .base_contracts
+            .var_map
             .iter()
-            .map(|contract| utils::ast::extract_vars(contract))
+            .map(|(_, v)| v.clone())
             .flatten()
             .collect::<Vec<_>>();
         vars.dedup();
         vars
     }
 
-    pub fn c3_events(&self) -> &[&EventDefinition] {
+    pub fn events(&self) -> &[NysaEvent] {
         &self.events
     }
 
-    pub fn c3_errors(&self) -> &[&ErrorDefinition] {
+    pub fn errors(&self) -> &[NysaError] {
         &self.errors
     }
-
-    pub fn c3_events_str(&self) -> Vec<String> {
-        self.events
-            .iter()
-            .map(|ev| ev.name.name.to_owned())
-            .collect()
-    }
-
-    fn all_functions(&self) -> Vec<(String, Vec<&FunctionDefinition>)> {
-        self.base_contracts
-            .iter()
-            .map(|contract| {
-                (
-                    contract.name.name.clone(),
-                    utils::ast::extract_functions(contract),
-                )
-            })
-            .collect::<Vec<_>>()
-    }
 }
-
