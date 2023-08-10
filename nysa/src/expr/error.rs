@@ -1,4 +1,4 @@
-use quote::ToTokens;
+use quote::{format_ident, ToTokens};
 use syn::parse_quote;
 
 use crate::{
@@ -38,16 +38,18 @@ pub fn revert_with_str(
 
     let err = quote::quote!(odra::contract_env::revert(odra::types::ExecutionError::new(#error_num, #message)));
     #[cfg(test)]
-    let err = quote::quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, #message)));
+    let err =
+        quote::quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, #message)));
 
     if let Some(condition) = condition {
         let condition = parse(condition, storage_fields)?;
-        return Ok(
-            parse_quote!(if !(#condition) { #err }),
-        );
+        return Ok(parse_quote!(if !(#condition) { #err }));
     } else {
-        return Ok(
-            parse_quote!(#err),
-        );
+        return Ok(parse_quote!(#err));
     }
+}
+
+pub fn revert_with_err(err: &str) -> Result<syn::Expr, &'static str> {
+    let expr = format_ident!("{}", err);
+    Ok(parse_quote!(odra::contract_env::revert(Error::#expr)))
 }

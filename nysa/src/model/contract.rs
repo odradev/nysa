@@ -1,10 +1,14 @@
-use std::error::Error;
-
-use c3_lang_linearization::{Class, Fn, C3};
+use c3_lang_linearization::{Class, C3};
 use c3_lang_parser::c3_ast::ClassNameDef;
-use solidity_parser::pt::{ContractDefinition, FunctionDefinition, VariableDefinition, SourceUnitPart, EventDefinition, ErrorDefinition};
+use solidity_parser::pt::{
+    ContractDefinition, ErrorDefinition, EventDefinition, FunctionDefinition, SourceUnitPart,
+    VariableDefinition,
+};
 
-use crate::{linearization::{parse_func_id, self}, utils};
+use crate::{
+    linearization,
+    utils,
+};
 
 type FnImpls<'a> = (String, Vec<(String, &'a FunctionDefinition)>);
 pub struct ContractData<'a> {
@@ -16,17 +20,15 @@ pub struct ContractData<'a> {
 }
 
 impl<'a> ContractData<'a> {
-    pub fn new(
-        solidity_ast: &'a [SourceUnitPart],
-    ) -> Self {
-        let contracts: Vec<&ContractDefinition> = utils::extract_contracts(solidity_ast);
+    pub fn new(solidity_ast: &'a [SourceUnitPart]) -> Self {
+        let contracts: Vec<&ContractDefinition> = utils::ast::extract_contracts(solidity_ast);
         let contract = contracts.last().expect("Contract not found").to_owned();
 
-        let events = utils::extract_events(solidity_ast);
-        let errors = utils::extract_errors(solidity_ast);
+        let events = utils::ast::extract_events(solidity_ast);
+        let errors = utils::ast::extract_errors(solidity_ast);
 
         let c3 = linearization::c3_linearization(&contracts);
-        let base_contracts = utils::get_base_contracts(contract, contracts, &c3);
+        let base_contracts = utils::c3::get_base_contracts(contract, contracts, &c3);
         Self {
             contract,
             base_contracts,
@@ -64,7 +66,7 @@ impl<'a> ContractData<'a> {
                 .all_functions()
                 .into_iter()
                 .filter_map(|(contract_name, functions)| {
-                    find_fn(contract_name, functions, &fn_name)
+                    utils::func::find_by_name(contract_name, functions, &fn_name)
                 })
                 .collect::<Vec<_>>();
             result.push((fn_name, implementations));
@@ -81,7 +83,7 @@ impl<'a> ContractData<'a> {
         let mut vars = self
             .base_contracts
             .iter()
-            .map(|contract| utils::extract_vars(contract))
+            .map(|contract| utils::ast::extract_vars(contract))
             .flatten()
             .collect::<Vec<_>>();
         vars.dedup();
@@ -97,7 +99,10 @@ impl<'a> ContractData<'a> {
     }
 
     pub fn c3_events_str(&self) -> Vec<String> {
-        self.events.iter().map(|ev| ev.name.name.to_owned()).collect()
+        self.events
+            .iter()
+            .map(|ev| ev.name.name.to_owned())
+            .collect()
     }
 
     fn all_functions(&self) -> Vec<(String, Vec<&FunctionDefinition>)> {
@@ -106,21 +111,10 @@ impl<'a> ContractData<'a> {
             .map(|contract| {
                 (
                     contract.name.name.clone(),
-                    utils::extract_functions(contract),
+                    utils::ast::extract_functions(contract),
                 )
             })
             .collect::<Vec<_>>()
     }
 }
 
-fn find_fn<'a>(
-    contract_name: String,
-    functions: Vec<&'a FunctionDefinition>,
-    name: &str,
-) -> Option<(String, &'a FunctionDefinition)> {
-    let result = functions
-        .iter()
-        .find(|f| parse_func_id(f) == Fn::from(name))
-        .map(|f| *f);
-    result.map(|f| (contract_name, f))
-}

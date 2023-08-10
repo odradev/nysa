@@ -6,7 +6,7 @@ use quote::quote;
 use solidity_parser::pt::EventDefinition;
 use syn::parse_quote;
 
-use crate::{ty, utils, model::ContractData};
+use crate::{model::ContractData, ty, utils};
 
 pub(crate) fn events_def(data: &ContractData) -> Vec<ClassDef> {
     data.c3_events()

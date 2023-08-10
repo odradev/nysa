@@ -52,7 +52,7 @@ pub fn assign(
             let value = read_variable_or_parse(right, storage_fields)?;
             Ok(parse_quote!(#array.set(&#key, #value)))
         } else if let NysaExpression::Variable { name } = left {
-            let right = parse(right, storage_fields)?;
+            let right = read_variable_or_parse(right, storage_fields)?;
             parse_variable(&name, Some(right), storage_fields)
         } else {
             Err("Unsupported expr assign")
@@ -62,14 +62,14 @@ pub fn assign(
     match left {
         NysaExpression::ArraySubscript { array, key } => {
             let key_expr = key.clone().map(|boxed| boxed.clone());
-            let value_expr = parse(right, storage_fields)?;
+            let value_expr = read_variable_or_parse(right, storage_fields)?;
             let current_value_expr = parse_mapping(array, &key_expr, None, storage_fields)?;
             let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
             parse_mapping(array, &key_expr, Some(new_value), storage_fields)
         }
         NysaExpression::Variable { name } => {
             let current_value_expr = parse_variable(&name, None, storage_fields)?;
-            let value_expr = parse(right, storage_fields)?;
+            let value_expr = read_variable_or_parse(right, storage_fields)?;
             let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
             parse_variable(&name, Some(new_value), storage_fields)
         }
@@ -131,7 +131,7 @@ pub fn parse_mapping(
         if let Some(value) = value_expr {
             Ok(parse_quote!(#array.set(&#key, #value)))
         } else {
-            Ok(parse_quote!(#array.get(&#key).unwrap_or_default()))
+            Ok(parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#array.get(&#key))))
         }
     } else {
         Err("Unspecified key")

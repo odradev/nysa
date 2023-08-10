@@ -22,7 +22,7 @@ pub fn parse_statement(
         NysaStmt::VarDefinition { declaration, init } => {
             let name = utils::to_snake_case_ident(declaration);
             let pat: syn::Pat = parse_quote! { #name };
-            let expr: syn::Expr = expr::parse(init, storage_fields)?;
+            let expr: syn::Expr = expr::primitives::read_variable_or_parse(init, storage_fields)?;
             Ok(parse_quote!(let #pat = #expr;))
         }
         NysaStmt::VarDeclaration { declaration } => {
@@ -91,36 +91,41 @@ pub fn parse_statement(
                 let expr = expr::error::revert_with_str(None, "", storage_fields)?;
                 Ok(parse_quote!(#expr;))
             }
-        },
+        }
         NysaStmt::RevertWithError { error } => {
-            let expr = expr::error::revert_with_str(None, error, storage_fields)?;
+            let expr = expr::error::revert_with_err(error)?;
             Ok(parse_quote!(#expr;))
-        },
+        }
         _ => panic!("Unsupported statement {:?}", stmt),
     }
 }
-
 
 #[cfg(test)]
 mod t {
     use quote::ToTokens;
     use syn::parse_quote;
 
-    use crate::{model::{NysaExpression, NysaStmt}, stmt::parse_statement};
+    use crate::{
+        model::{NysaExpression, NysaStmt},
+        stmt::parse_statement,
+    };
 
     #[test]
     fn revert_with_no_msg() {
         let stmt = NysaStmt::Revert { msg: None };
         let result = parse_statement(&stmt, &vec![]).unwrap();
-        let expected: syn::Stmt = parse_quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "")););
-        
+        let expected: syn::Stmt =
+            parse_quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "")););
+
         assert(result, expected);
     }
 
     #[test]
     fn revert_with_msg() {
         let error_msg = "An error occurred";
-        let stmt = NysaStmt::Revert { msg: Some(NysaExpression::StringLiteral(error_msg.to_string())) };
+        let stmt = NysaStmt::Revert {
+            msg: Some(NysaExpression::StringLiteral(error_msg.to_string())),
+        };
         let result = parse_statement(&stmt, &vec![]).unwrap();
         let expected: syn::Stmt = parse_quote!(
             odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "An error occurred"));
@@ -132,7 +137,9 @@ mod t {
     #[test]
     fn revert_with_error() {
         let error_msg = "An error occurred";
-        let stmt = NysaStmt::RevertWithError { error: error_msg.to_string() };
+        let stmt = NysaStmt::RevertWithError {
+            error: error_msg.to_string(),
+        };
         let result = parse_statement(&stmt, &vec![]).unwrap();
         let expected: syn::Stmt = parse_quote!(
             odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "An error occurred"));
@@ -141,17 +148,22 @@ mod t {
         assert(result, expected)
     }
 
-
     #[test]
     fn invalid_revert_stmt() {
         let error_msg = "An error occurred";
-        let stmt = NysaStmt::Revert { msg: Some(NysaExpression::Wildcard) };
+        let stmt = NysaStmt::Revert {
+            msg: Some(NysaExpression::Wildcard),
+        };
         let result = parse_statement(&stmt, &vec![]);
 
         assert!(result.is_err());
     }
 
-    fn assert<L, R>(left: L, right: R) where L: ToTokens, R: ToTokens {
+    fn assert<L, R>(left: L, right: R)
+    where
+        L: ToTokens,
+        R: ToTokens,
+    {
         assert_eq!(
             left.into_token_stream().to_string(),
             right.into_token_stream().to_string()

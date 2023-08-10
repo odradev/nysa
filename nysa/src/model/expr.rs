@@ -17,6 +17,7 @@ pub enum NysaExpression {
     Variable {
         name: String,
     },
+    BoolLiteral(bool),
     StringLiteral(String),
     Assign {
         left: Box<NysaExpression>,
@@ -30,11 +31,23 @@ pub enum NysaExpression {
         left: Box<NysaExpression>,
         right: Box<NysaExpression>,
     },
+    Less {
+        left: Box<NysaExpression>,
+        right: Box<NysaExpression>,
+    },
+    More {
+        left: Box<NysaExpression>,
+        right: Box<NysaExpression>,
+    },
     Add {
         left: Box<NysaExpression>,
         right: Box<NysaExpression>,
     },
     Subtract {
+        left: Box<NysaExpression>,
+        right: Box<NysaExpression>,
+    },
+    Power {
         left: Box<NysaExpression>,
         right: Box<NysaExpression>,
     },
@@ -64,10 +77,24 @@ pub enum NysaExpression {
         expr: Box<NysaExpression>,
         name: String,
     },
-    NumberLiteral(u32),
+    NumberLiteral {
+        ty: &'static str,
+        value: Vec<u8>,
+    },
     Func {
         name: Box<NysaExpression>,
         args: Vec<NysaExpression>,
+    },
+    SuperCall {
+        name: String,
+        args: Vec<NysaExpression>,
+    },
+    TypeInfo {
+        ty: Box<NysaExpression>,
+        property: String,
+    },
+    Type {
+        ty: pt::Type,
     },
     Expr(pt::Expression),
 }
@@ -99,25 +126,15 @@ impl From<&pt::Expression> for NysaExpression {
                 NysaExpression::StringLiteral(strings.join(","))
             }
             pt::Expression::FunctionCall(_, name, args) => {
-                if let pt::Expression::Type(_, ref ty) = **name {
-                    if *ty == pt::Type::Address || *ty == pt::Type::AddressPayable {
-                        return NysaExpression::ZeroAddress;
-                    }
-                }
-                if let pt::Expression::Variable(ref id) = **name {
-                    if id.name.as_str() == "require" {
-                        let condition = args.get(0).expect("Should be revert condition").into();
-                        let error = args.get(1).expect("Should be the error message").into();
-                        return NysaExpression::Require {
-                            condition: Box::new(condition),
-                            error: Box::new(error),
-                        };
-                    }
-                }
-                return NysaExpression::Func {
+                let to_func = || NysaExpression::Func {
                     name: Box::new(name.as_ref().into()),
                     args: args.iter().map(From::from).collect(),
                 };
+
+                try_to_zero_address(name)
+                    .or(try_to_super_call(name, args))
+                    .or(try_to_require(name, args))
+                    .unwrap_or_else(to_func)
             }
             pt::Expression::Variable(id) => match id.name.as_str() {
                 "_" => NysaExpression::Wildcard,
@@ -135,61 +152,117 @@ impl From<&pt::Expression> for NysaExpression {
                         }
                     }
                 }
-                _ => NysaExpression::MemberAccess {
+                pt::Expression::FunctionCall(_, name, args) => {
+                    let expr = match &**name {
+                        // expr like type(unit256).min https://docs.soliditylang.org/en/latest/units-and-global-variables.html#meta-type
+                        pt::Expression::Variable(v) => {
+                            if &v.name == "type" {
+                                let ty = args.first().unwrap();
+                                Some(Self::TypeInfo {
+                                    ty: Box::new(ty.into()),
+                                    property: id.name.to_owned(),
+                                })
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    };
+                    expr.unwrap_or(Self::MemberAccess {
+                        expr: Box::new(expression.as_ref().into()),
+                        name: id.name.to_owned(),
+                    })
+                }
+                _ => Self::MemberAccess {
                     expr: Box::new(expression.as_ref().into()),
                     name: id.name.to_owned(),
                 },
             },
-            pt::Expression::LessEqual(_, l, r) => NysaExpression::LessEqual {
+            pt::Expression::LessEqual(_, l, r) => Self::LessEqual {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
-            pt::Expression::MoreEqual(_, l, r) => NysaExpression::MoreEqual {
+            pt::Expression::Less(_, l, r) => Self::Less {
+                left: Box::new(l.as_ref().into()),
+                right: Box::new(r.as_ref().into()),
+            },
+            pt::Expression::MoreEqual(_, l, r) => Self::MoreEqual {
+                left: Box::new(l.as_ref().into()),
+                right: Box::new(r.as_ref().into()),
+            },
+            pt::Expression::More(_, l, r) => Self::More {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
             pt::Expression::NumberLiteral(_, num) => {
                 let (sign, digs) = num.to_u32_digits();
-                let num = digs[0];
-                NysaExpression::NumberLiteral(num)
+
+                // u32::MAX or less
+                if digs.len() == 1 {
+                    Self::NumberLiteral {
+                        ty: "u32",
+                        value: digs[0].to_le_bytes().to_vec(),
+                    }
+                } else {
+                    let (sign, digs) = num.to_u64_digits();
+                    // u32::MAX..u64::MAX
+                    if digs.len() == 1 {
+                        Self::NumberLiteral {
+                            ty: "u64",
+                            value: digs[0].to_le_bytes().to_vec(),
+                        }
+                    } else {
+                        let (_, bytes) = num.to_bytes_le();
+                        Self::NumberLiteral {
+                            ty: "U256",
+                            value: bytes,
+                        }
+                    }
+                }
             }
-            pt::Expression::Add(_, l, r) => NysaExpression::Add {
+            pt::Expression::Add(_, l, r) => Self::Add {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
-            pt::Expression::Subtract(_, l, r) => NysaExpression::Subtract {
+            pt::Expression::Subtract(_, l, r) => Self::Subtract {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
-            pt::Expression::PostIncrement(_, expression) => NysaExpression::Increment {
+            pt::Expression::PostIncrement(_, expression) => Self::Increment {
                 expr: Box::new(expression.as_ref().into()),
             },
-            pt::Expression::PostDecrement(_, expression) => NysaExpression::Decrement {
+            pt::Expression::PostDecrement(_, expression) => Self::Decrement {
                 expr: Box::new(expression.as_ref().into()),
             },
-            pt::Expression::PreIncrement(_, expression) => NysaExpression::Increment {
+            pt::Expression::PreIncrement(_, expression) => Self::Increment {
                 expr: Box::new(expression.as_ref().into()),
             },
-            pt::Expression::PreDecrement(_, expression) => NysaExpression::Decrement {
+            pt::Expression::PreDecrement(_, expression) => Self::Decrement {
                 expr: Box::new(expression.as_ref().into()),
             },
-            pt::Expression::Equal(_, l, r) => NysaExpression::Equal {
+            pt::Expression::Equal(_, l, r) => Self::Equal {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
-            pt::Expression::NotEqual(_, l, r) => NysaExpression::NotEqual {
+            pt::Expression::NotEqual(_, l, r) => Self::NotEqual {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
-            pt::Expression::AssignSubtract(_, l, r) => NysaExpression::AssignSubtract {
+            pt::Expression::AssignSubtract(_, l, r) => Self::AssignSubtract {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
-            pt::Expression::AssignAdd(_, l, r) => NysaExpression::AssignAdd {
+            pt::Expression::AssignAdd(_, l, r) => Self::AssignAdd {
                 left: Box::new(l.as_ref().into()),
                 right: Box::new(r.as_ref().into()),
             },
-            _ => NysaExpression::Expr(value.to_owned()),
+            pt::Expression::Type(_, ty) => Self::Type { ty: ty.clone() },
+            pt::Expression::Power(_, l, r) => Self::Power {
+                left: Box::new(l.as_ref().into()),
+                right: Box::new(r.as_ref().into()),
+            },
+            pt::Expression::BoolLiteral(_, b) => Self::BoolLiteral(*b),
+            _ => Self::Expr(value.to_owned()),
         }
     }
 }
@@ -212,4 +285,39 @@ impl TryInto<syn::Expr> for &Message {
             Message::Data => todo!(),
         }
     }
+}
+
+fn try_to_zero_address(name: &pt::Expression) -> Option<NysaExpression> {
+    if let pt::Expression::Type(_, ty) = name {
+        if *ty == pt::Type::Address || *ty == pt::Type::AddressPayable {
+            return Some(NysaExpression::ZeroAddress);
+        }
+    }
+    None
+}
+
+fn try_to_require(name: &pt::Expression, args: &[pt::Expression]) -> Option<NysaExpression> {
+    if let pt::Expression::Variable(ref id) = name {
+        if id.name.as_str() == "require" {
+            let condition = args.get(0).expect("Should be revert condition").into();
+            let error = args.get(1).expect("Should be the error message").into();
+            return Some(NysaExpression::Require {
+                condition: Box::new(condition),
+                error: Box::new(error),
+            });
+        }
+    }
+    None
+}
+
+fn try_to_super_call(name: &pt::Expression, args: &[pt::Expression]) -> Option<NysaExpression> {
+    if let pt::Expression::MemberAccess(_, box pt::Expression::Variable(var), fn_id) = name {
+        if &var.name == "super" {
+            return Some(NysaExpression::SuperCall {
+                name: fn_id.name.to_owned(),
+                args: args.iter().map(From::from).collect(),
+            });
+        }
+    }
+    None
 }
