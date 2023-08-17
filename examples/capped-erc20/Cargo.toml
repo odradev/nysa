@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-odra = { path = "../../../odra/core", default-features = false }
+odra = { git = "https://github.com/odradev/odra/", branch = "fix/events-types-errors", default-features = false }
 
 [build-dependencies]
 nysa = { path = "../../nysa", features = ["builder"] }
