@@ -28,10 +28,14 @@ mod tests {
     }
 
     #[test]
-    fn test() {
+    fn test_ownership() {
         let mut contract = setup();
 
-        let (owner, non_owner, new_owner) = (test_env::get_account(1), test_env::get_account(2), test_env::get_account(3));
+        let (owner, non_owner, new_owner) = (
+            test_env::get_account(1),
+            test_env::get_account(2),
+            test_env::get_account(3),
+        );
 
         test_env::set_caller(non_owner);
         test_env::assert_exception(Error::OwnableUnauthorizedAccount, || {

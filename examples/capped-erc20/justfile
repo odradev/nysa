@@ -1,0 +1,124 @@
+# Call paramenters.
+NODE_ADDRESS := "--node-address http://78.46.32.13:7777"
+CHAIN_NAME := "--chain-name casper-test"
+DEPLOY_COMMON_PARAMS := NODE_ADDRESS + " " + CHAIN_NAME
+STATE_COMMON_PARAMS := " --state-root-hash `just state-root-hash` --contract-hash `just contract-hash` --dictionary-name state"
+
+# casper-client commands.
+CLIENT_GET_STATE_ROOT_HASH := "casper-client get-state-root-hash " + NODE_ADDRESS 
+CLIENT_GET_ACCOUNT := "casper-client get-account-info " + NODE_ADDRESS
+CLIENT_GET_DICTIONARY_ITEM := "casper-client get-dictionary-item " + NODE_ADDRESS
+CLIENT_STATE := CLIENT_GET_DICTIONARY_ITEM + STATE_COMMON_PARAMS
+CLIENT_QUERY := "casper-client query-global-state " + NODE_ADDRESS
+CLIENT_DEPLOY := "casper-client put-deploy " + DEPLOY_COMMON_PARAMS
+
+PUBLIC_KEY_HEX := `cat resources/keys/public_key_hex`
+SECRET_KEY := "resources/keys/secret_key.pem"
+
+CONTRACT_WASM := "wasm/plascoin.wasm"
+CONTRACT_PACKAGE_HASH_NAMED_KEY := "plascoin_package_hash"
+
+default:
+    just --list
+
+account-info:
+    {{CLIENT_GET_ACCOUNT}} --public-key {{PUBLIC_KEY_HEX}}
+
+state-root-hash:
+    {{CLIENT_GET_STATE_ROOT_HASH}} | jq -r ".result.state_root_hash"
+
+var-item-key-hash key:
+    cd client && cargo run --bin client --release {{key}}
+
+dict-item-key-hash seed key:
+    cd client && cargo run --bin client --release {{seed}} {{key}}
+
+deploy-contract name symbol cap owner:
+    {{CLIENT_DEPLOY}} \
+        --secret-key {{SECRET_KEY}} \
+        --session-path {{CONTRACT_WASM}} \
+        --payment-amount 130000000000 \
+        --session-arg "odra_cfg_package_hash_key_name:string:'{{CONTRACT_PACKAGE_HASH_NAMED_KEY}}'" \
+        --session-arg "odra_cfg_allow_key_override:bool:'true'" \
+        --session-arg "odra_cfg_is_upgradable:bool:'true'" \
+        --session-arg "odra_cfg_constructor:string:'init'" \
+        --session-arg "name:string='{{name}}'" \
+        --session-arg "symbol:string='{{symbol}}'" \
+        --session-arg "cap:u256='{{cap}}'" \
+        --session-arg "initial_owner:opt_key='{{owner}}'"
+
+state-cap:
+    {{CLIENT_STATE}} \
+        --dictionary-item-key `just var-item-key-hash _cap` \
+        | jq -r ".result.stored_value.CLValue.parsed"
+
+state-owner:
+    {{CLIENT_STATE}} \
+        --dictionary-item-key `just var-item-key-hash _owner` \
+        | jq -r ".result.stored_value.CLValue.parsed"
+
+state-name:
+    {{CLIENT_STATE}} \
+        --dictionary-item-key `just var-item-key-hash _name` \
+        | jq -r ".result.stored_value.CLValue.parsed"
+
+state-symbol:
+    {{CLIENT_STATE}} \
+        --dictionary-item-key `just var-item-key-hash _symbol` \
+        | jq -r ".result.stored_value.CLValue.parsed"
+
+state-total-supply:
+    {{CLIENT_STATE}} \
+        --dictionary-item-key `just var-item-key-hash _total_supply` \
+        | jq -r ".result.stored_value.CLValue.parsed"
+
+state-balanace-of account_hash:
+    {{CLIENT_STATE}} \
+        --dictionary-item-key `just dict-item-key-hash _balances {{account_hash}}` \
+        | jq -r ".result.stored_value.CLValue.parsed"
+
+mint recipient amount:
+    {{CLIENT_DEPLOY}} \
+        --secret-key {{SECRET_KEY}} \
+        --payment-amount 2000000000 \
+        --session-hash `just contract-hash` \
+        --session-entry-point "mint" \
+        --session-arg "account:opt_key:'{{recipient}}'" \
+        --session-arg "amount:u256='{{amount}}'"
+
+transfer recipient amount:
+    {{CLIENT_DEPLOY}} \
+        --secret-key {{SECRET_KEY}} \
+        --payment-amount 2000000000 \
+        --session-hash `just contract-hash` \
+        --session-entry-point "transfer" \
+        --session-arg "to:opt_key:'{{recipient}}'" \
+        --session-arg "value:u256='{{amount}}'"
+
+contract-hash:
+    {{CLIENT_QUERY}} \
+        --state-root-hash `just state-root-hash` \
+        --key "{{PUBLIC_KEY_HEX}}" \
+        -q {{CONTRACT_PACKAGE_HASH_NAMED_KEY}} \
+        | jq -r ".result.stored_value.ContractPackage.versions[0].contract_hash" \
+        | sed s/contract/hash/
+
+contract-info:
+    {{CLIENT_QUERY}} \
+        --state-root-hash `just state-root-hash` \
+        --key `just contract-hash`
+
+contract-events-count:
+    {{CLIENT_QUERY}} \
+        --state-root-hash `just state-root-hash` \
+        --key `just contract-hash` \
+        -q "__events_length" \
+        | jq ".result.stored_value.CLValue.parsed"
+
+contract-event number:
+    {{CLIENT_GET_DICTIONARY_ITEM}} \
+        --state-root-hash `just state-root-hash` \
+        --contract-hash `just contract-hash` \
+        --dictionary-name __events \
+        --dictionary-item-key {{number}} \
+        | jq -r ".result.stored_value.CLValue.parsed"

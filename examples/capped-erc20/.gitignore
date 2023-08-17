@@ -3,3 +3,4 @@
 /target
 /src/plascoin.rs
 /wasm
+/client/target
