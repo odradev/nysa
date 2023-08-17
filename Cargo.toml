@@ -6,6 +6,7 @@ members = [
 ]
 
 exclude = [ 
+    "examples/capped-erc20", 
     "examples/owned-token/native-odra", 
     "examples/owned-token/nysa", 
     "examples/status-message/native-odra", 

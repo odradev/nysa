@@ -9,6 +9,7 @@ use syn::BinOp;
 use syn::Token;
 
 use crate::model::ir::NysaVar;
+use crate::model::NumSize;
 use crate::model::NysaExpression;
 use crate::utils;
 use crate::utils::to_snake_case_ident;
@@ -30,12 +31,23 @@ pub fn parse(
         NysaExpression::Wildcard => Err("Empty identifier"),
         NysaExpression::ZeroAddress => Ok(parse_quote!(None)),
         NysaExpression::Message(msg) => msg.try_into(),
-        NysaExpression::ArraySubscript { array, key } => {
-            primitives::parse_mapping(array, key, None, storage_fields)
+        NysaExpression::Mapping { name, key } => {
+            let keys = vec![*key.clone()];
+            primitives::parse_mapping(name, &keys, None, storage_fields)
+        }
+        NysaExpression::Mapping2 { name, keys } => {
+            let keys = vec![keys.0.clone(), keys.1.clone()];
+            primitives::parse_mapping(name, &keys, None, storage_fields)
+        }
+        NysaExpression::Mapping3 { name, keys } => {
+            todo!()
         }
         NysaExpression::Variable { name } => {
             let ident = to_snake_case_ident(&name);
-            let self_ty = name.is_field(storage_fields).then(|| quote!(self.));
+            let self_ty = name
+                .is_field(storage_fields)
+                .is_some()
+                .then(|| quote!(self.));
             Ok(parse_quote!(#self_ty #ident))
         }
         NysaExpression::Assign { left, right } => {
@@ -86,17 +98,27 @@ pub fn parse(
             Ok(parse_quote!(#base_expr.#member))
         }
         NysaExpression::NumberLiteral { ty, value } => match *ty {
-            "u32" => {
+            NumSize::U8 => {
+                let arr = utils::convert_to_array(&value[0..1]);
+                let num = u8::from_le_bytes(arr);
+                Ok(parse_quote!(#num))
+            }
+            NumSize::U16 => {
+                let arr = utils::convert_to_array(&value[0..2]);
+                let num = u16::from_le_bytes(arr);
+                Ok(parse_quote!(#num))
+            }
+            NumSize::U32 => {
                 let arr = utils::convert_to_array(value);
                 let num = u32::from_le_bytes(arr);
                 Ok(parse_quote!(#num))
             }
-            "u64" => {
+            NumSize::U64 => {
                 let arr = utils::convert_to_array(value);
                 let num = u64::from_le_bytes(arr);
                 Ok(parse_quote!(#num))
             }
-            "U256" => {
+            NumSize::U256 => {
                 let arr = value
                     .iter()
                     .map(|v| quote!(#v))

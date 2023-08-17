@@ -36,7 +36,9 @@ fn function_def(
     storage_fields: &[NysaVar],
 ) -> FnDef {
     let (_, top_lvl_func) = definitions
-        .last()
+        .iter()
+        .find(|(class, _)| *class == data.c3_class())
+        .or(definitions.last())
         .expect("At least one implementation expected");
 
     if name == CONSTRUCTOR_NAME {

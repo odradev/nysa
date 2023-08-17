@@ -1,7 +1,10 @@
 use c3_lang_parser::c3_ast::VarDef;
 
 use crate::{
-    model::{ir::NysaVar, ContractData},
+    model::{
+        ir::{NysaType, NysaVar},
+        ContractData, NysaExpression,
+    },
     utils::to_snake_case_ident,
 };
 
@@ -20,12 +23,30 @@ fn variable_def(v: &NysaVar) -> VarDef {
 }
 
 pub trait IsField {
-    fn is_field(&self, fields: &[NysaVar]) -> bool;
+    fn is_field(&self, fields: &[NysaVar]) -> Option<NysaType>;
 }
 
 impl<T: AsRef<str>> IsField for T {
-    fn is_field(&self, fields: &[NysaVar]) -> bool {
-        let fields = fields.iter().map(|f| f.name.clone()).collect::<Vec<_>>();
-        fields.contains(&self.as_ref().to_string())
+    fn is_field(&self, fields: &[NysaVar]) -> Option<NysaType> {
+        let name = self.as_ref();
+        fields
+            .iter()
+            .find(|f| f.name == name)
+            .map(|f| NysaType::try_from(&f.ty).ok())
+            .flatten()
+    }
+}
+
+impl IsField for &NysaExpression {
+    fn is_field(&self, fields: &[NysaVar]) -> Option<NysaType> {
+        let name = match self {
+            NysaExpression::Variable { name } => name,
+            _ => return None,
+        };
+        fields
+            .iter()
+            .find(|f| &f.name == name)
+            .map(|f| NysaType::try_from(&f.ty).ok())
+            .flatten()
     }
 }

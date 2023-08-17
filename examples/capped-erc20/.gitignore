@@ -1,0 +1,5 @@
+/.builder_casper
+/resources
+/target
+/src/plascoin.rs
+/wasm

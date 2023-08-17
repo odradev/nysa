@@ -1,8 +1,12 @@
+use proc_macro2::TokenStream;
 use syn::{parse_quote, BinOp};
 
 use super::parse;
 use crate::{
-    model::{ir::NysaVar, NysaExpression},
+    model::{
+        ir::{NysaType, NysaVar},
+        NysaExpression,
+    },
     parser::odra::var::IsField,
     utils::to_snake_case_ident,
 };
@@ -46,11 +50,14 @@ pub fn assign(
     storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
     if operator.is_none() {
-        return if let NysaExpression::ArraySubscript { array, key } = left {
-            let array = parse(array, storage_fields)?;
-            let key = parse(&key.clone().unwrap(), storage_fields)?;
+        return if let NysaExpression::Mapping { name, key } = left {
             let value = read_variable_or_parse(right, storage_fields)?;
-            Ok(parse_quote!(#array.set(&#key, #value)))
+            let keys = vec![*key.clone()];
+            parse_mapping(name, &keys, Some(value), storage_fields)
+        } else if let NysaExpression::Mapping2 { name, keys } = left {
+            let keys = vec![keys.0.clone(), keys.1.clone()];
+            let value = read_variable_or_parse(right, storage_fields)?;
+            parse_mapping(name, &keys, Some(value), storage_fields)
         } else if let NysaExpression::Variable { name } = left {
             let right = read_variable_or_parse(right, storage_fields)?;
             parse_variable(&name, Some(right), storage_fields)
@@ -60,12 +67,19 @@ pub fn assign(
     }
 
     match left {
-        NysaExpression::ArraySubscript { array, key } => {
-            let key_expr = key.clone().map(|boxed| boxed.clone());
+        NysaExpression::Mapping { name, key } => {
+            let keys = vec![*key.clone()];
             let value_expr = read_variable_or_parse(right, storage_fields)?;
-            let current_value_expr = parse_mapping(array, &key_expr, None, storage_fields)?;
+            let current_value_expr = parse_mapping(name, &keys, None, storage_fields)?;
             let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
-            parse_mapping(array, &key_expr, Some(new_value), storage_fields)
+            parse_mapping(name, &keys, Some(new_value), storage_fields)
+        }
+        NysaExpression::Mapping2 { name, keys } => {
+            let keys = vec![keys.0.clone(), keys.1.clone()];
+            let value_expr = read_variable_or_parse(right, storage_fields)?;
+            let current_value_expr = parse_mapping(name, &keys, None, storage_fields)?;
+            let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
+            parse_mapping(name, &keys, Some(new_value), storage_fields)
         }
         NysaExpression::Variable { name } => {
             let current_value_expr = parse_variable(&name, None, storage_fields)?;
@@ -100,40 +114,73 @@ pub fn parse_variable(
 ) -> Result<syn::Expr, &'static str> {
     let is_field = id.is_field(storage_fields);
     let ident = to_snake_case_ident(id);
-    let self_ty = is_field.then(|| quote!(self.));
+    let self_ty = is_field.is_some().then(|| quote!(self.));
     if let Some(value) = value_expr {
         match is_field {
             // Variable update must use the `set` function
-            true => Ok(parse_quote!(#self_ty #ident.set(#value))),
+            Some(_) => Ok(parse_quote!(#self_ty #ident.set(#value))),
             // regular, local value
-            false => Ok(parse_quote!(#ident = #value)),
+            None => Ok(parse_quote!(#ident = #value)),
         }
     } else {
         match is_field {
-            true => Ok(parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#self_ty #ident.get()))),
-            false => Ok(parse_quote!(#self_ty #ident)),
+            Some(ty) => Ok(get_expr(quote!(#self_ty #ident), None, ty)),
+            None => Ok(parse_quote!(#self_ty #ident)),
         }
     }
 }
 
 pub fn parse_mapping(
-    array_expr: &NysaExpression,
-    key_expr: &Option<NysaExpression>,
+    name: &str,
+    keys_expr: &[NysaExpression],
     value_expr: Option<syn::Expr>,
     storage_fields: &[NysaVar],
 ) -> Result<syn::Expr, &'static str> {
-    let array = parse(array_expr, storage_fields)?;
+    let ident = to_snake_case_ident(name);
+    let field_ts = quote!(self.#ident);
+    let ty = name
+        .is_field(storage_fields)
+        .expect("Mapping must be a field");
 
-    if let Some(expr) = key_expr {
-        let key = parse(expr, storage_fields)?;
-        // TODO: check if it is a local array or contract storage.
-        // TODO: what if the type does not implement Default trait.
-        if let Some(value) = value_expr {
-            Ok(parse_quote!(#array.set(&#key, #value)))
-        } else {
-            Ok(parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#array.get(&#key))))
+    match keys_expr.len() {
+        0 => panic!("Invalid mapping keys"),
+        1 => {
+            let key_expr = keys_expr.first().unwrap();
+            let key = read_variable_or_parse(key_expr, storage_fields)?;
+            if let Some(value) = value_expr {
+                Ok(parse_quote!(#field_ts.set(&#key, #value)))
+            } else {
+                Ok(get_expr(field_ts, Some(key), ty))
+            }
         }
-    } else {
-        Err("Unspecified key")
+        n => {
+            let mut token_stream = field_ts;
+
+            for i in 0..n - 1 {
+                let key = read_variable_or_parse(&keys_expr[0], storage_fields)?;
+                token_stream.extend(quote!(.get_instance(&#key)));
+            }
+            let key = read_variable_or_parse(keys_expr.last().unwrap(), storage_fields)?;
+            if let Some(value) = value_expr {
+                Ok(parse_quote!(#token_stream.set(&#key, #value)))
+            } else {
+                Ok(get_expr(token_stream, Some(key), ty))
+            }
+        }
+    }
+}
+
+fn get_expr(stream: TokenStream, key_expr: Option<syn::Expr>, ty: NysaType) -> syn::Expr {
+    let key = key_expr.clone().map(|k| quote!(&#k));
+    match ty {
+        NysaType::Address => parse_quote!(#stream.get(#key).unwrap_or(None)),
+        NysaType::String | NysaType::Bool | NysaType::Uint(_) | NysaType::Int(_) => {
+            parse_quote!(#stream.get_or_default(#key))
+        }
+        NysaType::Mapping(_, v) => {
+            let ty = NysaType::try_from(&*v).unwrap();
+            get_expr(stream, key_expr, ty)
+        }
+        _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
     }
 }

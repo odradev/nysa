@@ -54,6 +54,17 @@ impl From<&pt::Type> for NysaType {
     }
 }
 
+impl TryFrom<&NysaExpression> for NysaType {
+    type Error = ();
+
+    fn try_from(value: &NysaExpression) -> Result<Self, Self::Error> {
+        match value {
+            NysaExpression::Type { ty } => Ok(ty.clone()),
+            _ => Err(()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct NysaVar {
     pub name: String,

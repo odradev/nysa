@@ -4,6 +4,22 @@ use syn::parse_quote;
 use super::ir::NysaType;
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum NumSize {
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    U256,
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    I256,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum NysaExpression {
     Require {
         condition: Box<NysaExpression>,
@@ -12,9 +28,17 @@ pub enum NysaExpression {
     Wildcard,
     ZeroAddress,
     Message(Message),
-    ArraySubscript {
-        array: Box<NysaExpression>,
-        key: Box<Option<NysaExpression>>,
+    Mapping {
+        name: String,
+        key: Box<NysaExpression>,
+    },
+    Mapping2 {
+        name: String,
+        keys: Box<(NysaExpression, NysaExpression)>,
+    },
+    Mapping3 {
+        name: String,
+        keys: Box<(NysaExpression, NysaExpression, NysaExpression)>,
     },
     Variable {
         name: String,
@@ -80,7 +104,7 @@ pub enum NysaExpression {
         name: String,
     },
     NumberLiteral {
-        ty: &'static str,
+        ty: NumSize,
         value: Vec<u8>,
     },
     Func {
@@ -109,11 +133,27 @@ impl From<&pt::Expression> for NysaExpression {
     fn from(value: &pt::Expression) -> Self {
         match value {
             pt::Expression::ArraySubscript(_, arr, key) => {
-                let key_expr = key.clone().map(|key_expr| key_expr.as_ref().into());
+                let key_expr = key
+                    .clone()
+                    .map(|key_expr| key_expr.as_ref().into())
+                    .expect("Unspecfied key");
 
-                NysaExpression::ArraySubscript {
-                    array: Box::new(arr.as_ref().into()),
-                    key: Box::new(key_expr),
+                if let pt::Expression::ArraySubscript(_, arr2, key2) = &**arr {
+                    let key_expr2 = key2
+                        .clone()
+                        .map(|key_expr| key_expr.as_ref().into())
+                        .expect("Unspecfied key");
+                    let name = try_to_variable_name(arr2).expect("Mapping name expected");
+                    NysaExpression::Mapping2 {
+                        name,
+                        keys: Box::new((key_expr2, key_expr)),
+                    }
+                } else {
+                    let name = try_to_variable_name(arr).expect("Mapping name expected");
+                    NysaExpression::Mapping {
+                        name,
+                        key: Box::new(key_expr),
+                    }
                 }
             }
             pt::Expression::Assign(_, l, r) => NysaExpression::Assign {
@@ -201,8 +241,17 @@ impl From<&pt::Expression> for NysaExpression {
 
                 // u32::MAX or less
                 if digs.len() == 1 {
+                    let value = digs[0];
+                    let max_u8 = u8::MAX as u32;
+                    let max_u16 = u16::MAX as u32;
+                    let mut ty = NumSize::U32;
+                    if value <= u8::MAX.into() {
+                        ty = NumSize::U8;
+                    } else if value <= u16::MAX.into() {
+                        ty = NumSize::U16;
+                    }
                     Self::NumberLiteral {
-                        ty: "u32",
+                        ty,
                         value: digs[0].to_le_bytes().to_vec(),
                     }
                 } else {
@@ -210,13 +259,13 @@ impl From<&pt::Expression> for NysaExpression {
                     // u32::MAX..u64::MAX
                     if digs.len() == 1 {
                         Self::NumberLiteral {
-                            ty: "u64",
+                            ty: NumSize::U64,
                             value: digs[0].to_le_bytes().to_vec(),
                         }
                     } else {
                         let (_, bytes) = num.to_bytes_le();
                         Self::NumberLiteral {
-                            ty: "U256",
+                            ty: NumSize::U256,
                             value: bytes,
                         }
                     }
@@ -320,6 +369,13 @@ fn try_to_super_call(name: &pt::Expression, args: &[pt::Expression]) -> Option<N
                 args: args.iter().map(From::from).collect(),
             });
         }
+    }
+    None
+}
+
+fn try_to_variable_name(name: &pt::Expression) -> Option<String> {
+    if let pt::Expression::Variable(id) = name {
+        return Some(id.name.to_owned());
     }
     None
 }

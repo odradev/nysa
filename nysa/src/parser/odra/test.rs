@@ -40,20 +40,22 @@ contract Owner {
 const TEST_INPUT: &str = r#"
 contract Owner {
     address private _owner;
+    mapping(address => mapping(address => uint256)) private _allowances;
+    mapping(address => uint256) private _balances;
 
-    function _transferOwnership(address newOwner) internal virtual {
-        address oldOwner = _owner;
+    function allowance(address owner, address spender) public view virtual returns (uint256) {
+        _balances[to] += value;
     }
 }
 "#;
 
 #[test]
 fn test_parser() {
-    let result: PackageDef = parse::<OdraParser>(String::from(include_str!(
-        "../../../../resources/plascoin.sol"
-    )));
-    // let result: PackageDef = parse::<OdraParser>(TEST_INPUT.to_string());
-    dbg!(result.to_token_stream().to_string());
+    // let result: PackageDef = parse::<OdraParser>(String::from(include_str!(
+    //     "../../../../resources/plascoin.sol"
+    // )));
+    let result: PackageDef = parse::<OdraParser>(TEST_INPUT.to_string());
+    dbg!(result.classes.first().to_token_stream().to_string());
     assert!(true);
 }
 

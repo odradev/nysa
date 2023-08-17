@@ -36,23 +36,28 @@ impl ContractData {
         let mut fn_map = HashMap::new();
         let mut var_map = HashMap::new();
 
-        contracts.iter().for_each(|c| {
-            let class = Class::from(c.name.name.as_str());
-            let fns: Vec<NysaFunction> = map_collection(ast::extract_functions(c));
+        let relevant_contracts = c3.all_classes_str();
 
-            for func in fns.iter() {
-                let fn_class = Class::from(func.name.as_str());
-                c3.register_fn(class.clone(), fn_class);
-            }
+        contracts
+            .iter()
+            .filter(|c| relevant_contracts.contains(&c.name.name))
+            .for_each(|c| {
+                let class = Class::from(c.name.name.as_str());
+                let fns: Vec<NysaFunction> = map_collection(ast::extract_functions(c));
 
-            let vars: Vec<NysaVar> = map_collection(ast::extract_vars(c));
-            for var in vars.iter() {
-                let var_class = Class::from(var.name.as_str());
-                c3.register_var(class.clone(), var_class)
-            }
-            fn_map.insert(class.clone(), fns);
-            var_map.insert(class, vars);
-        });
+                for func in fns.iter() {
+                    let fn_class = Class::from(func.name.as_str());
+                    c3.register_fn(class.clone(), fn_class);
+                }
+
+                let vars: Vec<NysaVar> = map_collection(ast::extract_vars(c));
+                for var in vars.iter() {
+                    let var_class = Class::from(var.name.as_str());
+                    c3.register_var(class.clone(), var_class)
+                }
+                fn_map.insert(class.clone(), fns);
+                var_map.insert(class, vars);
+            });
 
         Self {
             contract,
