@@ -4,6 +4,7 @@ use crate::model::ContractData;
 
 pub mod odra;
 
+/// Type that converts a pre-processed `data` into `PackageDef`.
 pub trait Parser {
-    fn parse(data: &ContractData) -> PackageDef;
+    fn parse(data: ContractData) -> PackageDef;
 }

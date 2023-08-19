@@ -29,7 +29,7 @@ lazy_static::lazy_static! {
 pub struct OdraParser;
 
 impl Parser for OdraParser {
-    fn parse(data: &ContractData) -> PackageDef {
+    fn parse(data: ContractData) -> PackageDef {
         let class_name = data.c3_class_name_def();
 
         let mut classes = vec![];
@@ -37,7 +37,7 @@ impl Parser for OdraParser {
         classes.push(contract_def(&data));
         PackageDef {
             attrs: other::attrs(),
-            other_code: other::other_code(data),
+            other_code: other::other_code(&data),
             class_name,
             classes,
         }

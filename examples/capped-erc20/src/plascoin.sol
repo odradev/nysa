@@ -33,7 +33,6 @@ interface IERC20Errors {
     error ERC20InvalidSpender(address spender);
 }
 
-// abstract contract ERC20 is Context, IERC20Metadata, IERC20, IERC20Errors {
 abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
@@ -80,7 +79,6 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
 
     function approve(address spender, uint256 value) public virtual returns (bool) {
         address owner = _msgSender();
-        // _approve(owner, spender, value);
         _approve(owner, spender, value, true);
         return true;
     }
@@ -94,7 +92,6 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
 
     function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
         address owner = _msgSender();
-        // _approve(owner, spender, allowance(owner, spender) + addedValue);
         _approve(owner, spender, allowance(owner, spender) + addedValue, true);
         return true;
     }
@@ -107,7 +104,6 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
         }
         unchecked {
             _approve(owner, spender, currentAllowance - requestedDecrease, true);
-            // _approve(owner, spender, currentAllowance - requestedDecrease);
         }
 
         return true;
@@ -167,10 +163,6 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
         _update(account, address(0), value);
     }
 
-    // function _approve(address owner, address spender, uint256 value) internal virtual {
-    //     _approve(owner, spender, value, true);
-    // }
-
     function _approve(address owner, address spender, uint256 value, bool emitEvent) internal virtual {
         if (owner == address(0)) {
             revert ERC20InvalidApprover(address(0));
@@ -197,7 +189,6 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     }
 }
 
-// abstract contract ERC20Burnable is ERC20, Context {
 abstract contract ERC20Burnable is Context, ERC20 {
     function burn(uint256 value) public virtual {
         _burn(_msgSender(), value);
@@ -285,9 +276,7 @@ abstract contract Ownable is Context {
 }
 
 contract Plascoin is ERC20Capped, ERC20Burnable, Ownable {
-    // constructor(name_, symbol_, cap_, initialOwner) ERC20("Plascoin", "PLS") ERC20Capped(1_000_000_000 * 10**9) Ownable(msg.sender) {
     constructor(string memory name_, string memory symbol_, uint256 cap_, address initialOwner) ERC20(name_, symbol_) ERC20Capped(cap_) Ownable(initialOwner) {
-        // The total supply is capped at 1 billion tokens with 9 decimals
     }
 
     function mint(address account, uint256 amount) public onlyOwner {

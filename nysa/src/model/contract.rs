@@ -23,14 +23,16 @@ pub struct ContractData {
     c3: C3,
 }
 
-impl ContractData {
-    pub fn new(solidity_ast: &[SourceUnitPart]) -> Self {
-        let contracts: Vec<&ContractDefinition> = ast::extract_contracts(solidity_ast);
-        let contract = contracts.last().expect("Contract not found").to_owned();
+impl TryFrom<Vec<SourceUnitPart>> for ContractData {
+    type Error = &'static str;
+
+    fn try_from(value: Vec<SourceUnitPart>) -> Result<Self, Self::Error> {
+        let contracts: Vec<&ContractDefinition> = ast::extract_contracts(&value);
+        let contract = contracts.last().ok_or("No contract found")?.to_owned();
         let contract = NysaContract::from(contract);
 
-        let events = map_collection(ast::extract_events(solidity_ast));
-        let errors = map_collection(ast::extract_errors(solidity_ast));
+        let events = map_collection(ast::extract_events(&value));
+        let errors = map_collection(ast::extract_errors(&value));
 
         let mut c3 = linearization::c3_linearization(&contracts);
         let mut fn_map = HashMap::new();
@@ -59,16 +61,18 @@ impl ContractData {
                 var_map.insert(class, vars);
             });
 
-        Self {
+        Ok(Self {
             contract,
             events,
             errors,
             fn_map,
             var_map,
             c3,
-        }
+        })
     }
+}
 
+impl ContractData {
     /// Extracts contract name and wraps with c3 ast abstraction.
     pub fn c3_class(&self) -> Class {
         Class::from(self.contract.name())

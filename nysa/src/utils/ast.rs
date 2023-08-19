@@ -1,12 +1,12 @@
-use solidity_parser::pt::{
+use solidity_parser::{pt::{
     ContractDefinition, ContractPart, ErrorDefinition, EventDefinition, FunctionDefinition,
     SourceUnitPart, VariableDefinition,
-};
+}, Diagnostic};
 
-pub(crate) fn parse(input: &str) -> Vec<SourceUnitPart> {
-    let solidity_ast = solidity_parser::parse(&input, 0).unwrap();
-    let solidity_ast: Vec<SourceUnitPart> = solidity_ast.0 .0;
-    solidity_ast
+
+pub(crate) fn parse(input: &str) -> Result<Vec<SourceUnitPart>, Vec<Diagnostic>> {
+    let solidity_ast = solidity_parser::parse(&input, 0);
+    solidity_ast.map(|ast| ast.0.0)
 }
 
 /// Filters [ContractDefinition] from solidity ast.
