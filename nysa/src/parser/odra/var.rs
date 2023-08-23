@@ -2,8 +2,8 @@ use c3_lang_parser::c3_ast::VarDef;
 
 use crate::{
     model::{
-        ir::{NysaType, NysaVar},
-        ContractData, NysaExpression,
+        ir::{NysaExpression, NysaType, NysaVar},
+        ContractData,
     },
     utils::to_snake_case_ident,
 };

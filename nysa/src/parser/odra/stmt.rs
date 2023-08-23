@@ -2,7 +2,7 @@ use quote::format_ident;
 use syn::parse_quote;
 
 use crate::{
-    model::{ir::NysaVar, NysaExpression, NysaStmt},
+    model::ir::{NysaExpression, NysaStmt, NysaVar},
     utils,
 };
 
@@ -107,7 +107,7 @@ mod t {
     use syn::parse_quote;
 
     use super::parse_statement;
-    use crate::model::{NysaExpression, NysaStmt};
+    use crate::model::ir::{NysaExpression, NysaStmt};
 
     #[test]
     fn revert_with_no_msg() {
@@ -151,7 +151,7 @@ mod t {
     fn invalid_revert_stmt() {
         let error_msg = "An error occurred";
         let stmt = NysaStmt::Revert {
-            msg: Some(NysaExpression::Wildcard),
+            msg: Some(NysaExpression::Placeholder),
         };
         let result = parse_statement(&stmt, &vec![]);
 

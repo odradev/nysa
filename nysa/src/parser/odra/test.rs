@@ -39,12 +39,22 @@ contract Owner {
 #[allow(dead_code)]
 const TEST_INPUT: &str = r#"
 contract Owner {
-    address private _owner;
-    mapping(address => mapping(address => uint256)) private _allowances;
-    mapping(address => uint256) private _balances;
+    address private owner;
 
-    function allowance(address owner, address spender) public view virtual returns (uint256) {
-        _balances[to] += value;
+    function transferOwnership(address newOwner) public onlyOwner onlyYou(msg.sender) {
+        owner = newOwner;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only the contract owner can call this function.");
+        _;
+        require(msg.sender == owner, "Only function.");
+    }
+
+    modifier onlyYou(address you) {
+        require(you == owner, "Only the contract owner can call this function.");
+        _;
+        require(you == owner, "Only function.");
     }
 }
 "#;

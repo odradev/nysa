@@ -1,6 +1,6 @@
 use syn::parse_quote;
 
-use crate::model::{ir::NysaType, NysaExpression};
+use crate::model::ir::{NysaExpression, NysaType};
 
 /// Parses solidity statement into a syn type.
 ///

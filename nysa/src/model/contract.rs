@@ -9,10 +9,63 @@ use crate::{
     utils::{self, ast, map_collection},
 };
 
-use super::ir::{NysaContract, NysaError, NysaEvent, NysaFunction, NysaVar};
+use super::{
+    func::{Constructor, Function, Modifier, NysaFunction},
+    misc::{NysaContract, NysaError, NysaEvent, NysaVar},
+};
 
-type FnName = String;
-type FnImpls<'a> = (FnName, Vec<(Class, NysaFunction)>);
+pub struct FnImplementations {
+    pub name: String,
+    pub implementations: Vec<(Class, NysaFunction)>,
+}
+
+impl FnImplementations {
+    pub fn is_modifier(&self) -> bool {
+        self.implementations
+            .iter()
+            .all(|(_, f)| matches!(f, NysaFunction::Modifier(_)))
+    }
+
+    pub fn is_constructor(&self) -> bool {
+        self.implementations
+            .iter()
+            .all(|(_, f)| matches!(f, NysaFunction::Constructor(_)))
+    }
+
+    pub fn as_modifiers(&self) -> Vec<(&Class, &Modifier)> {
+        self.implementations
+            .iter()
+            .filter_map(|(id, f)| match f {
+                NysaFunction::Modifier(f) => Some((id, f)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn as_constructors(&self) -> Vec<(&Class, &Constructor)> {
+        self.implementations
+            .iter()
+            .filter_map(|(id, f)| match f {
+                NysaFunction::Constructor(f) => Some((id, f)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn as_functions(&self) -> Vec<(&Class, &Function)> {
+        self.implementations
+            .iter()
+            .filter_map(|(id, f)| match f {
+                NysaFunction::Function(f) => Some((id, f)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn len(&self) -> usize {
+        self.implementations.len()
+    }
+}
 
 pub struct ContractData {
     contract: NysaContract,
@@ -48,7 +101,7 @@ impl TryFrom<Vec<SourceUnitPart>> for ContractData {
                 let fns: Vec<NysaFunction> = map_collection(ast::extract_functions(c));
 
                 for func in fns.iter() {
-                    let fn_class = Class::from(func.name.as_str());
+                    let fn_class = Class::from(func.name().as_str());
                     c3.register_fn(class.clone(), fn_class);
                 }
 
@@ -93,7 +146,7 @@ impl ContractData {
         self.c3.path(&contract_id).expect("Invalid contract path")
     }
 
-    pub fn fn_implementations(&self) -> Vec<FnImpls> {
+    pub fn fn_implementations(&self) -> Vec<FnImplementations> {
         let mut result = vec![];
         for fn_name in self.functions_str() {
             let implementations = self
@@ -103,7 +156,10 @@ impl ContractData {
                     utils::func::find_by_name(class.clone(), fns.to_vec(), &fn_name)
                 })
                 .collect::<Vec<_>>();
-            result.push((fn_name, implementations));
+            result.push(FnImplementations {
+                name: fn_name,
+                implementations,
+            });
         }
         result
     }

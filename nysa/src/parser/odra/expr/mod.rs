@@ -8,9 +8,7 @@ use syn::punctuated::Punctuated;
 use syn::BinOp;
 use syn::Token;
 
-use crate::model::ir::NysaVar;
-use crate::model::NumSize;
-use crate::model::NysaExpression;
+use crate::model::ir::{NumSize, NysaExpression, NysaVar};
 use crate::utils;
 use crate::utils::to_snake_case_ident;
 
@@ -28,7 +26,7 @@ pub fn parse(
         NysaExpression::Require { condition, error } => {
             error::revert(Some(condition), error, storage_fields)
         }
-        NysaExpression::Wildcard => Err("Empty identifier"),
+        NysaExpression::Placeholder => Err("Empty identifier"),
         NysaExpression::ZeroAddress => Ok(parse_quote!(None)),
         NysaExpression::Message(msg) => msg.try_into(),
         NysaExpression::Mapping { name, key } => {

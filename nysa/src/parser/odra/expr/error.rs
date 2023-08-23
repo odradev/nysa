@@ -2,7 +2,7 @@ use quote::{format_ident, ToTokens};
 use syn::parse_quote;
 
 use crate::{
-    model::{ir::NysaVar, NysaExpression},
+    model::ir::{NysaExpression, NysaVar},
     parser::odra::{ERRORS, ERROR_MAP},
 };
 

@@ -1,7 +1,7 @@
 use solidity_parser::pt;
 use syn::parse_quote;
 
-use super::ir::NysaType;
+use super::misc::NysaType;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NumSize {
@@ -25,7 +25,7 @@ pub enum NysaExpression {
         condition: Box<NysaExpression>,
         error: Box<NysaExpression>,
     },
-    Wildcard,
+    Placeholder,
     ZeroAddress,
     Message(Message),
     Mapping {
@@ -179,7 +179,7 @@ impl From<&pt::Expression> for NysaExpression {
                     .unwrap_or_else(to_func)
             }
             pt::Expression::Variable(id) => match id.name.as_str() {
-                "_" => NysaExpression::Wildcard,
+                "_" => NysaExpression::Placeholder,
                 name => NysaExpression::Variable {
                     name: name.to_string(),
                 },

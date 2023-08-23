@@ -39,6 +39,7 @@ pub enum NysaStmt {
     Revert {
         msg: Option<NysaExpression>,
     },
+    Placeholder,
     Unknown,
 }
 
@@ -70,7 +71,14 @@ impl From<&pt::Statement> for NysaStmt {
                 },
             },
             pt::Statement::While(_, _, _) => Self::Unknown,
-            pt::Statement::Expression(_, expr) => Self::Expression { expr: expr.into() },
+            pt::Statement::Expression(_, expr) => {
+                let expr: NysaExpression = expr.into();
+                if expr == NysaExpression::Placeholder {
+                    Self::Placeholder
+                } else {
+                    Self::Expression { expr }
+                }
+            }
             pt::Statement::VariableDefinition(_, declaration, init) => match init {
                 Some(expr) => Self::VarDefinition {
                     declaration: declaration.name.name.clone(),

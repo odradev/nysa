@@ -1,0 +1,15 @@
+1. modifiers
+ * args
+ * adding code at the end
+ * adding code at the beginning and at the end
+ * multiple modifiers
+2. default variable values:
+    eg `unit8 decimals decimals = 18;`
+3. constructor normalization
+    if constructors have different args, the resulting constructor should accept the combination of all the args.
+4. library
+5. fallback and receiver functions
+6. default getters from public functions
+7. functions overloading
+8. name shadowing
+9. Detect nested mapping expression

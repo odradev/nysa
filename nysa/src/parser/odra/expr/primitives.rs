@@ -3,10 +3,7 @@ use syn::{parse_quote, BinOp};
 
 use super::parse;
 use crate::{
-    model::{
-        ir::{NysaType, NysaVar},
-        NysaExpression,
-    },
+    model::ir::{NysaExpression, NysaType, NysaVar},
     parser::odra::var::IsField,
     utils::to_snake_case_ident,
 };

@@ -7,6 +7,9 @@ pub(crate) fn find_by_name(
     functions: Vec<NysaFunction>,
     name: &str,
 ) -> Option<(Class, NysaFunction)> {
-    let result = functions.iter().find(|f| f.name == name).map(|f| f.clone());
+    let result = functions
+        .iter()
+        .find(|f| f.name() == name)
+        .map(|f| f.clone());
     result.map(|f| (contract_name, f))
 }
