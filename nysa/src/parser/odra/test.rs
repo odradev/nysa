@@ -1,3 +1,5 @@
+use std::{fs::File, io::Read};
+
 use c3_lang_linearization::{Class, Fn};
 use c3_lang_parser::c3_ast::{ClassFnImpl, ClassNameDef, ComplexFnDef, FnDef, PlainFnDef, VarDef};
 use pretty_assertions::assert_eq;
@@ -11,67 +13,47 @@ use crate::{
 
 use super::*;
 
-const INPUT_OWNABLE: &str = r#"
-pragma solidity ^0.8.0;
+#[test]
+fn test_constructor() {
+    let result: PackageDef =
+        parse::<OdraParser, _>(include_str!("../../../../resources/constructors/1.sol"));
+    assert_impl(result, "../resources/constructors/1.rs");
 
-contract Owner {
-    address private owner;
+    let result: PackageDef =
+        parse::<OdraParser, _>(include_str!("../../../../resources/constructors/2.sol"));
+    assert_impl(result, "../resources/constructors/2.rs");
 
-    constructor() {
-        owner = msg.sender;
-    }
+    let result: PackageDef =
+        parse::<OdraParser, _>(include_str!("../../../../resources/constructors/3.sol"));
+    assert_impl(result, "../resources/constructors/3.rs");
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the contract owner can call this function.");
-        _;
-    }
+    let result: PackageDef =
+        parse::<OdraParser, _>(include_str!("../../../../resources/constructors/4.sol"));
+    assert_impl(result, "../resources/constructors/4.rs");
 
-    function getOwner() public view returns (address) {
-        return owner;
-    }
+    let result: PackageDef =
+        parse::<OdraParser, _>(include_str!("../../../../resources/constructors/5.sol"));
+    assert_impl(result, "../resources/constructors/5.rs");
 
-    function transferOwnership(address newOwner) public onlyOwner {
-        owner = newOwner;
-    }
+    let result: PackageDef =
+        parse::<OdraParser, _>(include_str!("../../../../resources/constructors/6.sol"));
+    assert_impl(result, "../resources/constructors/6.rs");
+
+    let result: PackageDef =
+        parse::<OdraParser, _>(include_str!("../../../../resources/constructors/7.sol"));
+    assert_impl(result, "../resources/constructors/7.rs");
 }
-"#;
-
-#[allow(dead_code)]
-const TEST_INPUT: &str = r#"
-contract Owner {
-    address private owner;
-
-    function transferOwnership(address newOwner) public onlyOwner onlyYou(msg.sender) {
-        owner = newOwner;
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the contract owner can call this function.");
-        _;
-        require(msg.sender == owner, "Only function.");
-    }
-
-    modifier onlyYou(address you) {
-        require(you == owner, "Only the contract owner can call this function.");
-        _;
-        require(you == owner, "Only function.");
-    }
-}
-"#;
 
 #[test]
-fn test_parser() {
-    // let result: PackageDef = parse::<OdraParser>(String::from(include_str!(
-    //     "../../../../resources/plascoin.sol"
-    // )));
-    let result: PackageDef = parse::<OdraParser>(TEST_INPUT.to_string());
-    dbg!(result.classes.first().to_token_stream().to_string());
-    assert!(true);
+fn test_modifier() {
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/modifiers/1.sol"));
+    assert_impl(result, "../resources/modifiers/1.rs");
 }
 
 #[test]
 fn test_owner() {
-    let result: PackageDef = parse::<OdraParser>(String::from(INPUT_OWNABLE));
+    let result: PackageDef =
+        parse::<OdraParser, _>(include_str!("../../../../resources/ownable.sol"));
 
     assert_eq!(
         result,
@@ -100,7 +82,7 @@ fn test_owner() {
                             class: Some(Class::from("Owner")),
                             fun: Fn::from("get_owner"),
                             implementation: parse_quote! {{
-                                return odra::UnwrapOrRevert::unwrap_or_revert(self.owner.get());
+                                return self.owner.get().unwrap_or(None);
                             }},
                             visibility: parse_quote!(pub),
                         }],
@@ -119,17 +101,17 @@ fn test_owner() {
                             visibility: parse_quote!(pub),
                         },
                     }),
-                    FnDef::Complex(ComplexFnDef {
+                    FnDef::Plain(PlainFnDef {
                         attrs: vec![],
-                        name: Fn::from("only_owner"),
-                        args: vec![parse_quote!(&self),],
+                        name: Fn::from("modifier_before_only_owner"),
+                        args: vec![parse_quote!(&mut self),],
                         ret: parse_quote!(),
-                        implementations: vec![ClassFnImpl {
-                            class: Some(Class::from("Owner")),
-                            fun: Fn::from("only_owner"),
+                        implementation: ClassFnImpl {
+                            class: None,
+                            fun: Fn::from("modifier_before_only_owner"),
                             implementation: parse_quote!({
                                 if !(Some(odra::contract_env::caller())
-                                    == odra::UnwrapOrRevert::unwrap_or_revert(self.owner.get()))
+                                    == self.owner.get().unwrap_or(None))
                                 {
                                     odra::contract_env::revert(odra::types::ExecutionError::new(
                                         1u16,
@@ -138,7 +120,19 @@ fn test_owner() {
                                 };
                             }),
                             visibility: parse_quote!(),
-                        }],
+                        },
+                    }),
+                    FnDef::Plain(PlainFnDef {
+                        attrs: vec![],
+                        name: Fn::from("modifier_after_only_owner"),
+                        args: vec![parse_quote!(&mut self),],
+                        ret: parse_quote!(),
+                        implementation: ClassFnImpl {
+                            class: None,
+                            fun: Fn::from("modifier_after_only_owner"),
+                            implementation: parse_quote!({}),
+                            visibility: parse_quote!(),
+                        },
                     }),
                     FnDef::Complex(ComplexFnDef {
                         attrs: vec![],
@@ -152,8 +146,9 @@ fn test_owner() {
                             class: Some(Class::from("Owner")),
                             fun: Fn::from("transfer_ownership"),
                             implementation: parse_quote! {{
-                                self.only_owner();
+                                self.modifier_before_only_owner();
                                 self.owner.set(new_owner);
+                                self.modifier_after_only_owner();
                             }},
                             visibility: parse_quote!(pub),
                         }],
@@ -162,4 +157,18 @@ fn test_owner() {
             }],
         }
     );
+}
+
+fn assert_impl(result: PackageDef, file_path: &str) {
+    let parse = |str| {
+        let file = syn::parse_file(str).unwrap();
+        prettyplease::unparse(&file)
+    };
+    let result = result.classes.first().to_token_stream().to_string();
+
+    let mut file = File::open(file_path).unwrap();
+    let mut content = String::new();
+    file.read_to_string(&mut content).unwrap();
+
+    pretty_assertions::assert_eq!(parse(result.as_str()), parse(content.as_str()));
 }

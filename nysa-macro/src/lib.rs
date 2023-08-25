@@ -46,7 +46,7 @@ pub fn nysa_file(input: TokenStream) -> TokenStream {
 }
 
 fn to_odra(solidity_code: String) -> TokenStream {
-    let c3_ast = nysa::parse::<OdraParser>(solidity_code);
+    let c3_ast = nysa::parse::<OdraParser, _>(solidity_code);
     c3_ast.to_token_stream().into()
 }
 

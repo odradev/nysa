@@ -1,10 +1,12 @@
 use c3_lang_linearization::Class;
 use c3_lang_parser::c3_ast::{ClassFnImpl, ComplexFnDef, FnDef, PlainFnDef};
-use syn::{parse_quote, FnArg};
+use syn::{parse_quote, FnArg, Ident};
 
 use crate::{
     model::{
-        ir::{NysaExpression, NysaParam, NysaStmt, NysaVar, NysaVisibility},
+        ir::{
+            Constructor, NysaBaseImpl, NysaExpression, NysaParam, NysaStmt, NysaVar, NysaVisibility,
+        },
         ContractData, FnImplementations,
     },
     parser::odra::{expr, ty},
@@ -25,7 +27,7 @@ pub fn functions_def(data: &ContractData) -> Vec<FnDef> {
                 let (a, b) = modifiers_def(i, &storage_fields);
                 vec![a, b]
             } else if i.is_constructor() {
-                vec![constructor_def(i, data, &storage_fields)]
+                constructor_def(i, data, &storage_fields)
             } else {
                 vec![function_def(i, data, &names, &storage_fields)]
             }
@@ -90,21 +92,14 @@ fn constructor_def(
     impls: &FnImplementations,
     data: &ContractData,
     storage_fields: &[NysaVar],
-) -> FnDef {
+) -> Vec<FnDef> {
     let impls = impls.as_constructors();
 
-    let (_, constructor) = impls
+    let (primary_constructor_class, primary_constructor) = impls
         .iter()
         .find(|(class, _)| **class == data.c3_class())
         .or(impls.last())
         .expect("At least one implementation expected");
-
-    let name: Class = constructor.name.as_str().into();
-
-    let mut attrs = vec![parse_quote!(#[odra(init)])];
-    if constructor.is_payable {
-        attrs.push(parse_quote!(#[odra(payable)]));
-    }
 
     let stmts: Vec<syn::Stmt> = impls
         .iter()
@@ -112,18 +107,96 @@ fn constructor_def(
         .flatten()
         .collect();
 
-    FnDef::Plain(PlainFnDef {
-        attrs,
-        name: name.clone(),
-        args: args(&constructor.params, constructor.is_mutable),
-        ret: parse_ret_type(&constructor.ret),
-        implementation: ClassFnImpl {
-            class: None,
-            fun: name,
-            implementation: parse_quote!({ #(#stmts)* }),
-            visibility: parse_quote!(pub),
-        },
-    })
+    impls
+        .iter()
+        .map(|(id, c)| {
+            let mut attrs = vec![];
+            if c.is_payable {
+                attrs.push(parse_quote!(#[odra(payable)]));
+            }
+
+            let mut stmts: Vec<syn::Stmt> = vec![];
+            stmts.extend(parse_base_calls(c, &impls, storage_fields));
+            stmts.extend(parse_statements(&c.stmts, storage_fields));
+            let name = parse_constructor_name(id, c, c == primary_constructor);
+
+            if c == primary_constructor {
+                attrs.push(parse_quote!(#[odra(init)]));
+
+                FnDef::Plain(PlainFnDef {
+                    attrs,
+                    name: name.clone(),
+                    args: args(&c.params, c.is_mutable),
+                    ret: parse_ret_type(&c.ret),
+                    implementation: ClassFnImpl {
+                        class: None,
+                        fun: name,
+                        implementation: parse_quote!({ #(#stmts)* }),
+                        visibility: parse_quote!(pub),
+                    },
+                })
+            } else {
+                FnDef::Plain(PlainFnDef {
+                    attrs,
+                    name: name.clone(),
+                    args: args(&c.params, c.is_mutable),
+                    ret: parse_ret_type(&c.ret),
+                    implementation: ClassFnImpl {
+                        class: None,
+                        fun: name,
+                        implementation: parse_quote!({ #(#stmts)* }),
+                        visibility: parse_quote!(),
+                    },
+                })
+            }
+        })
+        .collect()
+}
+
+fn parse_base_calls(
+    constructor: &Constructor,
+    constructors: &[(&Class, &Constructor)],
+    storage_fields: &[NysaVar],
+) -> Vec<syn::Stmt> {
+    let mut stmts = vec![];
+    let find_base_class = |class: &Class| {
+        constructor
+            .base
+            .iter()
+            .find(|base| base.class_name == class.to_string())
+    };
+
+    constructors.iter().for_each(|(id, i)| {
+        if let Some(base) = find_base_class(id) {
+            let args = parse_base_args(base, storage_fields);
+            let ident = parse_base_ident(base);
+            stmts.push(parse_quote!(self.#ident( #(#args),* );));
+        }
+    });
+    stmts
+}
+
+fn parse_base_args(base: &NysaBaseImpl, storage_fields: &[NysaVar]) -> Vec<syn::Expr> {
+    expr::parse_many(&base.args, &storage_fields).unwrap_or(vec![])
+}
+
+fn parse_base_ident(base: &NysaBaseImpl) -> Ident {
+    let prefix = format!("_{}_", base.class_name.to_lowercase());
+    let ident = utils::to_prefixed_snake_case_ident(&prefix, "init");
+    ident
+}
+
+fn parse_constructor_name(class: &Class, constructor: &Constructor, is_primary: bool) -> Class {
+    if is_primary {
+        constructor.name.as_str().into()
+    } else {
+        let name = format!(
+            "_{}_{}",
+            utils::to_snake_case(class.to_string().as_str()),
+            constructor.name
+        );
+        name.as_str().into()
+    }
 }
 
 /// Transforms [NysaVar] into a c3 ast [FnDef].
@@ -168,7 +241,7 @@ fn function_def(
 
 fn parse_body(
     statements: &[NysaStmt],
-    base: &[(String, Vec<NysaExpression>)],
+    base: &[NysaBaseImpl],
     names: &[String],
     storage_fields: &[NysaVar],
 ) -> syn::Block {
@@ -180,11 +253,11 @@ fn parse_body(
     // Eg `function mint(address _to, uint256 _amount) public onlyOwner {}`
     let before_stmts = base
         .iter()
-        .filter_map(|(base_name, args)| {
-            let args = expr::parse_many(&args, &storage_fields).unwrap_or(vec![]);
-            if names.contains(&utils::to_snake_case(&base_name)) {
+        .filter_map(|NysaBaseImpl { class_name, args }| {
+            let args = expr::parse_many(args, &storage_fields).unwrap_or(vec![]);
+            if names.contains(&utils::to_snake_case(class_name)) {
                 // modifier call
-                let ident = utils::to_prefixed_snake_case_ident("modifier_before_", &base_name);
+                let ident = utils::to_prefixed_snake_case_ident("modifier_before_", class_name);
                 Some(parse_quote!(self.#ident( #(#args),* );))
             } else {
                 // super constructor call but handled already
@@ -196,11 +269,11 @@ fn parse_body(
     let after_stmts = base
         .iter()
         .rev()
-        .filter_map(|(base_name, args)| {
+        .filter_map(|NysaBaseImpl { class_name, args }| {
             let args = expr::parse_many(&args, &storage_fields).unwrap_or(vec![]);
-            if names.contains(&utils::to_snake_case(&base_name)) {
+            if names.contains(&utils::to_snake_case(class_name)) {
                 // modifier call
-                let ident = utils::to_prefixed_snake_case_ident("modifier_after_", &base_name);
+                let ident = utils::to_prefixed_snake_case_ident("modifier_after_", class_name);
                 Some(parse_quote!(self.#ident( #(#args),* );))
             } else {
                 // super constructor call but handled already

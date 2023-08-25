@@ -4,16 +4,17 @@ use crate::utils;
 
 use super::{
     expr::{to_nysa_expr, NysaExpression},
+    misc::NysaBaseImpl,
     stmt::NysaStmt,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NysaParam {
     pub name: String,
     pub ty: NysaExpression,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NysaFunction {
     Function(Function),
     Constructor(Constructor),
@@ -30,7 +31,7 @@ impl NysaFunction {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Function {
     pub name: String,
     pub vis: NysaVisibility,
@@ -39,10 +40,10 @@ pub struct Function {
     pub is_mutable: bool,
     pub ret: Vec<NysaExpression>,
     pub stmts: Vec<NysaStmt>,
-    pub modifiers: Vec<(String, Vec<NysaExpression>)>,
+    pub modifiers: Vec<NysaBaseImpl>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Constructor {
     pub name: String,
     pub params: Vec<NysaParam>,
@@ -50,10 +51,39 @@ pub struct Constructor {
     pub is_mutable: bool,
     pub ret: Vec<NysaExpression>,
     pub stmts: Vec<NysaStmt>,
-    pub base: Vec<(String, Vec<NysaExpression>)>,
+    pub base: Vec<NysaBaseImpl>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl Default for Constructor {
+    fn default() -> Self {
+        Self {
+            name: String::from("init"),
+            params: vec![],
+            is_payable: false,
+            is_mutable: true,
+            ret: vec![],
+            stmts: vec![],
+            base: vec![],
+        }
+    }
+}
+
+impl Constructor {
+    pub fn extend_base(&mut self, base: Vec<NysaBaseImpl>) {
+        base.iter().for_each(|b| {
+            if self
+                .base
+                .iter()
+                .find(|self_b| self_b.class_name == b.class_name)
+                .is_none()
+            {
+                self.base.push(b.clone())
+            }
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Modifier {
     pub base_name: String,
     pub params: Vec<NysaParam>,
@@ -103,7 +133,7 @@ impl From<&&pt::FunctionDefinition> for NysaFunction {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NysaVisibility {
     Public,
     Private,
@@ -174,7 +204,7 @@ fn parse_mutability(func: &pt::FunctionDefinition) -> bool {
         }
         pt::FunctionTy::Fallback => todo!(),
         pt::FunctionTy::Receive => todo!(),
-        pt::FunctionTy::Modifier => false,
+        pt::FunctionTy::Modifier => true,
     }
 }
 
@@ -272,7 +302,7 @@ fn parse_modifier_statements(func: &pt::FunctionDefinition) -> (Vec<NysaStmt>, V
     (before_stmts, after_stmts)
 }
 
-fn parse_base(func: &pt::FunctionDefinition) -> Vec<(String, Vec<NysaExpression>)> {
+fn parse_base(func: &pt::FunctionDefinition) -> Vec<NysaBaseImpl> {
     func.attributes
         .iter()
         .filter_map(|attr| match attr {
@@ -280,9 +310,9 @@ fn parse_base(func: &pt::FunctionDefinition) -> Vec<(String, Vec<NysaExpression>
             _ => None,
         })
         .map(|base| {
-            let name = base.name.name.to_owned();
+            let class_name = base.name.name.to_owned();
             let args = base.args.clone().map(to_nysa_expr).unwrap_or_default();
-            (name, args)
+            NysaBaseImpl { class_name, args }
         })
         .collect::<Vec<_>>()
 }

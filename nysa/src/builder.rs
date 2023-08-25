@@ -21,7 +21,7 @@ where
     let mut file = File::open(source_code_path).unwrap();
     let mut solidity_code = String::new();
     file.read_to_string(&mut solidity_code).unwrap();
-    let c3_ast = parse::<T>(solidity_code);
+    let c3_ast = parse::<T, _>(solidity_code);
     let code = c3_ast.to_token_stream().to_string();
 
     let mut file = File::create(dest_code_path).expect("Failed to create the output file");

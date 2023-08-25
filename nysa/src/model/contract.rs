@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use c3_lang_linearization::{Class, C3};
 use c3_lang_parser::c3_ast::ClassNameDef;
+use itertools::Itertools;
 use solidity_parser::pt::{ContractDefinition, SourceUnitPart};
 
 use crate::{
@@ -97,8 +98,41 @@ impl TryFrom<Vec<SourceUnitPart>> for ContractData {
             .iter()
             .filter(|c| relevant_contracts.contains(&c.name.name))
             .for_each(|c| {
-                let class = Class::from(c.name.name.as_str());
-                let fns: Vec<NysaFunction> = map_collection(ast::extract_functions(c));
+                let contract = NysaContract::from(*c);
+
+                let class = Class::from(contract.name());
+                let mut fns: Vec<NysaFunction> = map_collection(ast::extract_functions(c));
+
+                let constructor = fns
+                    .iter_mut()
+                    .find(|f| matches!(f, NysaFunction::Constructor(_)))
+                    .map(|f| match f {
+                        NysaFunction::Function(_) => None,
+                        NysaFunction::Constructor(c) => Some(c),
+                        NysaFunction::Modifier(_) => None,
+                    })
+                    .flatten();
+
+                // There are two ways of calling a super constructor
+                // ```solidity
+                // contract A is B("Init X")
+                // //or
+                // contract A is B {
+                //   constructor() B("Init X") {}
+                // }
+                // ```
+                // So we need to pass super constructor calls from the contract level to the constructor level.
+                let contract_base = contract.base_impl().to_vec();
+                if let Some(c) = constructor {
+                    c.extend_base(contract_base);
+                } else {
+                    // Each Solidity contract has a constructor even if not defined explicitly,
+                    // If constructor not found in the source code, there should be created
+                    // a default empty constructor.
+                    let mut default_constructor = Constructor::default();
+                    default_constructor.extend_base(contract_base);
+                    fns.push(NysaFunction::Constructor(default_constructor));
+                }
 
                 for func in fns.iter() {
                     let fn_class = Class::from(func.name().as_str());
@@ -148,14 +182,17 @@ impl ContractData {
 
     pub fn fn_implementations(&self) -> Vec<FnImplementations> {
         let mut result = vec![];
+
+        // dbg!(&c3);
         for fn_name in self.functions_str() {
-            let implementations = self
-                .fn_map
-                .iter()
-                .filter_map(|(class, fns)| {
-                    utils::func::find_by_name(class.clone(), fns.to_vec(), &fn_name)
-                })
-                .collect::<Vec<_>>();
+            let mut implementations = vec![];
+            let c3 = self.c3_path().iter().rev().for_each(|class| {
+                let fns = self.fn_map.get(class).unwrap();
+                let f = utils::func::find_by_name(class.clone(), fns.to_vec(), &fn_name);
+                if let Some(f) = f {
+                    implementations.push(f);
+                }
+            });
             result.push(FnImplementations {
                 name: fn_name,
                 implementations,
@@ -172,6 +209,7 @@ impl ContractData {
         let mut vars = self
             .var_map
             .iter()
+            .sorted()
             .map(|(_, v)| v.clone())
             .flatten()
             .collect::<Vec<_>>();

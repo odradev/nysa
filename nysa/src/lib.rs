@@ -30,9 +30,9 @@ pub use parser::odra::OdraParser;
 /// }
 ///
 /// ```
-pub fn parse<P: Parser>(input: String) -> PackageDef {
+pub fn parse<P: Parser, I: AsRef<str>>(input: I) -> PackageDef {
     let solidity_ast =
-        utils::ast::parse(&input).expect("The input should be a valid solidity code");
+        utils::ast::parse(input.as_ref()).expect("The input should be a valid solidity code");
     let contract_data = ContractData::try_from(solidity_ast)
         .expect("The ast should allow to create a valid PackageDef");
 

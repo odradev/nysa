@@ -3,7 +3,7 @@ use syn::parse_quote;
 
 use super::misc::NysaType;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NumSize {
     U8,
     U16,
@@ -19,7 +19,7 @@ pub enum NumSize {
     I256,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum NysaExpression {
     Require {
         condition: Box<NysaExpression>,
@@ -122,7 +122,10 @@ pub enum NysaExpression {
     Type {
         ty: NysaType,
     },
-    Expr(pt::Expression),
+    Not {
+        expr: Box<NysaExpression>,
+    },
+    UnknownExpr,
 }
 
 pub fn to_nysa_expr(solidity_expressions: Vec<pt::Expression>) -> Vec<NysaExpression> {
@@ -313,12 +316,15 @@ impl From<&pt::Expression> for NysaExpression {
                 right: Box::new(r.as_ref().into()),
             },
             pt::Expression::BoolLiteral(_, b) => Self::BoolLiteral(*b),
-            _ => Self::Expr(value.to_owned()),
+            pt::Expression::Not(_, expr) => Self::Not {
+                expr: Box::new(expr.as_ref().into()),
+            },
+            _ => Self::UnknownExpr,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 #[allow(dead_code)]
 pub enum Message {
     Sender,

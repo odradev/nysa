@@ -51,7 +51,7 @@ pub fn parse(
         NysaExpression::Assign { left, right } => {
             primitives::assign(left, right, None, storage_fields)
         }
-        NysaExpression::StringLiteral(string) => Ok(parse_quote!(#string)),
+        NysaExpression::StringLiteral(string) => Ok(parse_quote!(String::from(#string))),
         NysaExpression::LessEqual { left, right } => {
             bin_op(left, right, parse_quote!(<=), storage_fields)
         }
@@ -99,22 +99,22 @@ pub fn parse(
             NumSize::U8 => {
                 let arr = utils::convert_to_array(&value[0..1]);
                 let num = u8::from_le_bytes(arr);
-                Ok(parse_quote!(#num))
+                Ok(primitives::to_generic_lit_expr(num))
             }
             NumSize::U16 => {
                 let arr = utils::convert_to_array(&value[0..2]);
                 let num = u16::from_le_bytes(arr);
-                Ok(parse_quote!(#num))
+                Ok(primitives::to_generic_lit_expr(num))
             }
             NumSize::U32 => {
                 let arr = utils::convert_to_array(value);
                 let num = u32::from_le_bytes(arr);
-                Ok(parse_quote!(#num))
+                Ok(primitives::to_generic_lit_expr(num))
             }
             NumSize::U64 => {
                 let arr = utils::convert_to_array(value);
                 let num = u64::from_le_bytes(arr);
-                Ok(parse_quote!(#num))
+                Ok(primitives::to_generic_lit_expr(num))
             }
             NumSize::U256 => {
                 let arr = value
@@ -156,7 +156,11 @@ pub fn parse(
             Ok(parse_quote!(#left.pow(#right)))
         }
         NysaExpression::BoolLiteral(b) => Ok(parse_quote!(#b)),
-        NysaExpression::Expr(e) => panic!("Unknown expression {:?}", e),
+        NysaExpression::Not { expr } => {
+            let expr = primitives::read_variable_or_parse(expr, storage_fields)?;
+            Ok(parse_quote!(!(#expr)))
+        }
+        NysaExpression::UnknownExpr => panic!("Unknown expression"),
     }
 }
 

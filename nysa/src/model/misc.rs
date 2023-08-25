@@ -1,27 +1,44 @@
 use solidity_parser::pt;
 
+use crate::model::expr::to_nysa_expr;
+
 use super::expr::NysaExpression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NysaContract {
     name: String,
+    base_impl: Vec<NysaBaseImpl>,
 }
 
 impl NysaContract {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    pub fn base_impl(&self) -> &[NysaBaseImpl] {
+        &self.base_impl
+    }
 }
 
 impl From<&pt::ContractDefinition> for NysaContract {
     fn from(value: &pt::ContractDefinition) -> Self {
+        let base_impl = value
+            .base
+            .iter()
+            .map(|base| NysaBaseImpl {
+                class_name: base.name.name.to_owned(),
+                args: base.args.clone().map(to_nysa_expr).unwrap_or_default(),
+            })
+            .collect::<Vec<_>>();
+
         Self {
             name: value.name.name.to_owned(),
+            base_impl,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub enum NysaType {
     Address,
     Bool,
@@ -63,7 +80,7 @@ impl TryFrom<&NysaExpression> for NysaType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct NysaVar {
     pub name: String,
     pub ty: NysaExpression,
@@ -112,4 +129,10 @@ impl From<&&pt::ErrorDefinition> for NysaError {
         let name = value.name.name.to_owned();
         Self { name }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NysaBaseImpl {
+    pub class_name: String,
+    pub args: Vec<NysaExpression>,
 }
