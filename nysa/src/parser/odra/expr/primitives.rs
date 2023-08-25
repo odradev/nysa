@@ -181,13 +181,3 @@ fn get_expr(stream: TokenStream, key_expr: Option<syn::Expr>, ty: NysaType) -> s
         _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
     }
 }
-
-pub fn to_generic_lit_expr<N: num_traits::Num + ToString>(num: N) -> syn::Expr {
-    syn::Expr::Lit(syn::ExprLit {
-        attrs: vec![],
-        lit: syn::Lit::Int(syn::LitInt::new(
-            &num.to_string(),
-            proc_macro2::Span::call_site(),
-        )),
-    })
-}

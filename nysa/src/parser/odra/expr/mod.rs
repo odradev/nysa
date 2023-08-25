@@ -1,22 +1,21 @@
 use core::panic;
 
-use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
 use syn::parse_quote;
-use syn::punctuated::Punctuated;
-use syn::BinOp;
-use syn::Token;
 
-use crate::model::ir::{NumSize, NysaExpression, NysaVar};
+use crate::model::ir::{NysaExpression, NysaVar};
 use crate::utils;
 use crate::utils::to_snake_case_ident;
 
 use super::ty;
 use super::var::IsField;
 
-pub mod error;
-pub mod primitives;
+pub(crate) mod error;
+mod math;
+mod num;
+mod op;
+pub(crate) mod primitives;
 
 pub fn parse(
     expression: &NysaExpression,
@@ -53,26 +52,24 @@ pub fn parse(
         }
         NysaExpression::StringLiteral(string) => Ok(parse_quote!(String::from(#string))),
         NysaExpression::LessEqual { left, right } => {
-            bin_op(left, right, parse_quote!(<=), storage_fields)
+            op::bin_op(left, right, parse_quote!(<=), storage_fields)
         }
         NysaExpression::MoreEqual { left, right } => {
-            bin_op(left, right, parse_quote!(>=), storage_fields)
+            op::bin_op(left, right, parse_quote!(>=), storage_fields)
         }
         NysaExpression::Less { left, right } => {
-            bin_op(left, right, parse_quote!(<), storage_fields)
+            op::bin_op(left, right, parse_quote!(<), storage_fields)
         }
         NysaExpression::More { left, right } => {
-            bin_op(left, right, parse_quote!(>), storage_fields)
+            op::bin_op(left, right, parse_quote!(>), storage_fields)
         }
-        NysaExpression::Add { left, right } => bin_op(left, right, parse_quote!(+), storage_fields),
-        NysaExpression::Subtract { left, right } => {
-            bin_op(left, right, parse_quote!(-), storage_fields)
-        }
+        NysaExpression::Add { left, right } => math::add(left, right, storage_fields),
+        NysaExpression::Subtract { left, right } => math::sub(left, right, storage_fields),
         NysaExpression::Equal { left, right } => {
-            bin_op(left, right, parse_quote!(==), storage_fields)
+            op::bin_op(left, right, parse_quote!(==), storage_fields)
         }
         NysaExpression::NotEqual { left, right } => {
-            bin_op(left, right, parse_quote!(!=), storage_fields)
+            op::bin_op(left, right, parse_quote!(!=), storage_fields)
         }
         NysaExpression::AssignSubtract { left, right } => {
             let expr = primitives::assign(left, right, Some(parse_quote!(-)), storage_fields)?;
@@ -95,36 +92,7 @@ pub fn parse(
             let member: syn::Member = format_ident!("{}", name).into();
             Ok(parse_quote!(#base_expr.#member))
         }
-        NysaExpression::NumberLiteral { ty, value } => match *ty {
-            NumSize::U8 => {
-                let arr = utils::convert_to_array(&value[0..1]);
-                let num = u8::from_le_bytes(arr);
-                Ok(primitives::to_generic_lit_expr(num))
-            }
-            NumSize::U16 => {
-                let arr = utils::convert_to_array(&value[0..2]);
-                let num = u16::from_le_bytes(arr);
-                Ok(primitives::to_generic_lit_expr(num))
-            }
-            NumSize::U32 => {
-                let arr = utils::convert_to_array(value);
-                let num = u32::from_le_bytes(arr);
-                Ok(primitives::to_generic_lit_expr(num))
-            }
-            NumSize::U64 => {
-                let arr = utils::convert_to_array(value);
-                let num = u64::from_le_bytes(arr);
-                Ok(primitives::to_generic_lit_expr(num))
-            }
-            NumSize::U256 => {
-                let arr = value
-                    .iter()
-                    .map(|v| quote!(#v))
-                    .collect::<Punctuated<TokenStream, Token![,]>>();
-                Ok(parse_quote!(odra::types::U256::from_big_endian(&[#arr])))
-            }
-            _ => panic!("unknown type"),
-        },
+        NysaExpression::NumberLiteral { ty, value } => Ok(num::to_typed_int_expr(ty, value)),
         NysaExpression::Func { name, args } => match parse(name, storage_fields) {
             Ok(name) => {
                 let args = parse_many(&args, storage_fields)?;
@@ -172,15 +140,4 @@ pub fn parse_many(
         .iter()
         .map(|e| parse(e, storage_fields))
         .collect::<Result<Vec<syn::Expr>, _>>()
-}
-
-fn bin_op(
-    left: &NysaExpression,
-    right: &NysaExpression,
-    op: BinOp,
-    storage_fields: &[NysaVar],
-) -> Result<syn::Expr, &'static str> {
-    let left = primitives::read_variable_or_parse(left, storage_fields)?;
-    let right = primitives::read_variable_or_parse(right, storage_fields)?;
-    Ok(parse_quote!(#left #op #right))
 }

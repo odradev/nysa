@@ -51,6 +51,12 @@ fn test_modifier() {
 }
 
 #[test]
+fn test_default_value() {
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/default_values.sol"));
+    assert_impl(result, "../resources/default_values.rs");
+}
+
+#[test]
 fn test_owner() {
     let result: PackageDef =
         parse::<OdraParser, _>(include_str!("../../../../resources/ownable.sol"));
@@ -115,7 +121,7 @@ fn test_owner() {
                                 {
                                     odra::contract_env::revert(odra::types::ExecutionError::new(
                                         1u16,
-                                        "Only the contract owner can call this function.",
+                                        "Only the contract owner can call this function."
                                     ))
                                 };
                             }),
@@ -161,6 +167,7 @@ fn test_owner() {
 
 fn assert_impl(result: PackageDef, file_path: &str) {
     let parse = |str| {
+        // dbg!(str);
         let file = syn::parse_file(str).unwrap();
         prettyplease::unparse(&file)
     };

@@ -29,6 +29,15 @@ pub fn convert_to_array<const T: usize>(input: &[u8]) -> [u8; T] {
     let mut array: [u8; T] = [0; T];
     array.copy_from_slice(&input[..T]);
     array
+    // let arr = utils::convert_to_array(value);
+    // let num = u64::from_le_bytes(arr);
+}
+
+#[macro_export]
+macro_rules! to_unit {
+    ($value:expr, $t:ty) => {
+        <$t>::from_le_bytes(crate::utils::convert_to_array($value))
+    };
 }
 
 pub fn map_collection<'a, T, R>(collection: Vec<T>) -> Vec<R>

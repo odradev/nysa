@@ -1,7 +1,8 @@
-pragma solidity >=0.6.0 <0.8.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
 
 abstract contract Context {
-    function _msgSender() internal view virtual returns (address payable) {
+    function _msgSender() internal view virtual returns (address) {
         return msg.sender;
     }
 
@@ -10,8 +11,6 @@ abstract contract Context {
         return msg.data;
     }
 }
-
-pragma solidity >=0.6.0 <0.8.0;
 
 interface IERC20 {
 
@@ -31,8 +30,6 @@ interface IERC20 {
 
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
-
-pragma solidity >=0.6.0 <0.8.0;
 
 library SafeMath {
 
@@ -108,8 +105,6 @@ library SafeMath {
     }
 }
 
-pragma solidity >=0.6.0 <0.8.0;
-
 contract ERC20 is Context, IERC20 {
     using SafeMath for uint256;
 
@@ -123,7 +118,7 @@ contract ERC20 is Context, IERC20 {
     string private _symbol;
     uint8 private _decimals;
 
-    constructor (string memory name_, string memory symbol_) public {
+    constructor (string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
         _decimals = 18;
@@ -224,10 +219,8 @@ contract ERC20 is Context, IERC20 {
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual { }
 }
 
-pragma solidity ^0.7.1;
-
 contract Dogelon is ERC20 {
-    constructor() ERC20("Dogelon", "ELON") public {
+    constructor() ERC20("Dogelon", "ELON") {
         _mint(msg.sender, 10e32);
     }
 }

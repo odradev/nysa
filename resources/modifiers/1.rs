@@ -47,7 +47,7 @@ impl FunctionModifier {
 
                 self.x.set(self.x.get_or_default() - i);
 
-                if i > 1 {
+                if i > 1u8.into() {
                     self.decrement(i - 1);
                 }
 
@@ -62,7 +62,7 @@ impl FunctionModifier {
     pub fn init(&mut self) {
         {
             self.owner.set(Some(odra::contract_env::caller()));
-            self.x.set(10);
+            self.x.set(10u8.into());
         }
     }
 

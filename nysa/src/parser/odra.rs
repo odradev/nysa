@@ -1,4 +1,7 @@
-use crate::model::ContractData;
+use crate::model::{
+    ir::{NysaExpression, NysaVar},
+    ContractData,
+};
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use quote::format_ident;
 use std::{
@@ -24,6 +27,8 @@ lazy_static::lazy_static! {
 
     static ref MSG_DATA: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
     static ref SOLIDITY_ERRORS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
+
+    static ref DEFAULT_VARIABLES: Mutex<HashMap<NysaVar, NysaExpression>> = Mutex::new(HashMap::new());
 }
 
 pub struct OdraParser;

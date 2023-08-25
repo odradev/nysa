@@ -5,7 +5,7 @@ mod func;
 mod misc;
 mod stmt;
 
-pub use contract::{ContractData, FnImplementations};
+pub use contract::ContractData;
 
 pub mod ir {
     pub use super::expr::{to_nysa_expr, NumSize, NysaExpression};

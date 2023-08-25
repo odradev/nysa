@@ -11,62 +11,9 @@ use crate::{
 };
 
 use super::{
-    func::{Constructor, Function, Modifier, NysaFunction},
+    func::{Constructor, FnImplementations, NysaFunction},
     misc::{NysaContract, NysaError, NysaEvent, NysaVar},
 };
-
-pub struct FnImplementations {
-    pub name: String,
-    pub implementations: Vec<(Class, NysaFunction)>,
-}
-
-impl FnImplementations {
-    pub fn is_modifier(&self) -> bool {
-        self.implementations
-            .iter()
-            .all(|(_, f)| matches!(f, NysaFunction::Modifier(_)))
-    }
-
-    pub fn is_constructor(&self) -> bool {
-        self.implementations
-            .iter()
-            .all(|(_, f)| matches!(f, NysaFunction::Constructor(_)))
-    }
-
-    pub fn as_modifiers(&self) -> Vec<(&Class, &Modifier)> {
-        self.implementations
-            .iter()
-            .filter_map(|(id, f)| match f {
-                NysaFunction::Modifier(f) => Some((id, f)),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-    }
-
-    pub fn as_constructors(&self) -> Vec<(&Class, &Constructor)> {
-        self.implementations
-            .iter()
-            .filter_map(|(id, f)| match f {
-                NysaFunction::Constructor(f) => Some((id, f)),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-    }
-
-    pub fn as_functions(&self) -> Vec<(&Class, &Function)> {
-        self.implementations
-            .iter()
-            .filter_map(|(id, f)| match f {
-                NysaFunction::Function(f) => Some((id, f)),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-    }
-
-    pub fn len(&self) -> usize {
-        self.implementations.len()
-    }
-}
 
 pub struct ContractData {
     contract: NysaContract,
@@ -183,7 +130,6 @@ impl ContractData {
     pub fn fn_implementations(&self) -> Vec<FnImplementations> {
         let mut result = vec![];
 
-        // dbg!(&c3);
         for fn_name in self.functions_str() {
             let mut implementations = vec![];
             let c3 = self.c3_path().iter().rev().for_each(|class| {
@@ -212,6 +158,18 @@ impl ContractData {
             .sorted()
             .map(|(_, v)| v.clone())
             .flatten()
+            .collect::<Vec<_>>();
+        vars.dedup();
+        vars
+    }
+
+    pub fn vars_to_initialize(&self) -> Vec<NysaVar> {
+        let mut vars = self
+            .var_map
+            .iter()
+            .map(|(_, v)| v.clone())
+            .flatten()
+            .filter(|v| v.initializer.is_some())
             .collect::<Vec<_>>();
         vars.dedup();
         vars

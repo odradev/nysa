@@ -18,7 +18,7 @@ pub fn variables_def(data: &ContractData) -> Vec<VarDef> {
 /// Transforms solidity [VariableDefinition] into a c3 ast [VarDef].
 fn variable_def(v: &NysaVar) -> VarDef {
     let ident = to_snake_case_ident(&v.name);
-    let ty = ty::parse_type_from_expr(&v.ty);
+    let ty = ty::parse_odra_ty(&v.ty);
     VarDef { ident, ty }
 }
 
@@ -29,11 +29,7 @@ pub trait IsField {
 impl<T: AsRef<str>> IsField for T {
     fn is_field(&self, fields: &[NysaVar]) -> Option<NysaType> {
         let name = self.as_ref();
-        fields
-            .iter()
-            .find(|f| f.name == name)
-            .map(|f| NysaType::try_from(&f.ty).ok())
-            .flatten()
+        fields.iter().find(|v| v.name == name).map(|v| v.ty.clone())
     }
 }
 
@@ -46,7 +42,6 @@ impl IsField for &NysaExpression {
         fields
             .iter()
             .find(|f| &f.name == name)
-            .map(|f| NysaType::try_from(&f.ty).ok())
-            .flatten()
+            .map(|f| f.ty.clone())
     }
 }

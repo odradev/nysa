@@ -5,15 +5,7 @@ use crate::model::ir::{NysaExpression, NysaType};
 /// Parses solidity statement into a syn type.
 ///
 /// Panics if the input is an expression of type other than [NysaExpression::Type].
-pub fn parse_type_from_expr(ty: &NysaExpression) -> syn::Type {
-    match ty {
-        NysaExpression::Type { ty } => parse_odra_type(ty),
-        _ => panic!("Not a type. {:?}", ty),
-    }
-}
-
-/// Parses solidity type into a syn type (plain rust type or near type).
-fn parse_odra_type(ty: &NysaType) -> syn::Type {
+pub fn parse_odra_ty(ty: &NysaType) -> syn::Type {
     match ty {
         NysaType::Mapping(key, value) => {
             let key = parse_plain_type_from_expr(key);

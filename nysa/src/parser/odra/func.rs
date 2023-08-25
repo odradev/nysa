@@ -5,9 +5,10 @@ use syn::{parse_quote, FnArg, Ident};
 use crate::{
     model::{
         ir::{
-            Constructor, NysaBaseImpl, NysaExpression, NysaParam, NysaStmt, NysaVar, NysaVisibility,
+            Constructor, FnImplementations, NysaBaseImpl, NysaExpression, NysaParam, NysaStmt,
+            NysaType, NysaVar, NysaVisibility,
         },
-        ContractData, FnImplementations,
+        ContractData,
     },
     parser::odra::{expr, ty},
     utils,
@@ -117,6 +118,7 @@ fn constructor_def(
 
             let mut stmts: Vec<syn::Stmt> = vec![];
             stmts.extend(parse_base_calls(c, &impls, storage_fields));
+            stmts.extend(init_storage_fields(storage_fields));
             stmts.extend(parse_statements(&c.stmts, storage_fields));
             let name = parse_constructor_name(id, c, c == primary_constructor);
 
@@ -151,6 +153,35 @@ fn constructor_def(
             }
         })
         .collect()
+}
+
+fn init_storage_fields(storage_fields: &[NysaVar]) -> Vec<syn::Stmt> {
+    storage_fields
+        .iter()
+        .filter(|v| v.initializer.is_some())
+        .map(
+            |NysaVar {
+                 name,
+                 ty,
+                 initializer,
+             }| {
+                let init_expr = initializer.clone().unwrap();
+                let left = match ty {
+                    NysaType::Mapping(k, v) => panic!("Cannot init mapping"),
+                    _ => NysaExpression::Variable { name: name.clone() },
+                };
+
+                let stmt = NysaStmt::Expression {
+                    expr: NysaExpression::Assign {
+                        left: Box::new(left),
+                        right: Box::new(initializer.clone().unwrap()),
+                    },
+                };
+                stmt::parse_statement(&stmt, storage_fields)
+            },
+        )
+        .collect::<Result<_, _>>()
+        .unwrap_or_default()
 }
 
 fn parse_base_calls(

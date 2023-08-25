@@ -83,14 +83,19 @@ impl TryFrom<&NysaExpression> for NysaType {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct NysaVar {
     pub name: String,
-    pub ty: NysaExpression,
+    pub ty: NysaType,
+    pub initializer: Option<NysaExpression>,
 }
 
 impl From<&&pt::VariableDefinition> for NysaVar {
     fn from(value: &&pt::VariableDefinition) -> Self {
         Self {
             name: value.name.name.to_owned(),
-            ty: NysaExpression::from(&value.ty),
+            ty: match &value.ty {
+                pt::Expression::Type(_, ty) => NysaType::from(ty),
+                _ => panic!("Not a type. {:?}", value),
+            },
+            initializer: value.initializer.as_ref().map(NysaExpression::from),
         }
     }
 }

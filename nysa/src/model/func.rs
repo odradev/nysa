@@ -1,3 +1,4 @@
+use c3_lang_linearization::Class;
 use solidity_parser::pt;
 
 use crate::utils;
@@ -315,4 +316,57 @@ fn parse_base(func: &pt::FunctionDefinition) -> Vec<NysaBaseImpl> {
             NysaBaseImpl { class_name, args }
         })
         .collect::<Vec<_>>()
+}
+
+pub struct FnImplementations {
+    pub name: String,
+    pub implementations: Vec<(Class, NysaFunction)>,
+}
+
+impl FnImplementations {
+    pub fn is_modifier(&self) -> bool {
+        self.implementations
+            .iter()
+            .all(|(_, f)| matches!(f, NysaFunction::Modifier(_)))
+    }
+
+    pub fn is_constructor(&self) -> bool {
+        self.implementations
+            .iter()
+            .all(|(_, f)| matches!(f, NysaFunction::Constructor(_)))
+    }
+
+    pub fn as_modifiers(&self) -> Vec<(&Class, &Modifier)> {
+        self.implementations
+            .iter()
+            .filter_map(|(id, f)| match f {
+                NysaFunction::Modifier(f) => Some((id, f)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn as_constructors(&self) -> Vec<(&Class, &Constructor)> {
+        self.implementations
+            .iter()
+            .filter_map(|(id, f)| match f {
+                NysaFunction::Constructor(f) => Some((id, f)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn as_functions(&self) -> Vec<(&Class, &Function)> {
+        self.implementations
+            .iter()
+            .filter_map(|(id, f)| match f {
+                NysaFunction::Function(f) => Some((id, f)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn len(&self) -> usize {
+        self.implementations.len()
+    }
 }
