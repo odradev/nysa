@@ -2,8 +2,8 @@ use quote::{format_ident, ToTokens};
 use syn::parse_quote;
 
 use crate::{
-    model::ir::{NysaExpression, NysaVar},
-    parser::odra::{ERRORS, ERROR_MAP},
+    model::ir::NysaExpression,
+    parser::odra::{context::Context, ERRORS, ERROR_MAP},
 };
 
 use super::parse;
@@ -11,10 +11,10 @@ use super::parse;
 pub fn revert(
     condition: Option<&NysaExpression>,
     error: &NysaExpression,
-    storage_fields: &[NysaVar],
+    ctx: &mut Context,
 ) -> Result<syn::Expr, &'static str> {
     if let NysaExpression::StringLiteral(message) = error {
-        revert_with_str(condition, message, storage_fields)
+        revert_with_str(condition, message, ctx)
     } else {
         Err("Error should be NysaExpression::StringLiteral")
     }
@@ -23,7 +23,7 @@ pub fn revert(
 pub fn revert_with_str(
     condition: Option<&NysaExpression>,
     message: &str,
-    storage_fields: &[NysaVar],
+    ctx: &mut Context,
 ) -> Result<syn::Expr, &'static str> {
     let mut error_map = ERROR_MAP.lock().unwrap();
     let mut errors = ERRORS.lock().unwrap();
@@ -42,7 +42,7 @@ pub fn revert_with_str(
         quote::quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, #message)));
 
     if let Some(condition) = condition {
-        let condition = parse(condition, storage_fields)?;
+        let condition = parse(condition, ctx)?;
         return Ok(parse_quote!(if !(#condition) { #err }));
     } else {
         return Ok(parse_quote!(#err));

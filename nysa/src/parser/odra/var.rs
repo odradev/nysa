@@ -8,10 +8,10 @@ use crate::{
     utils::to_snake_case_ident,
 };
 
-use super::ty;
+use super::{context::Context, ty};
 
 /// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
-pub fn variables_def(data: &ContractData) -> Vec<VarDef> {
+pub fn variables_def(data: &ContractData, ctx: &mut Context) -> Vec<VarDef> {
     data.vars().iter().map(variable_def).collect()
 }
 
@@ -23,23 +23,26 @@ fn variable_def(v: &NysaVar) -> VarDef {
 }
 
 pub trait IsField {
-    fn is_field(&self, fields: &[NysaVar]) -> Option<NysaType>;
+    fn is_field(&self, ctx: &Context) -> Option<NysaType>;
 }
 
 impl<T: AsRef<str>> IsField for T {
-    fn is_field(&self, fields: &[NysaVar]) -> Option<NysaType> {
+    fn is_field(&self, ctx: &Context) -> Option<NysaType> {
         let name = self.as_ref();
-        fields.iter().find(|v| v.name == name).map(|v| v.ty.clone())
+        ctx.storage()
+            .iter()
+            .find(|v| v.name == name)
+            .map(|v| v.ty.clone())
     }
 }
 
 impl IsField for &NysaExpression {
-    fn is_field(&self, fields: &[NysaVar]) -> Option<NysaType> {
+    fn is_field(&self, ctx: &Context) -> Option<NysaType> {
         let name = match self {
             NysaExpression::Variable { name } => name,
             _ => return None,
         };
-        fields
+        ctx.storage()
             .iter()
             .find(|f| &f.name == name)
             .map(|f| f.ty.clone())

@@ -2,28 +2,25 @@ use quote::format_ident;
 use syn::parse_quote;
 
 use crate::{
-    model::ir::{NysaExpression, NysaStmt, NysaVar},
+    model::ir::{NysaExpression, NysaStmt},
     utils,
 };
 
-use super::expr;
+use super::{context::Context, expr};
 
 /// Parses solidity statement into a syn statement.
 ///
 /// Todo: to handle remaining statements.
-pub fn parse_statement(
-    stmt: &NysaStmt,
-    storage_fields: &[NysaVar],
-) -> Result<syn::Stmt, &'static str> {
+pub fn parse_statement(stmt: &NysaStmt, ctx: &mut Context) -> Result<syn::Stmt, &'static str> {
     match stmt {
         NysaStmt::Expression { expr } => {
-            let expr = expr::parse(expr, storage_fields)?;
+            let expr = expr::parse(expr, ctx)?;
             Ok(parse_quote!(#expr;))
         }
         NysaStmt::VarDefinition { declaration, init } => {
             let name = utils::to_snake_case_ident(declaration);
             let pat: syn::Pat = parse_quote! { #name };
-            let expr: syn::Expr = expr::primitives::read_variable_or_parse(init, storage_fields)?;
+            let expr: syn::Expr = expr::primitives::read_variable_or_parse(init, ctx)?;
             Ok(parse_quote!(let #pat = #expr;))
         }
         NysaStmt::VarDeclaration { declaration } => {
@@ -34,16 +31,16 @@ pub fn parse_statement(
         NysaStmt::Return { expr } => {
             let ret = match expr {
                 NysaExpression::Variable { name } => {
-                    expr::primitives::parse_variable(name, None, storage_fields)
+                    expr::primitives::parse_variable(name, None, ctx)
                 }
-                expr => expr::parse(expr, storage_fields),
+                expr => expr::parse(expr, ctx),
             }?;
             Ok(parse_quote!(return #ret;))
         }
         NysaStmt::ReturnVoid => Ok(parse_quote!(return;)),
         NysaStmt::If { assertion, if_body } => {
-            let assertion = expr::parse(assertion, storage_fields)?;
-            let if_body = parse_statement(if_body, storage_fields)?;
+            let assertion = expr::parse(assertion, ctx)?;
+            let if_body = parse_statement(if_body, ctx)?;
             let result: syn::Stmt = parse_quote!(if #assertion #if_body);
             Ok(result)
         }
@@ -52,16 +49,16 @@ pub fn parse_statement(
             if_body,
             else_body,
         } => {
-            let assertion = expr::parse(assertion, storage_fields)?;
-            let if_body = parse_statement(if_body, storage_fields)?;
-            let else_body = parse_statement(else_body, storage_fields)?;
+            let assertion = expr::parse(assertion, ctx)?;
+            let if_body = parse_statement(if_body, ctx)?;
+            let else_body = parse_statement(else_body, ctx)?;
             let result: syn::Stmt = parse_quote!(if #assertion #if_body else #else_body);
             Ok(result)
         }
         NysaStmt::Block { stmts } => {
             let res = stmts
                 .iter()
-                .map(|stmt| parse_statement(stmt, storage_fields))
+                .map(|stmt| parse_statement(stmt, ctx))
                 .collect::<Result<Vec<syn::Stmt>, _>>()?;
 
             Ok(parse_quote!({ #(#res);* }))
@@ -74,7 +71,7 @@ pub fn parse_statement(
                 };
                 let args = args
                     .iter()
-                    .map(|e| expr::parse(e, storage_fields))
+                    .map(|e| expr::parse(e, ctx))
                     .collect::<Result<Vec<syn::Expr>, _>>()?;
                 Ok(parse_quote!(
                     <#event_ident as odra::types::event::OdraEvent>::emit(
@@ -86,10 +83,10 @@ pub fn parse_statement(
         },
         NysaStmt::Revert { msg } => {
             if let Some(error) = msg {
-                let expr = expr::error::revert(None, error, storage_fields)?;
+                let expr = expr::error::revert(None, error, ctx)?;
                 Ok(parse_quote!(#expr;))
             } else {
-                let expr = expr::error::revert_with_str(None, "", storage_fields)?;
+                let expr = expr::error::revert_with_str(None, "", ctx)?;
                 Ok(parse_quote!(#expr;))
             }
         }
@@ -101,18 +98,27 @@ pub fn parse_statement(
     }
 }
 
+pub fn parse_ext_contract_stmt(contract_name: &str, param_name: &str) -> syn::Stmt {
+    let ref_ident = format_ident!("{}Ref", contract_name);
+    let ident = format_ident!("{}", param_name);
+    parse_quote!(let #ident = #ref_ident::at(odra::UnwrapOrRevert::unwrap_or_revert(#ident));)
+}
+
 #[cfg(test)]
 mod t {
     use quote::ToTokens;
     use syn::parse_quote;
 
     use super::parse_statement;
-    use crate::model::ir::{NysaExpression, NysaStmt};
+    use crate::{
+        model::ir::{NysaExpression, NysaStmt},
+        parser::odra::context::Context,
+    };
 
     #[test]
     fn revert_with_no_msg() {
         let stmt = NysaStmt::Revert { msg: None };
-        let result = parse_statement(&stmt, &vec![]).unwrap();
+        let result = parse_statement(&stmt, &mut Context::default()).unwrap();
         let expected: syn::Stmt =
             parse_quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "")););
 
@@ -125,7 +131,7 @@ mod t {
         let stmt = NysaStmt::Revert {
             msg: Some(NysaExpression::StringLiteral(error_msg.to_string())),
         };
-        let result = parse_statement(&stmt, &vec![]).unwrap();
+        let result = parse_statement(&stmt, &mut Context::default()).unwrap();
         let expected: syn::Stmt = parse_quote!(
             odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "An error occurred"));
         );
@@ -139,7 +145,7 @@ mod t {
         let stmt = NysaStmt::RevertWithError {
             error: error_msg.to_string(),
         };
-        let result = parse_statement(&stmt, &vec![]).unwrap();
+        let result = parse_statement(&stmt, &mut Context::default()).unwrap();
         let expected: syn::Stmt = parse_quote!(
             odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "An error occurred"));
         );
@@ -153,7 +159,7 @@ mod t {
         let stmt = NysaStmt::Revert {
             msg: Some(NysaExpression::Placeholder),
         };
-        let result = parse_statement(&stmt, &vec![]);
+        let result = parse_statement(&stmt, &mut Context::default());
 
         assert!(result.is_err());
     }

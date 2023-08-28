@@ -4,10 +4,11 @@ use quote::format_ident;
 use quote::quote;
 use syn::parse_quote;
 
-use crate::model::ir::{NysaExpression, NysaVar};
+use crate::model::ir::NysaExpression;
 use crate::utils;
 use crate::utils::to_snake_case_ident;
 
+use super::context::Context;
 use super::ty;
 use super::var::IsField;
 
@@ -17,96 +18,93 @@ mod num;
 mod op;
 pub(crate) mod primitives;
 
-pub fn parse(
-    expression: &NysaExpression,
-    storage_fields: &[NysaVar],
-) -> Result<syn::Expr, &'static str> {
+pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr, &'static str> {
     match expression {
-        NysaExpression::Require { condition, error } => {
-            error::revert(Some(condition), error, storage_fields)
-        }
+        NysaExpression::Require { condition, error } => error::revert(Some(condition), error, ctx),
         NysaExpression::Placeholder => Err("Empty identifier"),
         NysaExpression::ZeroAddress => Ok(parse_quote!(None)),
         NysaExpression::Message(msg) => msg.try_into(),
         NysaExpression::Mapping { name, key } => {
             let keys = vec![*key.clone()];
-            primitives::parse_mapping(name, &keys, None, storage_fields)
+            primitives::parse_mapping(name, &keys, None, ctx)
         }
         NysaExpression::Mapping2 { name, keys } => {
             let keys = vec![keys.0.clone(), keys.1.clone()];
-            primitives::parse_mapping(name, &keys, None, storage_fields)
+            primitives::parse_mapping(name, &keys, None, ctx)
         }
         NysaExpression::Mapping3 { name, keys } => {
             todo!()
         }
         NysaExpression::Variable { name } => {
             let ident = to_snake_case_ident(&name);
-            let self_ty = name
-                .is_field(storage_fields)
-                .is_some()
-                .then(|| quote!(self.));
+            let self_ty = name.is_field(ctx).is_some().then(|| quote!(self.));
             Ok(parse_quote!(#self_ty #ident))
         }
-        NysaExpression::Assign { left, right } => {
-            primitives::assign(left, right, None, storage_fields)
-        }
+        NysaExpression::Assign { left, right } => primitives::assign(left, right, None, ctx),
         NysaExpression::StringLiteral(string) => Ok(parse_quote!(String::from(#string))),
-        NysaExpression::LessEqual { left, right } => {
-            op::bin_op(left, right, parse_quote!(<=), storage_fields)
-        }
-        NysaExpression::MoreEqual { left, right } => {
-            op::bin_op(left, right, parse_quote!(>=), storage_fields)
-        }
-        NysaExpression::Less { left, right } => {
-            op::bin_op(left, right, parse_quote!(<), storage_fields)
-        }
-        NysaExpression::More { left, right } => {
-            op::bin_op(left, right, parse_quote!(>), storage_fields)
-        }
-        NysaExpression::Add { left, right } => math::add(left, right, storage_fields),
-        NysaExpression::Subtract { left, right } => math::sub(left, right, storage_fields),
-        NysaExpression::Equal { left, right } => {
-            op::bin_op(left, right, parse_quote!(==), storage_fields)
-        }
-        NysaExpression::NotEqual { left, right } => {
-            op::bin_op(left, right, parse_quote!(!=), storage_fields)
-        }
+        NysaExpression::LessEqual { left, right } => op::bin_op(left, right, parse_quote!(<=), ctx),
+        NysaExpression::MoreEqual { left, right } => op::bin_op(left, right, parse_quote!(>=), ctx),
+        NysaExpression::Less { left, right } => op::bin_op(left, right, parse_quote!(<), ctx),
+        NysaExpression::More { left, right } => op::bin_op(left, right, parse_quote!(>), ctx),
+        NysaExpression::Add { left, right } => math::add(left, right, ctx),
+        NysaExpression::Subtract { left, right } => math::sub(left, right, ctx),
+        NysaExpression::Equal { left, right } => op::bin_op(left, right, parse_quote!(==), ctx),
+        NysaExpression::NotEqual { left, right } => op::bin_op(left, right, parse_quote!(!=), ctx),
         NysaExpression::AssignSubtract { left, right } => {
-            let expr = primitives::assign(left, right, Some(parse_quote!(-)), storage_fields)?;
+            let expr = primitives::assign(left, right, Some(parse_quote!(-)), ctx)?;
             Ok(expr)
         }
         NysaExpression::AssignAdd { left, right } => {
-            let expr = primitives::assign(left, right, Some(parse_quote!(+)), storage_fields)?;
+            let expr = primitives::assign(left, right, Some(parse_quote!(+)), ctx)?;
             Ok(expr)
         }
         NysaExpression::Increment { expr } => {
-            let expr = parse(expr, storage_fields)?;
+            let expr = parse(expr, ctx)?;
             Ok(parse_quote!(#expr += 1))
         }
         NysaExpression::Decrement { expr } => {
-            let expr = parse(expr, storage_fields)?;
+            let expr = parse(expr, ctx)?;
             Ok(parse_quote!(#expr -= 1))
         }
         NysaExpression::MemberAccess { expr, name } => {
-            let base_expr: syn::Expr = parse(expr, storage_fields)?;
+            let base_expr: syn::Expr = parse(expr, ctx)?;
             let member: syn::Member = format_ident!("{}", name).into();
             Ok(parse_quote!(#base_expr.#member))
         }
         NysaExpression::NumberLiteral { ty, value } => Ok(num::to_typed_int_expr(ty, value)),
-        NysaExpression::Func { name, args } => match parse(name, storage_fields) {
-            Ok(name) => {
-                let args = parse_many(&args, storage_fields)?;
-                Ok(parse_quote!(self.#name(#(#args),*)))
+        NysaExpression::Func { name, args } => {
+            let args = parse_many(&args, ctx)?;
+
+            if let Some(class_name) = ctx.class(name) {
+                let ref_ident = format_ident!("{}Ref", class_name);
+                let addr = args.get(0);
+                // let ident = format_ident!("{}", param_name);
+                return Ok(
+                    parse_quote!(#ref_ident::at(odra::UnwrapOrRevert::unwrap_or_revert(#addr))),
+                );
             }
-            Err(err) => Err(err),
-        },
+            match parse(name, ctx) {
+                Ok(name) => Ok(parse_quote!(self.#name(#(#args),*))),
+                Err(err) => Err(err),
+            }
+        }
         NysaExpression::SuperCall { name, args } => {
             let name = utils::to_prefixed_snake_case_ident("super_", name);
-            let args = parse_many(&args, storage_fields)?;
+            let args = parse_many(&args, ctx)?;
             Ok(parse_quote!(self.#name(#(#args),*)))
         }
+        NysaExpression::ExternalCall {
+            variable,
+            fn_name,
+            args,
+        } => {
+            let var = utils::to_snake_case_ident(variable);
+            let fn_name = utils::to_snake_case_ident(fn_name);
+            let args = parse_many(&args, ctx)?;
+            Ok(parse_quote!(#var.#fn_name(#(#args),*)))
+        }
         NysaExpression::TypeInfo { ty, property } => {
-            let ty = parse(ty, storage_fields)?;
+            let ty = parse(ty, ctx)?;
             let property = match property.as_str() {
                 "max" => format_ident!("MAX"),
                 "min" => format_ident!("MIN"),
@@ -119,13 +117,13 @@ pub fn parse(
             Ok(parse_quote!(#ty))
         }
         NysaExpression::Power { left, right } => {
-            let left = primitives::read_variable_or_parse(left, storage_fields)?;
-            let right = primitives::read_variable_or_parse(right, storage_fields)?;
+            let left = primitives::read_variable_or_parse(left, ctx)?;
+            let right = primitives::read_variable_or_parse(right, ctx)?;
             Ok(parse_quote!(#left.pow(#right)))
         }
         NysaExpression::BoolLiteral(b) => Ok(parse_quote!(#b)),
         NysaExpression::Not { expr } => {
-            let expr = primitives::read_variable_or_parse(expr, storage_fields)?;
+            let expr = primitives::read_variable_or_parse(expr, ctx)?;
             Ok(parse_quote!(!(#expr)))
         }
         NysaExpression::UnknownExpr => panic!("Unknown expression"),
@@ -134,10 +132,10 @@ pub fn parse(
 
 pub fn parse_many(
     expressions: &[NysaExpression],
-    storage_fields: &[NysaVar],
+    ctx: &mut Context,
 ) -> Result<Vec<syn::Expr>, &'static str> {
     expressions
         .iter()
-        .map(|e| parse(e, storage_fields))
+        .map(|e| parse(e, ctx))
         .collect::<Result<Vec<syn::Expr>, _>>()
 }

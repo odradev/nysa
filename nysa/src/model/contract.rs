@@ -17,6 +17,7 @@ use super::{
 
 pub struct ContractData {
     contract: NysaContract,
+    contract_names: Vec<String>,
     events: Vec<NysaEvent>,
     errors: Vec<NysaError>,
     fn_map: HashMap<Class, Vec<NysaFunction>>,
@@ -29,6 +30,7 @@ impl TryFrom<Vec<SourceUnitPart>> for ContractData {
 
     fn try_from(value: Vec<SourceUnitPart>) -> Result<Self, Self::Error> {
         let contracts: Vec<&ContractDefinition> = ast::extract_contracts(&value);
+        let contract_names = contracts.iter().map(|c| c.name.name.to_owned()).collect();
         let contract = contracts.last().ok_or("No contract found")?.to_owned();
         let contract = NysaContract::from(contract);
 
@@ -97,6 +99,7 @@ impl TryFrom<Vec<SourceUnitPart>> for ContractData {
 
         Ok(Self {
             contract,
+            contract_names,
             events,
             errors,
             fn_map,
@@ -152,13 +155,17 @@ impl ContractData {
     }
 
     pub fn vars(&self) -> Vec<NysaVar> {
+        let class = self.c3_class().to_string();
+        let c3_vars = self.c3.varialbes_str(&class);
         let mut vars = self
             .var_map
             .iter()
             .sorted()
             .map(|(_, v)| v.clone())
             .flatten()
+            .filter(|v| c3_vars.contains(&v.name))
             .collect::<Vec<_>>();
+
         vars.dedup();
         vars
     }
@@ -181,5 +188,9 @@ impl ContractData {
 
     pub fn errors(&self) -> &[NysaError] {
         &self.errors
+    }
+
+    pub fn contract_names(&self) -> &[String] {
+        &self.contract_names
     }
 }

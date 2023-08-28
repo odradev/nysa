@@ -115,6 +115,15 @@ pub enum NysaExpression {
         name: String,
         args: Vec<NysaExpression>,
     },
+    ExternalCall {
+        variable: String,
+        fn_name: String,
+        args: Vec<NysaExpression>,
+    },
+    // ExternalRefInit {
+    //     ext_class: String,
+    //     address: Box<NysaExpression>,
+    // },
     TypeInfo {
         ty: Box<NysaExpression>,
         property: String,
@@ -179,6 +188,7 @@ impl From<&pt::Expression> for NysaExpression {
                 try_to_zero_address(name)
                     .or(try_to_super_call(name, args))
                     .or(try_to_require(name, args))
+                    .or(try_to_ext_contract_call(name, args))
                     .unwrap_or_else(to_func)
             }
             pt::Expression::Variable(id) => match id.name.as_str() {
@@ -382,6 +392,20 @@ fn try_to_super_call(name: &pt::Expression, args: &[pt::Expression]) -> Option<N
 fn try_to_variable_name(name: &pt::Expression) -> Option<String> {
     if let pt::Expression::Variable(id) = name {
         return Some(id.name.to_owned());
+    }
+    None
+}
+
+fn try_to_ext_contract_call(
+    name: &pt::Expression,
+    args: &[pt::Expression],
+) -> Option<NysaExpression> {
+    if let pt::Expression::MemberAccess(_, box pt::Expression::Variable(var), fn_id) = name {
+        return Some(NysaExpression::ExternalCall {
+            variable: var.name.to_owned(),
+            fn_name: fn_id.name.to_owned(),
+            args: args.iter().map(From::from).collect(),
+        });
     }
     None
 }

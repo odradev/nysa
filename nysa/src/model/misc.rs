@@ -47,6 +47,8 @@ pub enum NysaType {
     Uint(u16),
     Bytes(u8),
     Mapping(Box<NysaExpression>, Box<NysaExpression>),
+    Custom(String),
+    Contract(String),
 }
 
 impl From<&pt::Type> for NysaType {
@@ -66,6 +68,13 @@ impl From<&pt::Type> for NysaType {
             ),
             _ => panic!("Unsupported type {:?}", value),
         }
+    }
+}
+
+impl From<&pt::Identifier> for NysaType {
+    fn from(value: &pt::Identifier) -> Self {
+        let name = value.name.clone();
+        Self::Contract(name)
     }
 }
 

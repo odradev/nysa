@@ -5,14 +5,14 @@ use crate::utils;
 
 use super::{
     expr::{to_nysa_expr, NysaExpression},
-    misc::NysaBaseImpl,
+    misc::{NysaBaseImpl, NysaType},
     stmt::NysaStmt,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NysaParam {
     pub name: String,
-    pub ty: NysaExpression,
+    pub ty: NysaType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -257,10 +257,14 @@ fn parse_params(func: &pt::FunctionDefinition) -> Vec<NysaParam> {
                 .as_ref()
                 .map(|id| id.name.to_owned())
                 .unwrap_or(format!("param_{}", idx));
-            NysaParam {
-                name,
-                ty: NysaExpression::from(&param.ty),
-            }
+
+            let ty = match &param.ty {
+                pt::Expression::Type(_, ty) => NysaType::from(ty),
+                pt::Expression::Variable(name) => NysaType::from(name),
+                _ => panic!("Function param must be of type Type"),
+            };
+
+            NysaParam { name, ty }
         })
         .collect()
 }
@@ -318,6 +322,7 @@ fn parse_base(func: &pt::FunctionDefinition) -> Vec<NysaBaseImpl> {
         .collect::<Vec<_>>()
 }
 
+#[derive(Debug, Clone)]
 pub struct FnImplementations {
     pub name: String,
     pub implementations: Vec<(Class, NysaFunction)>,

@@ -10,8 +10,11 @@ use std::{
 };
 use syn::parse_quote;
 
+use self::context::Context;
+
 use super::Parser;
 
+mod context;
 mod errors;
 mod event;
 mod expr;
@@ -36,10 +39,15 @@ pub struct OdraParser;
 impl Parser for OdraParser {
     fn parse(data: ContractData) -> PackageDef {
         let class_name = data.c3_class_name_def();
+        let storage = data.vars();
+
+        let mut ctx = Context::default();
+        ctx.set_storage(&storage);
+        ctx.set_classes(data.contract_names().to_vec());
 
         let mut classes = vec![];
         classes.extend(event::events_def(&data));
-        classes.push(contract_def(&data));
+        classes.push(contract_def(&data, &mut ctx));
         PackageDef {
             attrs: other::attrs(),
             other_code: other::other_code(&data),
@@ -50,9 +58,9 @@ impl Parser for OdraParser {
 }
 
 /// Builds a c3 contract class definition
-fn contract_def(data: &ContractData) -> ClassDef {
-    let variables = var::variables_def(data);
-    let functions = func::functions_def(data);
+fn contract_def(data: &ContractData, ctx: &mut Context) -> ClassDef {
+    let variables = var::variables_def(data, ctx);
+    let functions = func::functions_def(data, ctx);
 
     let events = data
         .events()

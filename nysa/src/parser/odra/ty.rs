@@ -59,5 +59,7 @@ pub fn parse_plain_type_from_ty(ty: &NysaType) -> syn::Type {
             parse_quote!(odra::Mapping<#key, #value>)
         }
         NysaType::Bytes(_) => todo!(),
+        NysaType::Custom(_) => todo!(),
+        NysaType::Contract(_) => parse_quote!(Option<odra::types::Address>),
     }
 }
