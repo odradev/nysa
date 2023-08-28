@@ -24,6 +24,7 @@ impl<'a> Context<'a> {
         self.current_fn = None;
     }
 
+    #[allow(dead_code)]
     pub fn current_fn(&self) -> &FnImplementations {
         &self
             .current_fn

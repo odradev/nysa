@@ -6,7 +6,7 @@ use itertools::Itertools;
 use solidity_parser::pt::{ContractDefinition, SourceUnitPart};
 
 use crate::{
-    linearization,
+    c3,
     utils::{self, ast, map_collection},
 };
 
@@ -25,19 +25,26 @@ pub struct ContractData {
     c3: C3,
 }
 
-impl TryFrom<Vec<SourceUnitPart>> for ContractData {
+impl TryFrom<(&Class, &Vec<SourceUnitPart>)> for ContractData {
     type Error = &'static str;
 
-    fn try_from(value: Vec<SourceUnitPart>) -> Result<Self, Self::Error> {
-        let contracts: Vec<&ContractDefinition> = ast::extract_contracts(&value);
+    fn try_from(value: (&Class, &Vec<SourceUnitPart>)) -> Result<Self, Self::Error> {
+        let (class, ast) = value;
+        let contracts: Vec<&ContractDefinition> = ast::extract_contracts(ast);
         let contract_names = contracts.iter().map(|c| c.name.name.to_owned()).collect();
-        let contract = contracts.last().ok_or("No contract found")?.to_owned();
+
+        let contract = contracts
+            .iter()
+            .find(|c| c.name.name == class.to_string())
+            .ok_or("No contract found")?
+            .to_owned();
         let contract = NysaContract::from(contract);
 
-        let events = map_collection(ast::extract_events(&value));
-        let errors = map_collection(ast::extract_errors(&value));
+        let events = map_collection(ast::extract_events(ast));
+        let errors = map_collection(ast::extract_errors(ast));
 
-        let mut c3 = linearization::c3_linearization(&contracts);
+        let mut c3 = c3::linearization(&contracts);
+
         let mut fn_map = HashMap::new();
         let mut var_map = HashMap::new();
 
