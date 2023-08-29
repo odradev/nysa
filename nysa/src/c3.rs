@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, vec};
 
 use c3_lang_linearization::{Class, C3};
 use solidity_parser::pt::{self, ContractDefinition, Identifier};
@@ -10,6 +10,8 @@ pub fn linearization(contracts: &[&ContractDefinition]) -> C3 {
         .filter(|c| matches!(c.ty, pt::ContractTy::Interface(_)))
         .map(|c| to_class(&c.name))
         .collect::<Vec<_>>();
+
+    let interfaces = vec![];
 
     let mut c3 = C3::new();
     // register only contracts, exclude interfaces
@@ -43,7 +45,6 @@ pub fn find_top_level_contracts(
     contracts: &[&ContractDefinition],
     c3: &C3,
 ) -> Result<Vec<Class>, &'static str> {
-    let class_set = HashSet::<Class>::from_iter(c3.all_classes());
     // The contract defined as last is considered as a top level contract.
     // For instance: if there there a few base contracts (interfaces, abstract, etc.) that a contract inherits
     // from, these contract are defined first, and then the ultimate contract.

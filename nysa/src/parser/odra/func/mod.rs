@@ -6,6 +6,7 @@ use super::context::Context;
 mod common;
 mod constructor;
 mod function;
+pub(super) mod interface;
 mod modifier;
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].

@@ -76,11 +76,13 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             let args = parse_many(&args, ctx)?;
 
             if let Some(class_name) = ctx.class(name) {
+                ctx.register_external_call(&class_name);
+
                 let ref_ident = format_ident!("{}Ref", class_name);
                 let addr = args.get(0);
                 // let ident = format_ident!("{}", param_name);
                 return Ok(
-                    parse_quote!(#ref_ident::at(odra::UnwrapOrRevert::unwrap_or_revert(#addr))),
+                    parse_quote!(#ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr))),
                 );
             }
             match parse(name, ctx) {

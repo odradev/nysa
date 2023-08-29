@@ -41,12 +41,17 @@ fn test_default_value() {
 
 #[test]
 fn test_ext() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ext/2.sol"));
-    // let r = result.to_token_stream().to_string();
-    // let file = syn::parse_file(r.as_str()).unwrap();
-    // println!("{}", prettyplease::unparse(&file));
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ext/1.sol"));
+    assert_impl(result, "../resources/ext/1.rs");
 
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ext/2.sol"));
     assert_impl(result, "../resources/ext/2.rs");
+}
+
+#[test]
+fn test_ownable() {
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ownable.sol"));
+    assert_impl(result, "../resources/ownable.rs");
 }
 
 fn assert_impl(result: TokenStream, file_path: &str) {

@@ -1,8 +1,11 @@
 use convert_case::{Case, Casing};
 use quote::format_ident;
+use solidity_parser::pt::SourceUnitPart;
 
 pub mod ast;
 pub mod func;
+
+pub type SolidityAST = Vec<SourceUnitPart>;
 
 /// Converts a &str into snake-cased Ident preserving the heading `_`
 pub fn to_snake_case_ident(name: &str) -> proc_macro2::Ident {

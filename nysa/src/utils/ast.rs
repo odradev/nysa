@@ -1,7 +1,7 @@
 use solidity_parser::{
     pt::{
-        ContractDefinition, ContractPart, ErrorDefinition, EventDefinition, FunctionDefinition,
-        SourceUnitPart, VariableDefinition,
+        ContractDefinition, ContractPart, ContractTy, ErrorDefinition, EventDefinition,
+        FunctionDefinition, SourceUnitPart, VariableDefinition,
     },
     Diagnostic,
 };
@@ -18,6 +18,17 @@ pub(crate) fn extract_contracts<'a>(ast: &[SourceUnitPart]) -> Vec<&ContractDefi
             SourceUnitPart::ContractDefinition(contract) => Some(contract.as_ref()),
             _ => None,
         })
+        .collect::<Vec<_>>()
+}
+
+/// Filters [ContractDefinition] from solidity ast.
+pub(crate) fn extract_interfaces<'a>(
+    contracts: &'a [&'a ContractDefinition],
+) -> Vec<&ContractDefinition> {
+    contracts
+        .iter()
+        .filter(|c| matches!(c.ty, ContractTy::Interface(_)))
+        .map(|c| *c)
         .collect::<Vec<_>>()
 }
 

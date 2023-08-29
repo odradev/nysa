@@ -2,12 +2,12 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse_quote;
 
-use crate::model::ContractData;
+use crate::model::ir::Package;
 
 use super::ERRORS;
 
-pub(crate) fn errors_def(data: &ContractData) -> Option<syn::Item> {
-    let errors = data.errors();
+pub(crate) fn errors_def(package: &Package) -> Option<syn::Item> {
+    let errors = package.errors();
 
     let mut error_count = ERRORS.lock().unwrap();
     *error_count = errors.len() as u16;

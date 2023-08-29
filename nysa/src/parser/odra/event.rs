@@ -6,14 +6,15 @@ use quote::quote;
 use syn::parse_quote;
 
 use crate::{
-    model::{ir::NysaEvent, ContractData},
+    model::ir::{NysaEvent, Package},
     utils,
 };
 
 use super::ty;
 
-pub(crate) fn events_def(data: &ContractData) -> Vec<ClassDef> {
-    data.events()
+pub(crate) fn events_def(package: &Package) -> Vec<ClassDef> {
+    package
+        .events()
         .iter()
         .map(|ev| event_def(ev))
         .collect::<Vec<_>>()

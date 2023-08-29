@@ -1,4 +1,4 @@
-use quote::format_ident;
+use quote::{format_ident, ToTokens};
 use syn::parse_quote;
 
 use crate::{
@@ -20,6 +20,13 @@ pub fn parse_statement(stmt: &NysaStmt, ctx: &mut Context) -> Result<syn::Stmt, 
         NysaStmt::VarDefinition { declaration, init } => {
             let name = utils::to_snake_case_ident(declaration);
             let pat: syn::Pat = parse_quote! { #name };
+            if let NysaExpression::Func { name, args } = init {
+                if let Some(class_name) = ctx.class(name) {
+                    let args = expr::parse_many(&args, ctx)?;
+                    let addr = args.get(0);
+                    return Ok(parse_ext_contract_stmt(&class_name, pat, addr, ctx));
+                }
+            };
             let expr: syn::Expr = expr::primitives::read_variable_or_parse(init, ctx)?;
             Ok(parse_quote!(let #pat = #expr;))
         }
@@ -73,6 +80,7 @@ pub fn parse_statement(stmt: &NysaStmt, ctx: &mut Context) -> Result<syn::Stmt, 
                     .iter()
                     .map(|e| expr::parse(e, ctx))
                     .collect::<Result<Vec<syn::Expr>, _>>()?;
+                ctx.register_event(event_ident.to_string().as_str());
                 Ok(parse_quote!(
                     <#event_ident as odra::types::event::OdraEvent>::emit(
                         #event_ident::new(#(#args),*)
@@ -98,10 +106,16 @@ pub fn parse_statement(stmt: &NysaStmt, ctx: &mut Context) -> Result<syn::Stmt, 
     }
 }
 
-pub fn parse_ext_contract_stmt(contract_name: &str, param_name: &str) -> syn::Stmt {
+pub fn parse_ext_contract_stmt<S: ToTokens, T: ToTokens>(
+    contract_name: &str,
+    ident: S,
+    addr: T,
+    ctx: &mut Context,
+) -> syn::Stmt {
+    ctx.register_external_call(contract_name);
+
     let ref_ident = format_ident!("{}Ref", contract_name);
-    let ident = format_ident!("{}", param_name);
-    parse_quote!(let #ident = #ref_ident::at(odra::UnwrapOrRevert::unwrap_or_revert(#ident));)
+    parse_quote!(let mut #ident = #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr));)
 }
 
 #[cfg(test)]

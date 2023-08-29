@@ -1,13 +1,13 @@
 use crate::{
     model::{
-        ir::{NysaExpression, NysaVar},
+        ir::{NysaExpression, NysaVar, Package},
         ContractData,
     },
     utils,
 };
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use proc_macro2::TokenStream;
-use quote::{format_ident, ToTokens};
+use quote::format_ident;
 use std::{
     collections::{HashMap, HashSet},
     sync::Mutex,
@@ -22,6 +22,7 @@ mod context;
 mod errors;
 mod event;
 mod expr;
+mod ext;
 mod func;
 mod other;
 mod stmt;
@@ -41,31 +42,46 @@ lazy_static::lazy_static! {
 pub struct OdraParser;
 
 impl Parser for OdraParser {
-    fn parse(data: Vec<ContractData>) -> TokenStream {
-        let packages = parse_packages(&data);
+    fn parse(package: Package) -> TokenStream {
+        let packages = parse_packages(&package);
 
-        if packages.len() == 1 {
-            let package = packages.get(0).unwrap();
-            package.to_token_stream()
-        } else {
-            packages
-                .iter()
-                .map(|p| {
-                    let name = p.classes.first().as_ref().unwrap().class.to_string();
-                    let mod_name = utils::to_snake_case_ident(&name);
-                    quote::quote! {
-                        pub mod #mod_name {
-                            #p
-                        }
+        let events = event::events_def(&package);
+        let errors = errors::errors_def(&package);
+        let ext = ext::errors_ext_contract(&package);
+
+        let contracts = packages
+            .iter()
+            .map(|def| {
+                let name = def.classes.first().as_ref().unwrap().class.to_string();
+                let mod_name = utils::to_snake_case_ident(&name);
+                quote::quote! {
+                    pub mod #mod_name {
+                        #def
                     }
-                })
-                .collect::<TokenStream>()
+                }
+            })
+            .collect::<TokenStream>();
+
+        quote::quote! {
+            pub mod errors {
+                #errors
+            }
+
+            pub mod events {
+                #(#events)*
+            }
+
+            #(#ext)*
+
+            #contracts
         }
     }
 }
 
-fn parse_packages(data: &[ContractData]) -> Vec<PackageDef> {
-    data.iter()
+fn parse_packages(package: &Package) -> Vec<PackageDef> {
+    package
+        .contracts()
+        .iter()
         .map(|data| {
             let class_name = data.c3_class_name_def();
             let storage = data.vars();
@@ -74,12 +90,32 @@ fn parse_packages(data: &[ContractData]) -> Vec<PackageDef> {
             ctx.set_storage(&storage);
             ctx.set_classes(data.contract_names().to_vec());
 
-            let mut classes = vec![];
-            classes.extend(event::events_def(&data));
-            classes.push(contract_def(&data, &mut ctx));
+            let classes = vec![contract_def(&data, &mut ctx)];
+
+            let imports: Vec<syn::Item> = ctx
+                .get_external_calls()
+                .iter()
+                .map(|class| {
+                    let ident = utils::to_snake_case_ident(class);
+                    parse_quote!(use super::#ident::*;)
+                })
+                .chain(vec![
+                    parse_quote!(
+                        use super::errors::*;
+                    ),
+                    parse_quote!(
+                        use super::events::*;
+                    ),
+                ])
+                .collect();
+
+            let mut other_code = vec![];
+            other_code.extend(imports);
+            other_code.extend(other::other_code());
+
             PackageDef {
                 attrs: other::attrs(),
-                other_code: other::other_code(&data),
+                other_code,
                 class_name,
                 classes,
             }
@@ -92,10 +128,10 @@ fn contract_def(data: &ContractData, ctx: &mut Context) -> ClassDef {
     let variables = var::variables_def(data, ctx);
     let functions = func::functions_def(data, ctx);
 
-    let events = data
-        .events()
+    let events = ctx
+        .emitted_events()
         .iter()
-        .map(|ev| format_ident!("{}", ev.name))
+        .map(|ev| format_ident!("{}", ev))
         .collect::<Vec<_>>();
     let struct_attrs = match events.len() {
         0 => vec![parse_quote!(#[odra::module])],

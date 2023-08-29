@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use c3_lang_linearization::{Class, C3};
 use c3_lang_parser::c3_ast::ClassNameDef;
 use itertools::Itertools;
-use solidity_parser::pt::{ContractDefinition, SourceUnitPart};
+use solidity_parser::pt::ContractDefinition;
 
 use crate::{
     c3,
@@ -12,25 +12,22 @@ use crate::{
 
 use super::{
     func::{Constructor, FnImplementations, NysaFunction},
-    misc::{NysaContract, NysaError, NysaEvent, NysaVar},
+    misc::{NysaContract, NysaVar},
 };
 
 pub struct ContractData {
     contract: NysaContract,
     contract_names: Vec<String>,
-    events: Vec<NysaEvent>,
-    errors: Vec<NysaError>,
     fn_map: HashMap<Class, Vec<NysaFunction>>,
     var_map: HashMap<Class, Vec<NysaVar>>,
     c3: C3,
 }
 
-impl TryFrom<(&Class, &Vec<SourceUnitPart>)> for ContractData {
+impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
     type Error = &'static str;
 
-    fn try_from(value: (&Class, &Vec<SourceUnitPart>)) -> Result<Self, Self::Error> {
-        let (class, ast) = value;
-        let contracts: Vec<&ContractDefinition> = ast::extract_contracts(ast);
+    fn try_from(value: (&Class, &Vec<&ContractDefinition>)) -> Result<Self, Self::Error> {
+        let (class, contracts) = value;
         let contract_names = contracts.iter().map(|c| c.name.name.to_owned()).collect();
 
         let contract = contracts
@@ -39,9 +36,6 @@ impl TryFrom<(&Class, &Vec<SourceUnitPart>)> for ContractData {
             .ok_or("No contract found")?
             .to_owned();
         let contract = NysaContract::from(contract);
-
-        let events = map_collection(ast::extract_events(ast));
-        let errors = map_collection(ast::extract_errors(ast));
 
         let mut c3 = c3::linearization(&contracts);
 
@@ -107,8 +101,6 @@ impl TryFrom<(&Class, &Vec<SourceUnitPart>)> for ContractData {
         Ok(Self {
             contract,
             contract_names,
-            events,
-            errors,
             fn_map,
             var_map,
             c3,
@@ -187,14 +179,6 @@ impl ContractData {
             .collect::<Vec<_>>();
         vars.dedup();
         vars
-    }
-
-    pub fn events(&self) -> &[NysaEvent] {
-        &self.events
-    }
-
-    pub fn errors(&self) -> &[NysaError] {
-        &self.errors
     }
 
     pub fn contract_names(&self) -> &[String] {

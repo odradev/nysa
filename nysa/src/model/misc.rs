@@ -150,3 +150,15 @@ pub struct NysaBaseImpl {
     pub class_name: String,
     pub args: Vec<NysaExpression>,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NysaInterface {
+    pub name: String,
+}
+
+impl From<&&pt::ContractDefinition> for NysaInterface {
+    fn from(value: &&pt::ContractDefinition) -> Self {
+        let name = value.name.name.to_owned();
+        Self { name }
+    }
+}

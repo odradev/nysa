@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::model::ir::{FnImplementations, NysaExpression, NysaVar};
 
 #[derive(Debug, Default)]
@@ -5,6 +7,8 @@ pub struct Context<'a> {
     current_fn: Option<FnImplementations>,
     storage: &'a [NysaVar],
     classes: Vec<String>,
+    external_calls: HashSet<String>,
+    emitted_events: HashSet<String>,
 }
 
 impl<'a> Context<'a> {
@@ -47,5 +51,21 @@ impl<'a> Context<'a> {
             }
             _ => None,
         }
+    }
+
+    pub fn register_external_call(&mut self, class: &str) {
+        self.external_calls.insert(class.to_owned());
+    }
+
+    pub fn get_external_calls(&self) -> Vec<&String> {
+        self.external_calls.iter().collect::<Vec<_>>()
+    }
+
+    pub fn register_event(&mut self, class: &str) {
+        self.emitted_events.insert(class.to_owned());
+    }
+
+    pub fn emitted_events(&self) -> Vec<&String> {
+        self.emitted_events.iter().collect::<Vec<_>>()
     }
 }

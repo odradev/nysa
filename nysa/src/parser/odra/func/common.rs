@@ -55,13 +55,19 @@ pub(super) fn parse_statements(statements: &[NysaStmt], ctx: &mut Context) -> Ve
         .collect::<Vec<_>>()
 }
 
-pub(super) fn parse_external_contract_statements(params: &[NysaParam]) -> Vec<syn::Stmt> {
+pub(super) fn parse_external_contract_statements(
+    params: &[NysaParam],
+    ctx: &mut Context,
+) -> Vec<syn::Stmt> {
     params
         .iter()
         .filter_map(|param| match &param.ty {
             NysaType::Contract(contract_name) => Some((contract_name, &param.name)),
             _ => None,
         })
-        .map(|(contract_name, param_name)| stmt::parse_ext_contract_stmt(contract_name, param_name))
+        .map(|(contract_name, param_name)| {
+            let ident = quote::format_ident!("{}", param_name);
+            stmt::parse_ext_contract_stmt(contract_name, ident.clone(), ident, ctx)
+        })
         .collect::<Vec<_>>()
 }

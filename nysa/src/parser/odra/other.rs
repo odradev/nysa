@@ -1,8 +1,5 @@
 use syn::parse_quote;
 
-use super::errors;
-use crate::model::ContractData;
-
 /// File level attributes to mute error while compiling a contract.
 /// Generating code from Solidity may result in some unusual naming conventions
 /// and syntax that linter does not like.
@@ -11,10 +8,8 @@ pub(super) fn attrs() -> Vec<syn::Attribute> {
 }
 
 /// Generates code that is not a direct derivative of Solidity code.
-pub(super) fn other_code(data: &ContractData) -> Vec<syn::Item> {
-    let mut code = path_stack_default_impl();
-    errors::errors_def(data).map(|errors| code.push(errors));
-    code
+pub(super) fn other_code() -> Vec<syn::Item> {
+    path_stack_default_impl()
 }
 
 /// Generates Odra-specific implementations for PathStack.

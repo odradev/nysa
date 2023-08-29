@@ -4,6 +4,8 @@ pragma solidity ^0.8.19;
 contract Owner {
     address private owner;
 
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     constructor() {
         owner = msg.sender;
     }
@@ -18,6 +20,8 @@ contract Owner {
     }
 
     function transferOwnership(address newOwner) public onlyOwner {
+        address oldOwner = owner;
         owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
     }
 }

@@ -56,7 +56,7 @@ fn parse_body(def: &Function, names: &[String], ctx: &mut Context) -> syn::Block
     // parse solidity function body
     let stmts: Vec<syn::Stmt> = common::parse_statements(&def.stmts, ctx);
 
-    let ext = common::parse_external_contract_statements(&def.params);
+    let ext = common::parse_external_contract_statements(&def.params, ctx);
 
     // handle constructor of modifiers calls;
     // Eg `constructor(string memory _name) Named(_name) {}`

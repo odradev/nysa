@@ -1,5 +1,12 @@
+pub mod errors {}
+pub mod events {}
 pub mod caller {
     #![allow(unused_braces, non_snake_case)]
+
+    use super::callee::*;
+    use super::errors::*;
+    use super::events::*;
+
     impl odra::types::contract_def::Node for PathStack {
         const COUNT: u32 = 0;
         const IS_LEAF: bool = false;
@@ -81,7 +88,7 @@ pub mod caller {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Caller => {
-                    let _callee = CalleeRef::at(odra::UnwrapOrRevert::unwrap_or_revert(_callee));
+                    let mut _callee = CalleeRef::at(&odra::UnwrapOrRevert::unwrap_or_revert(_callee));
                     let x = _callee.set_x(_x);
                 }
                 #[allow(unreachable_patterns)]
@@ -100,7 +107,7 @@ pub mod caller {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Caller => {
-                    let callee = CalleeRef::at(odra::UnwrapOrRevert::unwrap_or_revert(_addr));
+                    let mut callee = CalleeRef::at(&odra::UnwrapOrRevert::unwrap_or_revert(_addr));
                     callee.set_x(_x);
                 }
                 #[allow(unreachable_patterns)]
@@ -112,6 +119,10 @@ pub mod caller {
 
 pub mod callee {
     #![allow(unused_braces, non_snake_case)]
+
+    use super::errors::*;
+    use super::events::*;
+    
     impl odra::types::contract_def::Node for PathStack {
         const COUNT: u32 = 0;
         const IS_LEAF: bool = false;
