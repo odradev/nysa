@@ -4,6 +4,7 @@ use syn::parse_quote;
 use crate::{
     model::ir::NysaExpression,
     parser::odra::{context::Context, ERRORS, ERROR_MAP},
+    ParserError,
 };
 
 use super::parse;
@@ -12,11 +13,14 @@ pub fn revert(
     condition: Option<&NysaExpression>,
     error: &NysaExpression,
     ctx: &mut Context,
-) -> Result<syn::Expr, &'static str> {
+) -> Result<syn::Expr, ParserError> {
     if let NysaExpression::StringLiteral(message) = error {
         revert_with_str(condition, message, ctx)
     } else {
-        Err("Error should be NysaExpression::StringLiteral")
+        Err(ParserError::UnexpectedExpression(
+            String::from("Error should be NysaExpression::StringLiteral"),
+            error.clone(),
+        ))
     }
 }
 
@@ -24,7 +28,7 @@ pub fn revert_with_str(
     condition: Option<&NysaExpression>,
     message: &str,
     ctx: &mut Context,
-) -> Result<syn::Expr, &'static str> {
+) -> Result<syn::Expr, ParserError> {
     let mut error_map = ERROR_MAP.lock().unwrap();
     let mut errors = ERRORS.lock().unwrap();
 
@@ -49,7 +53,7 @@ pub fn revert_with_str(
     }
 }
 
-pub fn revert_with_err(err: &str) -> Result<syn::Expr, &'static str> {
+pub fn revert_with_err(err: &str) -> Result<syn::Expr, ParserError> {
     let expr = format_ident!("{}", err);
     Ok(parse_quote!(odra::contract_env::revert(Error::#expr)))
 }

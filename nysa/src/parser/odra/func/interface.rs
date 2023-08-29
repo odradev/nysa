@@ -1,21 +1,20 @@
-use core::panic;
-
 use syn::parse_quote;
 
-use crate::{model::ir::NysaFunction, utils};
+use crate::{model::ir::NysaFunction, utils, ParserError};
 
 use super::common;
 
-pub fn def(f: &NysaFunction) -> syn::TraitItem {
-    if let NysaFunction::Function(f) = f {
-        let args = common::args(&f.params, f.is_mutable);
-        let ret = common::parse_ret_type(&f.ret);
-        let ident = utils::to_snake_case_ident(&f.name);
+pub fn def(f: &NysaFunction) -> Result<syn::TraitItem, ParserError> {
+    if let NysaFunction::Function(function) = f {
+        let args = common::args(&function.params, function.is_mutable)?;
+        let ret = common::parse_ret_type(&function.ret)?;
+        let ident = utils::to_snake_case_ident(&function.name);
 
-        parse_quote!(
-            fn #ident( #(#args),* ) #ret;
-        )
+        Ok(parse_quote!(fn #ident( #(#args),* ) #ret;))
     } else {
-        panic!("Invalid function type")
+        Err(ParserError::InvalidFunctionType(
+            String::from("NysaFunction::Function"), 
+            f.clone()
+        ))
     }
 }

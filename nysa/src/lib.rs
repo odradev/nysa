@@ -7,10 +7,12 @@ use parser::Parser;
 #[cfg(feature = "builder")]
 pub mod builder;
 mod c3;
+mod error;
 mod model;
 mod parser;
 mod utils;
 
+pub use error::ParserError;
 pub use parser::odra::OdraParser;
 use proc_macro2::TokenStream;
 
@@ -37,5 +39,5 @@ pub fn parse<P: Parser, I: AsRef<str>>(input: I) -> TokenStream {
     let package =
         Package::new(solidity_ast).expect("The ast should allow to create a valid Package");
 
-    <P as Parser>::parse(package)
+    <P as Parser>::parse(package).unwrap()
 }

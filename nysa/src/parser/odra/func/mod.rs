@@ -1,4 +1,4 @@
-use crate::model::ContractData;
+use crate::{model::ContractData, ParserError};
 use c3_lang_parser::c3_ast::FnDef;
 
 use super::context::Context;
@@ -10,7 +10,10 @@ pub(super) mod interface;
 mod modifier;
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
-pub fn functions_def<'a>(data: &ContractData, ctx: &mut Context) -> Vec<FnDef> {
+pub fn functions_def<'a>(
+    data: &ContractData,
+    ctx: &mut Context,
+) -> Result<Vec<FnDef>, ParserError> {
     let names = data.functions_str();
 
     let result = data
@@ -19,16 +22,16 @@ pub fn functions_def<'a>(data: &ContractData, ctx: &mut Context) -> Vec<FnDef> {
         .map(|i| {
             ctx.set_current_fn(i);
             if i.is_modifier() {
-                let (a, b) = modifier::def(i, ctx);
-                vec![a, b]
+                modifier::def(i, ctx).map(|(a, b)| vec![a, b])
             } else if i.is_constructor() {
                 constructor::def(i, data, ctx)
             } else {
-                vec![function::def(i, data, &names, ctx)]
+                function::def(i, data, &names, ctx).map(|f| vec![f])
             }
         })
-        .flatten()
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, ParserError>>()
+        .map(|v: Vec<Vec<FnDef>>| v.into_iter().flatten().collect());
+
     ctx.clear_current_fn();
     result
 }

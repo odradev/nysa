@@ -1,6 +1,8 @@
 use solidity_parser::pt;
 use syn::parse_quote;
 
+use crate::ParserError;
+
 use super::misc::NysaType;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -343,7 +345,7 @@ pub enum Message {
 }
 
 impl TryInto<syn::Expr> for &Message {
-    type Error = &'static str;
+    type Error = ParserError;
 
     fn try_into(self) -> Result<syn::Expr, Self::Error> {
         match self {

@@ -3,7 +3,7 @@ use crate::{
         ir::{NysaExpression, NysaVar, Package},
         ContractData,
     },
-    utils,
+    utils, ParserError,
 };
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use proc_macro2::TokenStream;
@@ -42,12 +42,12 @@ lazy_static::lazy_static! {
 pub struct OdraParser;
 
 impl Parser for OdraParser {
-    fn parse(package: Package) -> TokenStream {
-        let packages = parse_packages(&package);
+    fn parse(package: Package) -> Result<TokenStream, ParserError> {
+        let packages = parse_packages(&package)?;
 
-        let events = event::events_def(&package);
+        let events = event::events_def(&package)?;
         let errors = errors::errors_def(&package);
-        let ext = ext::errors_ext_contract(&package);
+        let ext = ext::errors_ext_contract(&package)?;
 
         let contracts = packages
             .iter()
@@ -62,7 +62,7 @@ impl Parser for OdraParser {
             })
             .collect::<TokenStream>();
 
-        quote::quote! {
+        Ok(quote::quote! {
             pub mod errors {
                 #errors
             }
@@ -74,11 +74,11 @@ impl Parser for OdraParser {
             #(#ext)*
 
             #contracts
-        }
+        })
     }
 }
 
-fn parse_packages(package: &Package) -> Vec<PackageDef> {
+fn parse_packages(package: &Package) -> Result<Vec<PackageDef>, ParserError> {
     package
         .contracts()
         .iter()
@@ -90,43 +90,26 @@ fn parse_packages(package: &Package) -> Vec<PackageDef> {
             ctx.set_storage(&storage);
             ctx.set_classes(data.contract_names().to_vec());
 
-            let classes = vec![contract_def(&data, &mut ctx)];
-
-            let imports: Vec<syn::Item> = ctx
-                .get_external_calls()
-                .iter()
-                .map(|class| {
-                    let ident = utils::to_snake_case_ident(class);
-                    parse_quote!(use super::#ident::*;)
-                })
-                .chain(vec![
-                    parse_quote!(
-                        use super::errors::*;
-                    ),
-                    parse_quote!(
-                        use super::events::*;
-                    ),
-                ])
-                .collect();
+            let classes = vec![contract_def(&data, &mut ctx)?];
 
             let mut other_code = vec![];
-            other_code.extend(imports);
+            other_code.extend(other::imports_code(&ctx));
             other_code.extend(other::other_code());
 
-            PackageDef {
+            Ok(PackageDef {
                 attrs: other::attrs(),
                 other_code,
                 class_name,
                 classes,
-            }
+            })
         })
-        .collect::<Vec<_>>()
+        .collect::<Result<Vec<_>, _>>()
 }
 
 /// Builds a c3 contract class definition
-fn contract_def(data: &ContractData, ctx: &mut Context) -> ClassDef {
-    let variables = var::variables_def(data, ctx);
-    let functions = func::functions_def(data, ctx);
+fn contract_def(data: &ContractData, ctx: &mut Context) -> Result<ClassDef, ParserError> {
+    let variables = var::variables_def(data, ctx)?;
+    let functions = func::functions_def(data, ctx)?;
 
     let events = ctx
         .emitted_events()
@@ -138,14 +121,14 @@ fn contract_def(data: &ContractData, ctx: &mut Context) -> ClassDef {
         _ => vec![parse_quote!(#[odra::module(events = [ #(#events),* ])])],
     };
 
-    ClassDef {
+    Ok(ClassDef {
         struct_attrs,
         impl_attrs: vec![parse_quote!(#[odra::module])],
         class: data.c3_class(),
         path: data.c3_path(),
         variables,
         functions,
-    }
+    })
 }
 
 #[cfg(test)]

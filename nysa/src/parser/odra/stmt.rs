@@ -3,7 +3,7 @@ use syn::parse_quote;
 
 use crate::{
     model::ir::{NysaExpression, NysaStmt},
-    utils,
+    utils, ParserError,
 };
 
 use super::{context::Context, expr};
@@ -11,7 +11,7 @@ use super::{context::Context, expr};
 /// Parses solidity statement into a syn statement.
 ///
 /// Todo: to handle remaining statements.
-pub fn parse_statement(stmt: &NysaStmt, ctx: &mut Context) -> Result<syn::Stmt, &'static str> {
+pub fn parse_statement(stmt: &NysaStmt, ctx: &mut Context) -> Result<syn::Stmt, ParserError> {
     match stmt {
         NysaStmt::Expression { expr } => {
             let expr = expr::parse(expr, ctx)?;

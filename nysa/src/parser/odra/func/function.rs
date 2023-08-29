@@ -7,7 +7,7 @@ use crate::{
         ContractData,
     },
     parser::odra::{context::Context, expr},
-    utils,
+    utils, ParserError,
 };
 
 use super::common;
@@ -18,7 +18,7 @@ pub(super) fn def(
     data: &ContractData,
     names: &[String],
     ctx: &mut Context,
-) -> FnDef {
+) -> Result<FnDef, ParserError> {
     let definitions = impls.as_functions();
 
     let (_, top_lvl_func) = definitions
@@ -43,13 +43,13 @@ pub(super) fn def(
         })
         .collect();
 
-    FnDef::Complex(ComplexFnDef {
+    Ok(FnDef::Complex(ComplexFnDef {
         attrs,
         name: top_lvl_func.name.as_str().into(),
-        args: common::args(&top_lvl_func.params, top_lvl_func.is_mutable),
-        ret: common::parse_ret_type(&top_lvl_func.ret),
+        args: common::args(&top_lvl_func.params, top_lvl_func.is_mutable)?,
+        ret: common::parse_ret_type(&top_lvl_func.ret)?,
         implementations,
-    })
+    }))
 }
 
 fn parse_body(def: &Function, names: &[String], ctx: &mut Context) -> syn::Block {

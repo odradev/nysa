@@ -1,5 +1,3 @@
-use core::panic;
-
 use quote::format_ident;
 use quote::quote;
 use syn::parse_quote;
@@ -7,10 +5,11 @@ use syn::parse_quote;
 use crate::model::ir::NysaExpression;
 use crate::utils;
 use crate::utils::to_snake_case_ident;
+use crate::ParserError;
 
 use super::context::Context;
 use super::ty;
-use super::var::IsField;
+use super::var::AsVariable;
 
 pub(crate) mod error;
 mod math;
@@ -18,10 +17,10 @@ mod num;
 mod op;
 pub(crate) mod primitives;
 
-pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr, &'static str> {
+pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr, ParserError> {
     match expression {
         NysaExpression::Require { condition, error } => error::revert(Some(condition), error, ctx),
-        NysaExpression::Placeholder => Err("Empty identifier"),
+        NysaExpression::Placeholder => Err(ParserError::EmptyExpression),
         NysaExpression::ZeroAddress => Ok(parse_quote!(None)),
         NysaExpression::Message(msg) => msg.try_into(),
         NysaExpression::Mapping { name, key } => {
@@ -37,7 +36,7 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
         }
         NysaExpression::Variable { name } => {
             let ident = to_snake_case_ident(&name);
-            let self_ty = name.is_field(ctx).is_some().then(|| quote!(self.));
+            let self_ty = name.as_var(ctx).is_ok().then(|| quote!(self.));
             Ok(parse_quote!(#self_ty #ident))
         }
         NysaExpression::Assign { left, right } => primitives::assign(left, right, None, ctx),
@@ -71,7 +70,7 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             let member: syn::Member = format_ident!("{}", name).into();
             Ok(parse_quote!(#base_expr.#member))
         }
-        NysaExpression::NumberLiteral { ty, value } => Ok(num::to_typed_int_expr(ty, value)),
+        NysaExpression::NumberLiteral { ty, value } => num::to_typed_int_expr(ty, value),
         NysaExpression::Func { name, args } => {
             let args = parse_many(&args, ctx)?;
 
@@ -110,12 +109,12 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             let property = match property.as_str() {
                 "max" => format_ident!("MAX"),
                 "min" => format_ident!("MIN"),
-                _ => panic!("Unknown property {}", property),
+                p => return Err(ParserError::UnknownProperty(p.to_string())),
             };
             Ok(parse_quote!(#ty::#property))
         }
         NysaExpression::Type { ty } => {
-            let ty = ty::parse_plain_type_from_ty(ty);
+            let ty = ty::parse_plain_type_from_ty(ty)?;
             Ok(parse_quote!(#ty))
         }
         NysaExpression::Power { left, right } => {
@@ -135,7 +134,7 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
 pub fn parse_many(
     expressions: &[NysaExpression],
     ctx: &mut Context,
-) -> Result<Vec<syn::Expr>, &'static str> {
+) -> Result<Vec<syn::Expr>, ParserError> {
     expressions
         .iter()
         .map(|e| parse(e, ctx))

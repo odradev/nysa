@@ -4,15 +4,15 @@ use syn::{parse_quote, BinOp};
 use super::parse;
 use crate::{
     model::ir::{NysaExpression, NysaType},
-    parser::odra::{context::Context, var::IsField},
-    utils::to_snake_case_ident,
+    parser::odra::{context::Context, var::AsVariable},
+    utils::to_snake_case_ident, ParserError,
 };
 use quote::quote;
 
 pub fn read_variable_or_parse(
     expr: &NysaExpression,
     ctx: &mut Context,
-) -> Result<syn::Expr, &'static str> {
+) -> Result<syn::Expr, ParserError> {
     match expr {
         NysaExpression::Variable { name } => parse_variable(name, None, ctx),
         _ => parse(expr, ctx),
@@ -45,7 +45,7 @@ pub fn assign(
     right: &NysaExpression,
     operator: Option<BinOp>,
     ctx: &mut Context,
-) -> Result<syn::Expr, &'static str> {
+) -> Result<syn::Expr, ParserError> {
     if operator.is_none() {
         return if let NysaExpression::Mapping { name, key } = left {
             let value = read_variable_or_parse(right, ctx)?;
@@ -59,7 +59,10 @@ pub fn assign(
             let right = read_variable_or_parse(right, ctx)?;
             parse_variable(&name, Some(right), ctx)
         } else {
-            Err("Unsupported expr assign")
+            Err(ParserError::UnexpectedExpression(
+                String::from("NysaExpression::Mapping, NysaExpression::Mapping2 or NysaExpression::Variable"),
+                left.clone(),
+            ))
         };
     }
 
@@ -108,21 +111,21 @@ pub fn parse_variable(
     id: &str,
     value_expr: Option<syn::Expr>,
     ctx: &mut Context,
-) -> Result<syn::Expr, &'static str> {
-    let is_field = id.is_field(ctx);
+) -> Result<syn::Expr, ParserError> {
+    let var = id.as_var(ctx);
     let ident = to_snake_case_ident(id);
-    let self_ty = is_field.is_some().then(|| quote!(self.));
+    let self_ty = var.is_ok().then(|| quote!(self.));
     if let Some(value) = value_expr {
-        match is_field {
+        match var {
             // Variable update must use the `set` function
-            Some(_) => Ok(parse_quote!(#self_ty #ident.set(#value))),
+            Ok(_) => Ok(parse_quote!(#self_ty #ident.set(#value))),
             // regular, local value
-            None => Ok(parse_quote!(#ident = #value)),
+            Err(_) => Ok(parse_quote!(#ident = #value)),
         }
     } else {
-        match is_field {
-            Some(ty) => Ok(get_expr(quote!(#self_ty #ident), None, ty)),
-            None => Ok(parse_quote!(#self_ty #ident)),
+        match var {
+            Ok(ty) => Ok(get_expr(quote!(#self_ty #ident), None, ty)),
+            Err(_) => Ok(parse_quote!(#self_ty #ident)),
         }
     }
 }
@@ -132,13 +135,13 @@ pub fn parse_mapping(
     keys_expr: &[NysaExpression],
     value_expr: Option<syn::Expr>,
     ctx: &mut Context,
-) -> Result<syn::Expr, &'static str> {
+) -> Result<syn::Expr, ParserError> {
     let ident = to_snake_case_ident(name);
     let field_ts = quote!(self.#ident);
-    let ty = name.is_field(ctx).expect("Mapping must be a field");
+    let ty = name.as_var(ctx)?;
 
     match keys_expr.len() {
-        0 => panic!("Invalid mapping keys"),
+        0 => return Err(ParserError::InvalidMapping),
         1 => {
             let key_expr = keys_expr.first().unwrap();
             let key = read_variable_or_parse(key_expr, ctx)?;

@@ -7,7 +7,7 @@ use crate::{
         ContractData,
     },
     parser::odra::{context::Context, expr, stmt},
-    utils,
+    utils, ParserError,
 };
 use c3_lang_linearization::Class;
 use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, PlainFnDef};
@@ -15,14 +15,14 @@ use syn::{parse_quote, Ident};
 
 use super::common;
 
-pub(super) fn def(impls: &FnImplementations, data: &ContractData, ctx: &mut Context) -> Vec<FnDef> {
+pub(super) fn def(impls: &FnImplementations, data: &ContractData, ctx: &mut Context) -> Result<Vec<FnDef>, ParserError> {
     let impls = impls.as_constructors();
 
     let (primary_constructor_class, primary_constructor) = impls
         .iter()
         .find(|(class, _)| **class == data.c3_class())
         .or(impls.last())
-        .expect("At least one implementation expected");
+        .ok_or(ParserError::ConstructorNotFound)?;
 
     let stmts: Vec<syn::Stmt> = impls
         .iter()
@@ -40,44 +40,44 @@ pub(super) fn def(impls: &FnImplementations, data: &ContractData, ctx: &mut Cont
 
             let mut stmts: Vec<syn::Stmt> = vec![];
             stmts.extend(parse_base_calls(c, &impls, ctx));
-            stmts.extend(init_storage_fields(ctx));
+            stmts.extend(init_storage_fields(ctx)?);
             stmts.extend(common::parse_statements(&c.stmts, ctx));
             let name = parse_constructor_name(id, c, c == primary_constructor);
 
             if c == primary_constructor {
                 attrs.push(parse_quote!(#[odra(init)]));
 
-                FnDef::Plain(PlainFnDef {
+                Ok(FnDef::Plain(PlainFnDef {
                     attrs,
                     name: name.clone(),
-                    args: common::args(&c.params, c.is_mutable),
-                    ret: common::parse_ret_type(&c.ret),
+                    args: common::args(&c.params, c.is_mutable)?,
+                    ret: common::parse_ret_type(&c.ret)?,
                     implementation: ClassFnImpl {
                         class: None,
                         fun: name,
                         implementation: parse_quote!({ #(#stmts)* }),
                         visibility: parse_quote!(pub),
                     },
-                })
+                }))
             } else {
-                FnDef::Plain(PlainFnDef {
+                Ok(FnDef::Plain(PlainFnDef {
                     attrs,
                     name: name.clone(),
-                    args: common::args(&c.params, c.is_mutable),
-                    ret: common::parse_ret_type(&c.ret),
+                    args: common::args(&c.params, c.is_mutable)?,
+                    ret: common::parse_ret_type(&c.ret)?,
                     implementation: ClassFnImpl {
                         class: None,
                         fun: name,
                         implementation: parse_quote!({ #(#stmts)* }),
                         visibility: parse_quote!(),
                     },
-                })
+                }))
             }
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
 }
 
-fn init_storage_fields(ctx: &mut Context) -> Vec<syn::Stmt> {
+fn init_storage_fields(ctx: &mut Context) -> Result<Vec<syn::Stmt>, ParserError> {
     ctx.storage()
         .iter()
         .filter(|v| v.initializer.is_some())
@@ -89,9 +89,9 @@ fn init_storage_fields(ctx: &mut Context) -> Vec<syn::Stmt> {
              }| {
                 let init_expr = initializer.clone().unwrap();
                 let left = match ty {
-                    NysaType::Mapping(k, v) => panic!("Cannot init mapping"),
-                    _ => NysaExpression::Variable { name: name.clone() },
-                };
+                    NysaType::Mapping(k, v) => Err(ParserError::MappingInit),
+                    _ => Ok(NysaExpression::Variable { name: name.clone() }),
+                }?;
 
                 let stmt = NysaStmt::Expression {
                     expr: NysaExpression::Assign {
@@ -103,7 +103,6 @@ fn init_storage_fields(ctx: &mut Context) -> Vec<syn::Stmt> {
             },
         )
         .collect::<Result<_, _>>()
-        .unwrap_or_default()
 }
 
 fn parse_base_calls(

@@ -2,7 +2,7 @@ use c3_lang_linearization::Class;
 use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, PlainFnDef};
 use syn::parse_quote;
 
-use crate::{model::ir::FnImplementations, parser::odra::context::Context};
+use crate::{model::ir::FnImplementations, parser::odra::context::Context, ParserError};
 
 use super::common;
 
@@ -13,14 +13,11 @@ use super::common;
 /// Both functions have the same definition, except the implementation:
 /// the  first function takes statements before the `_`, and the second
 /// take the remaining statements.
-pub(super) fn def(impls: &FnImplementations, ctx: &mut Context) -> (FnDef, FnDef) {
+pub(super) fn def(impls: &FnImplementations, ctx: &mut Context) -> Result<(FnDef, FnDef), ParserError> {
     let modifiers = impls.as_modifiers();
 
     if modifiers.len() != 1 {
-        panic!(
-            "Modifier {} must have exactly one implementation",
-            impls.name
-        )
+        return Err(ParserError::InvalidModifier(impls.name.to_owned()))
     }
 
     let (_, def) = modifiers.first().unwrap();
@@ -29,8 +26,8 @@ pub(super) fn def(impls: &FnImplementations, ctx: &mut Context) -> (FnDef, FnDef
 
     let before_fn: Class = format!("modifier_before_{}", def.base_name).into();
     let after_fn: Class = format!("modifier_after_{}", def.base_name).into();
-    let args = common::args(&def.params, def.is_mutable);
-    (
+    let args = common::args(&def.params, def.is_mutable)?;
+    Ok((
         FnDef::Plain(PlainFnDef {
             attrs: vec![],
             name: before_fn.clone(),
@@ -55,5 +52,5 @@ pub(super) fn def(impls: &FnImplementations, ctx: &mut Context) -> (FnDef, FnDef
                 implementation: parse_quote!({ #(#after_stmts)* }),
             },
         }),
-    )
+    ))
 }
