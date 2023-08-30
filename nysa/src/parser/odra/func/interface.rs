@@ -13,8 +13,8 @@ pub fn def(f: &NysaFunction) -> Result<syn::TraitItem, ParserError> {
         Ok(parse_quote!(fn #ident( #(#args),* ) #ret;))
     } else {
         Err(ParserError::InvalidFunctionType(
-            String::from("NysaFunction::Function"), 
-            f.clone()
+            String::from("NysaFunction::Function"),
+            f.clone(),
         ))
     }
 }

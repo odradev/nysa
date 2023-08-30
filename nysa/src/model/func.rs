@@ -1,3 +1,8 @@
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
+
 use c3_lang_linearization::Class;
 use solidity_parser::pt;
 
@@ -9,7 +14,7 @@ use super::{
     stmt::NysaStmt,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NysaParam {
     pub name: String,
     pub ty: NysaType,
@@ -20,6 +25,29 @@ pub enum NysaFunction {
     Function(Function),
     Constructor(Constructor),
     Modifier(Modifier),
+}
+
+impl NysaFunction {
+    pub fn signature_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        match self {
+            NysaFunction::Function(f) => {
+                f.name.hash(&mut hasher);
+                f.params.iter().for_each(|p| p.name.hash(&mut hasher));
+                f.ret.iter().for_each(|r| r.hash(&mut hasher));
+            }
+            NysaFunction::Constructor(c) => {
+                c.name.hash(&mut hasher);
+                c.params.iter().for_each(|p| p.name.hash(&mut hasher));
+                c.ret.iter().for_each(|r| r.hash(&mut hasher));
+            }
+            NysaFunction::Modifier(m) => {
+                m.base_name.hash(&mut hasher);
+                m.params.iter().for_each(|p| p.name.hash(&mut hasher));
+            }
+        }
+        hasher.finish()
+    }
 }
 
 impl NysaFunction {
@@ -322,10 +350,16 @@ fn parse_base(func: &pt::FunctionDefinition) -> Vec<NysaBaseImpl> {
         .collect::<Vec<_>>()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct FnImplementations {
     pub name: String,
     pub implementations: Vec<(Class, NysaFunction)>,
+}
+
+impl Ord for FnImplementations {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
+    }
 }
 
 impl FnImplementations {

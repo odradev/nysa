@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::model::ir::{NysaExpression, NysaType, NysaFunction, NumSize};
+use crate::model::ir::{NumSize, NysaExpression, NysaFunction, NysaType};
 
 #[derive(Error, Debug)]
 pub enum ParserError {
@@ -27,6 +27,5 @@ pub enum ParserError {
     #[error("Invalid mapping")]
     InvalidMapping,
     #[error("Mapping cannot be initialized")]
-    MappingInit
-    
+    MappingInit,
 }

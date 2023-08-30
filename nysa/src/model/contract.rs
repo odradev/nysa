@@ -7,7 +7,7 @@ use solidity_parser::pt::ContractDefinition;
 
 use crate::{
     c3,
-    utils::{self, ast, map_collection},
+    utils::{ast, map_collection},
 };
 
 use super::{
@@ -17,8 +17,8 @@ use super::{
 
 pub struct ContractData {
     contract: NysaContract,
-    contract_names: Vec<String>,
-    fn_map: HashMap<Class, Vec<NysaFunction>>,
+    all_contracts: Vec<NysaContract>,
+    fn_map: HashMap<String, Vec<(Class, NysaFunction)>>,
     var_map: HashMap<Class, Vec<NysaVar>>,
     c3: C3,
 }
@@ -28,7 +28,7 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
 
     fn try_from(value: (&Class, &Vec<&ContractDefinition>)) -> Result<Self, Self::Error> {
         let (class, contracts) = value;
-        let contract_names = contracts.iter().map(|c| c.name.name.to_owned()).collect();
+        let all_contracts = contracts.iter().map(|c| NysaContract::from(*c)).collect();
 
         let contract = contracts
             .iter()
@@ -39,15 +39,19 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
 
         let mut c3 = c3::linearization(&contracts);
 
-        let mut fn_map = HashMap::new();
+        let mut fn_map: HashMap<String, Vec<(Class, NysaFunction)>> = HashMap::new();
         let mut var_map = HashMap::new();
 
-        let relevant_contracts = c3.all_classes_str();
-
-        contracts
+        c3.path(&contract.name().into())
+            .unwrap()
             .iter()
-            .filter(|c| relevant_contracts.contains(&c.name.name))
-            .for_each(|c| {
+            .rev()
+            .for_each(|class| {
+                let c = contracts
+                    .iter()
+                    .find(|c| c.name.name == class.to_string())
+                    .unwrap();
+
                 let contract = NysaContract::from(*c);
 
                 let class = Class::from(contract.name());
@@ -87,6 +91,15 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
                 for func in fns.iter() {
                     let fn_class = Class::from(func.name().as_str());
                     c3.register_fn(class.clone(), fn_class);
+
+                    let fn_name = func.name();
+                    let record = (class.clone(), func.clone());
+                    match fn_map.get_mut(fn_name) {
+                        Some(v) => v.push(record),
+                        None => {
+                            fn_map.insert(fn_name.clone(), vec![record]);
+                        }
+                    };
                 }
 
                 let vars: Vec<NysaVar> = map_collection(ast::extract_vars(c));
@@ -94,13 +107,13 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
                     let var_class = Class::from(var.name.as_str());
                     c3.register_var(class.clone(), var_class)
                 }
-                fn_map.insert(class.clone(), fns);
+
                 var_map.insert(class, vars);
             });
 
         Ok(Self {
             contract,
-            contract_names,
+            all_contracts,
             fn_map,
             var_map,
             c3,
@@ -130,22 +143,15 @@ impl ContractData {
     }
 
     pub fn fn_implementations(&self) -> Vec<FnImplementations> {
-        let mut result = vec![];
-
-        for fn_name in self.functions_str() {
-            let mut implementations = vec![];
-            let c3 = self.c3_path().iter().rev().for_each(|class| {
-                let fns = self.fn_map.get(class).unwrap();
-                let f = utils::func::find_by_name(class.clone(), fns.to_vec(), &fn_name);
-                if let Some(f) = f {
-                    implementations.push(f);
-                }
-            });
-            result.push(FnImplementations {
-                name: fn_name,
-                implementations,
-            });
-        }
+        let mut result = self
+            .fn_map
+            .iter()
+            .map(|(name, implementations)| FnImplementations {
+                name: name.to_owned(),
+                implementations: implementations.clone(),
+            })
+            .collect::<Vec<_>>();
+        result.sort_by_key(|f| f.name.clone());
         result
     }
 
@@ -181,7 +187,18 @@ impl ContractData {
         vars
     }
 
-    pub fn contract_names(&self) -> &[String] {
-        &self.contract_names
+    pub fn contract_names(&self) -> Vec<String> {
+        self.all_contracts
+            .iter()
+            .map(|c| c.name().to_owned())
+            .collect()
+    }
+
+    pub fn is_abstract(&self, class: &Class) -> bool {
+        self.all_contracts
+            .iter()
+            .find(|c| c.name() == &class.to_string())
+            .map(|c| c.is_abstract())
+            .unwrap_or_default()
     }
 }

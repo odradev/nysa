@@ -123,53 +123,37 @@ pub mod function_modifier {
 
         #[odra(init)]
         pub fn init(&mut self) {
-            {
-                self.owner.set(Some(odra::contract_env::caller()));
-                self.x.set(10u8.into());
-            }
+            self.owner.set(Some(odra::contract_env::caller()));
+            self.x.set(10u8.into());
         }
 
         fn modifier_before_no_reentrancy(&mut self) {
-            {
-                if !(!(self.locked.get_or_default())) {
-                    odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "No reentrancy"))
-                };
-                self.locked.set(true);
-            }
+            if !(!(self.locked.get_or_default())) {
+                odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "No reentrancy"))
+            };
+            self.locked.set(true);
         }
 
         fn modifier_after_no_reentrancy(&mut self) {
-            {
-                self.locked.set(false);
-            }
+            self.locked.set(false);
         }
 
         fn modifier_before_only_owner(&mut self) {
-            {
-                if !(Some(odra::contract_env::caller()) == self.owner.get().unwrap_or(None)) {
-                    odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "Not owner"))
-                };
-            }
+            if !(Some(odra::contract_env::caller()) == self.owner.get().unwrap_or(None)) {
+                odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "Not owner"))
+            };
         }
 
         fn modifier_after_only_owner(&mut self) {
-            {
-
-            }
         }
 
         fn modifier_before_valid_address(&mut self, _addr: Option<odra::types::Address>) {
-            {
-                if !(_addr != None) {
-                    odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "Not valid address"))
-                };
-            }
+            if !(_addr != None) {
+                odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "Not valid address"))
+            };
         }
 
         fn modifier_after_valid_address(&mut self,  _addr: Option<odra::types::Address>) {
-            {
-
-            }
         }
     }
 }

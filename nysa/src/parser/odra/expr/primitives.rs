@@ -4,8 +4,9 @@ use syn::{parse_quote, BinOp};
 use super::parse;
 use crate::{
     model::ir::{NysaExpression, NysaType},
-    parser::odra::{context::Context, var::AsVariable},
-    utils::to_snake_case_ident, ParserError,
+    parser::{context::Context, odra::var::AsVariable},
+    utils::to_snake_case_ident,
+    ParserError,
 };
 use quote::quote;
 
@@ -60,7 +61,9 @@ pub fn assign(
             parse_variable(&name, Some(right), ctx)
         } else {
             Err(ParserError::UnexpectedExpression(
-                String::from("NysaExpression::Mapping, NysaExpression::Mapping2 or NysaExpression::Variable"),
+                String::from(
+                    "NysaExpression::Mapping, NysaExpression::Mapping2 or NysaExpression::Variable",
+                ),
                 left.clone(),
             ))
         };

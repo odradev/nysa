@@ -3,10 +3,11 @@ use syn::parse_quote;
 
 use crate::{
     model::ir::{NysaExpression, NysaStmt},
+    parser::context::Context,
     utils, ParserError,
 };
 
-use super::{context::Context, expr};
+use super::expr;
 
 /// Parses solidity statement into a syn statement.
 ///
@@ -126,7 +127,7 @@ mod t {
     use super::parse_statement;
     use crate::{
         model::ir::{NysaExpression, NysaStmt},
-        parser::odra::context::Context,
+        parser::context::Context,
     };
 
     #[test]

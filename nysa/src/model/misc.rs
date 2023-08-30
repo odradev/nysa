@@ -8,6 +8,7 @@ use super::expr::NysaExpression;
 pub struct NysaContract {
     name: String,
     base_impl: Vec<NysaBaseImpl>,
+    is_abstract: bool,
 }
 
 impl NysaContract {
@@ -17,6 +18,10 @@ impl NysaContract {
 
     pub fn base_impl(&self) -> &[NysaBaseImpl] {
         &self.base_impl
+    }
+
+    pub fn is_abstract(&self) -> bool {
+        self.is_abstract
     }
 }
 
@@ -34,11 +39,12 @@ impl From<&pt::ContractDefinition> for NysaContract {
         Self {
             name: value.name.name.to_owned(),
             base_impl,
+            is_abstract: matches!(value.ty, pt::ContractTy::Abstract(_)),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub enum NysaType {
     Address,
     Bool,

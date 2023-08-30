@@ -5,7 +5,7 @@ use crate::ParserError;
 
 use super::misc::NysaType;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NumSize {
     U8,
     U16,
@@ -21,7 +21,7 @@ pub enum NumSize {
     I256,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum NysaExpression {
     Require {
         condition: Box<NysaExpression>,
@@ -122,10 +122,6 @@ pub enum NysaExpression {
         fn_name: String,
         args: Vec<NysaExpression>,
     },
-    // ExternalRefInit {
-    //     ext_class: String,
-    //     address: Box<NysaExpression>,
-    // },
     TypeInfo {
         ty: Box<NysaExpression>,
         property: String,
@@ -336,7 +332,7 @@ impl From<&pt::Expression> for NysaExpression {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, PartialOrd, Eq, Ord)]
 #[allow(dead_code)]
 pub enum Message {
     Sender,

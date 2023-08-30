@@ -3,7 +3,6 @@ use quote::format_ident;
 use solidity_parser::pt::SourceUnitPart;
 
 pub mod ast;
-pub mod func;
 
 pub type SolidityAST = Vec<SourceUnitPart>;
 

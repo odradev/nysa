@@ -2,7 +2,7 @@ use syn::parse_quote;
 
 use crate::utils;
 
-use super::context::Context;
+use crate::parser::context::Context;
 
 /// File level attributes to mute error while compiling a contract.
 /// Generating code from Solidity may result in some unusual naming conventions

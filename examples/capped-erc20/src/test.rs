@@ -1,6 +1,6 @@
 use odra::test_env;
 
-use crate::plascoin::Error;
+use crate::plascoin::errors::Error;
 
 use super::*;
 

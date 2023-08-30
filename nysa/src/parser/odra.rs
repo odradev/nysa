@@ -14,11 +14,8 @@ use std::{
 };
 use syn::parse_quote;
 
-use self::context::Context;
+use super::{context::Context, Parser};
 
-use super::Parser;
-
-mod context;
 mod errors;
 mod event;
 mod expr;
@@ -88,7 +85,7 @@ fn parse_packages(package: &Package) -> Result<Vec<PackageDef>, ParserError> {
 
             let mut ctx = Context::default();
             ctx.set_storage(&storage);
-            ctx.set_classes(data.contract_names().to_vec());
+            ctx.set_classes(data.contract_names());
 
             let classes = vec![contract_def(&data, &mut ctx)?];
 

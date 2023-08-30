@@ -6,7 +6,10 @@ use crate::{
         },
         ContractData,
     },
-    parser::odra::{context::Context, expr, stmt},
+    parser::{
+        context::Context,
+        odra::{expr, stmt},
+    },
     utils, ParserError,
 };
 use c3_lang_linearization::Class;
@@ -15,7 +18,11 @@ use syn::{parse_quote, Ident};
 
 use super::common;
 
-pub(super) fn def(impls: &FnImplementations, data: &ContractData, ctx: &mut Context) -> Result<Vec<FnDef>, ParserError> {
+pub(super) fn def(
+    impls: &FnImplementations,
+    data: &ContractData,
+    ctx: &mut Context,
+) -> Result<Vec<FnDef>, ParserError> {
     let impls = impls.as_constructors();
 
     let (primary_constructor_class, primary_constructor) = impls
@@ -39,7 +46,9 @@ pub(super) fn def(impls: &FnImplementations, data: &ContractData, ctx: &mut Cont
             }
 
             let mut stmts: Vec<syn::Stmt> = vec![];
-            stmts.extend(parse_base_calls(c, &impls, ctx));
+            if !data.is_abstract(id) {
+                stmts.extend(parse_base_calls(c, &impls, ctx));
+            }
             stmts.extend(init_storage_fields(ctx)?);
             stmts.extend(common::parse_statements(&c.stmts, ctx));
             let name = parse_constructor_name(id, c, c == primary_constructor);
@@ -133,7 +142,8 @@ fn parse_base_args(base: &NysaBaseImpl, ctx: &mut Context) -> Vec<syn::Expr> {
 }
 
 fn parse_base_ident(base: &NysaBaseImpl) -> Ident {
-    let prefix = format!("_{}_", base.class_name.to_lowercase());
+    let base = utils::to_snake_case(&base.class_name);
+    let prefix = format!("_{}_", base);
     let ident = utils::to_prefixed_snake_case_ident(&prefix, "init");
     ident
 }

@@ -23,19 +23,19 @@ pub(crate) fn to_typed_int_expr(ty: &NumSize, value: &[u8]) -> Result<syn::Expr,
     match ty {
         NumSize::U8 => {
             let num = to_unit!(&value[0..1], u8);
-           Ok(parse_quote!(#num.into()))
+            Ok(parse_quote!(#num.into()))
         }
         NumSize::U16 => {
             let num = to_unit!(&value[0..2], u16);
-           Ok(parse_quote!(#num.into()))
+            Ok(parse_quote!(#num.into()))
         }
         NumSize::U32 => {
             let num = to_unit!(value, u32);
-           Ok(parse_quote!(#num.into()))
+            Ok(parse_quote!(#num.into()))
         }
         NumSize::U64 => {
             let num = to_unit!(value, u64);
-           Ok(parse_quote!(#num.into()))
+            Ok(parse_quote!(#num.into()))
         }
         NumSize::U256 => {
             let arr = value

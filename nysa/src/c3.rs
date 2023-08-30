@@ -11,8 +11,6 @@ pub fn linearization(contracts: &[&ContractDefinition]) -> C3 {
         .map(|c| to_class(&c.name))
         .collect::<Vec<_>>();
 
-    let interfaces = vec![];
-
     let mut c3 = C3::new();
     // register only contracts, exclude interfaces
     contracts

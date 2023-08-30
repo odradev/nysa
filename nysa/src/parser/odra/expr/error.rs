@@ -3,7 +3,10 @@ use syn::parse_quote;
 
 use crate::{
     model::ir::NysaExpression,
-    parser::odra::{context::Context, ERRORS, ERROR_MAP},
+    parser::{
+        context::Context,
+        odra::{ERRORS, ERROR_MAP},
+    },
     ParserError,
 };
 

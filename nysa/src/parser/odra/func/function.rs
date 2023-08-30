@@ -6,7 +6,7 @@ use crate::{
         ir::{FnImplementations, Function, NysaBaseImpl},
         ContractData,
     },
-    parser::odra::{context::Context, expr},
+    parser::{context::Context, odra::expr},
     utils, ParserError,
 };
 

@@ -74,7 +74,6 @@ pub mod caller {
 
         #[odra(init)]
         pub fn init(&mut self) {
-            {}
         }
 
         pub fn set_x(&mut self, _callee: Option<odra::types::Address>, _x: odra::types::U256) {
@@ -191,7 +190,6 @@ pub mod callee {
 
         #[odra(init)]
         pub fn init(&mut self) {
-            {}
         }
 
         pub fn set_x(&mut self, _x: odra::types::U256) -> odra::types::U256 {

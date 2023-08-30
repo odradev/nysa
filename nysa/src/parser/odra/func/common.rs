@@ -2,7 +2,10 @@ use syn::{parse_quote, FnArg};
 
 use crate::{
     model::ir::{NysaExpression, NysaParam, NysaStmt, NysaType, NysaVisibility},
-    parser::odra::{context::Context, stmt, ty},
+    parser::{
+        context::Context,
+        odra::{stmt, ty},
+    },
     utils, ParserError,
 };
 

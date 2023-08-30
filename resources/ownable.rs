@@ -11,9 +11,7 @@ pub mod events {
             previous_owner: Option<odra::types::Address>,
             new_owner: Option<odra::types::Address>,
         ) -> Self {
-            {
-                Self { previous_owner, new_owner }
-            }
+            Self { previous_owner, new_owner }
         }
     }
 }
@@ -109,22 +107,16 @@ pub mod owner {
 
         #[odra(init)]
         pub fn init(&mut self) {
-            {
-                self.owner.set(Some(odra::contract_env::caller()));
-            }
+            self.owner.set(Some(odra::contract_env::caller()));
         }
 
         fn modifier_before_only_owner(&mut self) {
-            {
-                if !(Some(odra::contract_env::caller()) == self.owner.get().unwrap_or(None)) {
-                    odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "Only the contract owner can call this function."))
-                };
-            }
+            if !(Some(odra::contract_env::caller()) == self.owner.get().unwrap_or(None)) {
+                odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "Only the contract owner can call this function."))
+            };
         }
 
         fn modifier_after_only_owner(&mut self) {
-            {
-            }
         }
 
         pub fn transfer_ownership(&mut self, new_owner: Option<odra::types::Address>) {

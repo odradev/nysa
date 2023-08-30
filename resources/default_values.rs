@@ -94,11 +94,9 @@ pub mod my_contract {
 
         #[odra(init)]
         pub fn init(&mut self) {
-            {
-                self.my_number.set(42u8.into());
-                self.min_int.set(i16::MIN);
-                self.boo.set(true);
-            }
+            self.my_number.set(42u8.into());
+            self.min_int.set(i16::MIN);
+            self.boo.set(true);
         }
     }
 }

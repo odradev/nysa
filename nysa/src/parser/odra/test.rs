@@ -54,6 +54,13 @@ fn test_ownable() {
     assert_impl(result, "../resources/ownable.rs");
 }
 
+#[test]
+#[ignore]
+fn test_plascoin() {
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/plascoin.sol"));
+    assert_impl(result, "../resources/plascoin.rs");
+}
+
 fn assert_impl(result: TokenStream, file_path: &str) {
     let parse = |str| {
         let file = syn::parse_file(str).unwrap();

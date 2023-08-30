@@ -1,7 +1,5 @@
-use crate::{model::ContractData, ParserError};
+use crate::{model::ContractData, parser::context::Context, ParserError};
 use c3_lang_parser::c3_ast::FnDef;
-
-use super::context::Context;
 
 mod common;
 mod constructor;

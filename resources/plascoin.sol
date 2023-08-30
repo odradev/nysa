@@ -33,7 +33,6 @@ interface IERC20Errors {
     error ERC20InvalidSpender(address spender);
 }
 
-// abstract contract ERC20 is Context, IERC20Metadata, IERC20, IERC20Errors {
 abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
@@ -285,8 +284,8 @@ abstract contract Ownable is Context {
 }
 
 contract Plascoin is ERC20Capped, ERC20Burnable, Ownable {
-    // constructor(name_, symbol_, cap_, initialOwner) ERC20("Plascoin", "PLS") ERC20Capped(1_000_000_000 * 10**9) Ownable(msg.sender) {
-    constructor(string memory name_, string memory symbol_, uint256 cap_, address initialOwner) ERC20(name_, symbol_) ERC20Capped(cap_) Ownable(initialOwner) {
+    constructor() ERC20("Plascoin", "PLS") ERC20Capped(1_000_000_000) Ownable(msg.sender) {
+    // constructor() ERC20("Plascoin", "PLS") ERC20Capped(1_000_000_000 * 10**9) Ownable(msg.sender) {
         // The total supply is capped at 1 billion tokens with 9 decimals
     }
 

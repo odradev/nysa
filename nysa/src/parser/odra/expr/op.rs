@@ -1,7 +1,7 @@
 use syn::{parse_quote, BinOp};
 
 use super::primitives;
-use crate::{model::ir::NysaExpression, parser::odra::context::Context, ParserError};
+use crate::{model::ir::NysaExpression, parser::context::Context, ParserError};
 
 pub(crate) fn bin_op(
     left: &NysaExpression,

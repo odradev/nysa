@@ -5,10 +5,11 @@ use crate::{
         ir::{NysaExpression, NysaType, NysaVar},
         ContractData,
     },
+    parser::context::Context,
     utils, ParserError,
 };
 
-use super::{context::Context, ty};
+use super::ty;
 
 /// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
 pub fn variables_def(data: &ContractData, ctx: &mut Context) -> Result<Vec<VarDef>, ParserError> {
