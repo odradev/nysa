@@ -8,7 +8,7 @@ use crate::parser::context::Context;
 /// Generating code from Solidity may result in some unusual naming conventions
 /// and syntax that linter does not like.
 pub(super) fn attrs() -> Vec<syn::Attribute> {
-    vec![parse_quote!(#![allow(unused_braces, non_snake_case)])]
+    vec![parse_quote!(#![allow(unused_braces, non_snake_case, unused_imports)])]
 }
 
 /// Generates code that is not a direct derivative of Solidity code.
@@ -30,6 +30,9 @@ pub(super) fn imports_code(ctx: &Context) -> Vec<syn::Item> {
             parse_quote!(
                 use super::events::*;
             ),
+            parse_quote!(
+                use odra::prelude::vec::Vec;
+            ),
         ])
         .collect()
 }
@@ -38,6 +41,7 @@ pub(super) fn imports_code(ctx: &Context) -> Vec<syn::Item> {
 pub(super) fn path_stack_default_impl() -> Vec<syn::Item> {
     vec![
         parse_quote! {
+            #[cfg(not(target_arch = "wasm32"))]
             impl odra::types::contract_def::Node for PathStack {
                 const COUNT: u32 = 0;
                 const IS_LEAF: bool = false;

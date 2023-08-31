@@ -16,7 +16,7 @@ pub fn parse_odra_ty(ty: &NysaType) -> Result<syn::Type, ParserError> {
             Ok(parse_quote!(odra::Mapping<#key, #value>))
         }
         NysaType::Address => Ok(parse_quote!(odra::Variable<Option<odra::types::Address>>)),
-        NysaType::String => Ok(parse_quote!(odra::Variable<String>)),
+        NysaType::String => Ok(parse_quote!(odra::Variable<odra::prelude::string::String>)),
         NysaType::Bool => Ok(parse_quote!(odra::Variable<bool>)),
         NysaType::Int(_) => Ok(parse_quote!(odra::Variable<i16>)),
         NysaType::Uint(size) => match size {
@@ -46,7 +46,7 @@ pub fn parse_plain_type_from_expr(expr: &NysaExpression) -> Result<syn::Type, Pa
 pub fn parse_plain_type_from_ty(ty: &NysaType) -> Result<syn::Type, ParserError> {
     match ty {
         NysaType::Address => Ok(parse_quote!(Option<odra::types::Address>)),
-        NysaType::String => Ok(parse_quote!(String)),
+        NysaType::String => Ok(parse_quote!(odra::prelude::string::String)),
         NysaType::Bool => Ok(parse_quote!(bool)),
         NysaType::Int(_) => Ok(parse_quote!(i16)),
         NysaType::Uint(size) => match size {

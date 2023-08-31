@@ -1,4 +1,5 @@
 use odra::{test_env, types::Address};
+use odra::prelude::string::{String, ToString};
 use super::*;
 
 const ACCOUNT: fn() -> Address = || odra::test_env::get_account(1);

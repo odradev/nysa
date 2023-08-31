@@ -1,11 +1,13 @@
 use super::*;
+use odra::prelude::string::String;
+use odra::prelude::ToString;
 use odra::{test_env, types::Address};
 
 const ACCOUNT: fn() -> Address = || odra::test_env::get_account(1);
 
 #[test]
 fn set_get_message() {
-    let mut contract = StatusMessageDeployer::default();
+    let mut contract = StatusMessageDeployer::init();
 
     test_env::set_caller(ACCOUNT());
     contract.set_status("hello".to_string());
@@ -14,7 +16,7 @@ fn set_get_message() {
 
 #[test]
 fn get_nonexistent_message() {
-    let contract = StatusMessageDeployer::default();
+    let contract = StatusMessageDeployer::init();
 
     assert_eq!(String::new(), contract.get_status(Some(ACCOUNT())));
 }

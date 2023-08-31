@@ -1,4 +1,4 @@
-use odra::test_env;
+use odra::{prelude::string::String, test_env};
 
 use super::*;
 

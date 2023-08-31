@@ -70,6 +70,60 @@ fn assert_impl(result: TokenStream, file_path: &str) {
     let mut file = File::open(file_path).unwrap();
     let mut content = String::new();
     file.read_to_string(&mut content).unwrap();
+    let content = content.replace("{{STACK_DEF}}", STACK_DEF);
+
+    // dbg!(&content);
 
     pretty_assertions::assert_eq!(parse(result.to_string().as_str()), parse(content.as_str()));
 }
+
+const STACK_DEF: &str = r#"
+use odra::prelude::vec::Vec;
+#[cfg(not(target_arch = "wasm32"))]
+impl odra::types::contract_def::Node for PathStack {
+    const COUNT: u32 = 0;
+    const IS_LEAF: bool = false;
+}
+impl odra::OdraItem for PathStack {
+    fn is_module() -> bool {
+        false
+    }
+}
+impl odra::StaticInstance for PathStack {
+    fn instance<'a>(keys: &'a [&'a str]) -> (Self, &'a [&'a str]) {
+        (PathStack::default(), keys)
+    }
+}
+impl odra::DynamicInstance for PathStack {
+    #[allow(unused_variables)]
+    fn instance(namespace: &[u8]) -> Self {
+        PathStack::default()
+    }
+}
+
+#[derive(Clone, Default)]
+struct PathStack {
+    stack: alloc::rc::Rc<core::cell::RefCell<Vec<Vec<ClassName>>>>
+}
+
+impl PathStack {
+    pub fn push_path_on_stack(&self, path: &[ClassName]) {
+        let mut stack = self.stack.take();
+        stack.push(path.to_vec());
+        self.stack.replace(stack);
+    }
+    pub fn drop_one_from_stack(&self) {
+        let mut stack = self.stack.take();
+        stack.pop().unwrap();
+        self.stack.replace(stack);
+    }
+    pub fn pop_from_top_path(&self) -> ClassName {
+        let mut stack = self.stack.take();
+        let mut path = stack.pop().unwrap();
+        let class = path.pop().unwrap();
+        stack.push(path);
+        self.stack.replace(stack);
+        class
+    }
+}
+"#;

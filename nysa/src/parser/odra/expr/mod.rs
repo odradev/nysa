@@ -40,7 +40,9 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             Ok(parse_quote!(#self_ty #ident))
         }
         NysaExpression::Assign { left, right } => primitives::assign(left, right, None, ctx),
-        NysaExpression::StringLiteral(string) => Ok(parse_quote!(String::from(#string))),
+        NysaExpression::StringLiteral(string) => {
+            Ok(parse_quote!(odra::prelude::string::String::from(#string)))
+        }
         NysaExpression::LessEqual { left, right } => op::bin_op(left, right, parse_quote!(<=), ctx),
         NysaExpression::MoreEqual { left, right } => op::bin_op(left, right, parse_quote!(>=), ctx),
         NysaExpression::Less { left, right } => op::bin_op(left, right, parse_quote!(<), ctx),

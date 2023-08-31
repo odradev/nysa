@@ -2,6 +2,7 @@ use odra::{
     contract_env, execution_error,
     types::{event::OdraEvent, Address, U256},
     Mapping, UnwrapOrRevert, Variable,
+    prelude::string::String
 };
 
 #[derive(odra::Event, PartialEq, Eq, Debug)]

@@ -1,8 +1,8 @@
 use odra::test_env;
 
-use crate::plascoin::errors::Error;
-
 use super::*;
+use crate::plascoin::errors::Error;
+use odra::prelude::string::String;
 
 fn setup() -> PlascoinRef {
     let name = String::from("Plascoin");

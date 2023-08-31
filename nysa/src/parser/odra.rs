@@ -94,6 +94,7 @@ fn parse_packages(package: &Package) -> Result<Vec<PackageDef>, ParserError> {
             other_code.extend(other::other_code());
 
             Ok(PackageDef {
+                no_std: true,
                 attrs: other::attrs(),
                 other_code,
                 class_name,
