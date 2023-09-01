@@ -3,6 +3,7 @@ use quote::quote;
 use syn::parse_quote;
 
 use crate::model::ir::NysaExpression;
+use crate::model::ir::NysaType;
 use crate::parser::context::Context;
 use crate::utils;
 use crate::utils::to_snake_case_ident;
@@ -73,38 +74,13 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             Ok(parse_quote!(#base_expr.#member))
         }
         NysaExpression::NumberLiteral { ty, value } => num::to_typed_int_expr(ty, value),
-        NysaExpression::Func { name, args } => {
-            let args = parse_many(&args, ctx)?;
-
-            if let Some(class_name) = ctx.class(name) {
-                ctx.register_external_call(&class_name);
-
-                let ref_ident = format_ident!("{}Ref", class_name);
-                let addr = args.get(0);
-                return Ok(
-                    parse_quote!(#ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr))),
-                );
-            }
-            match parse(name, ctx) {
-                Ok(name) => Ok(parse_quote!(self.#name(#(#args),*))),
-                Err(err) => Err(err),
-            }
-        }
-        NysaExpression::SuperCall { name, args } => {
-            let name = utils::to_prefixed_snake_case_ident("super_", name);
-            let args = parse_many(&args, ctx)?;
-            Ok(parse_quote!(self.#name(#(#args),*)))
-        }
+        NysaExpression::Func { name, args } => parse_func(name, args, ctx),
+        NysaExpression::SuperCall { name, args } => parse_super_call(name, args, ctx),
         NysaExpression::ExternalCall {
             variable,
             fn_name,
             args,
-        } => {
-            let var = utils::to_snake_case_ident(variable);
-            let fn_name = utils::to_snake_case_ident(fn_name);
-            let args = parse_many(&args, ctx)?;
-            Ok(parse_quote!(#var.#fn_name(#(#args),*)))
-        }
+        } => parse_ext_call(variable, fn_name, args, ctx),
         NysaExpression::TypeInfo { ty, property } => {
             let ty = parse(ty, ctx)?;
             let property = match property.as_str() {
@@ -140,4 +116,74 @@ pub fn parse_many(
         .iter()
         .map(|e| parse(e, ctx))
         .collect::<Result<Vec<syn::Expr>, _>>()
+}
+
+fn parse_func(
+    fn_name: &NysaExpression,
+    args: &[NysaExpression],
+    ctx: &mut Context,
+) -> Result<syn::Expr, ParserError> {
+    let args = parse_many(&args, ctx)?;
+    // Context allows us to distinct an external contract initialization from a regular function call
+    if let Some(class_name) = ctx.class(fn_name) {
+        ctx.register_external_call(&class_name);
+        // Storing a reference to a contract is disallowed, and in the constructor an external contract
+        // should be considered an address, otherwise, a reference should be created
+        return if ctx.current_fn().is_constructor() {
+            Ok(parse_quote!(#(#args),*))
+        } else {
+            let ref_ident = format_ident!("{}Ref", class_name);
+            let addr = args.get(0);
+            Ok(parse_quote!(#ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr))))
+        };
+    }
+    match parse(fn_name, ctx) {
+        Ok(name) => Ok(parse_quote!(self.#name(#(#args),*))),
+        Err(err) => Err(err),
+    }
+}
+
+fn parse_ext_call(
+    variable: &str,
+    fn_name: &str,
+    args: &[NysaExpression],
+    ctx: &mut Context,
+) -> Result<syn::Expr, ParserError> {
+    let fn_ident = utils::to_snake_case_ident(fn_name);
+    let args = parse_many(&args, ctx)?;
+    let var_ident = utils::to_snake_case_ident(variable);
+
+    // If in solidity code a reference is a contract may be a field,
+    // but in odra we store only an address, so a ref must be built
+    // from the address.
+    // If a ref was created from an address, the function may be called
+    // straight away.
+    match variable.as_var(ctx) {
+        Ok(NysaType::Contract(class_name)) => {
+            ctx.register_external_call(&class_name);
+            let ref_ident = format_ident!("{}Ref", class_name);
+            let addr = args.get(0);
+
+            let addr = primitives::read_variable_or_parse(
+                &NysaExpression::Variable {
+                    name: variable.to_string(),
+                },
+                ctx,
+            )?;
+            Ok(parse_quote!(
+                #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr)).#fn_ident(#(#args),*)
+            ))
+        }
+        _ => Ok(parse_quote!(#var_ident.#fn_ident(#(#args),*))),
+    }
+}
+
+fn parse_super_call(
+    fn_name: &str,
+    args: &[NysaExpression],
+    ctx: &mut Context,
+) -> Result<syn::Expr, ParserError> {
+    let fn_name = utils::to_prefixed_snake_case_ident("super_", fn_name);
+    let args = parse_many(&args, ctx)?;
+    Ok(parse_quote!(self.#fn_name(#(#args),*)))
 }

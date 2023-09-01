@@ -251,10 +251,14 @@ impl From<&pt::Expression> for NysaExpression {
                 let (sign, digs) = num.to_u32_digits();
 
                 // u32::MAX or less
+                if digs.is_empty() {
+                    return Self::NumberLiteral {
+                        ty: NumSize::U8,
+                        value: vec![],
+                    };
+                }
                 if digs.len() == 1 {
                     let value = digs[0];
-                    let max_u8 = u8::MAX as u32;
-                    let max_u16 = u16::MAX as u32;
                     let mut ty = NumSize::U32;
                     if value <= u8::MAX.into() {
                         ty = NumSize::U8;

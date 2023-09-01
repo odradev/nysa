@@ -46,6 +46,9 @@ fn test_ext() {
 
     let result = parse::<OdraParser, _>(include_str!("../../../../resources/ext/2.sol"));
     assert_impl(result, "../resources/ext/2.rs");
+
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ext/3.sol"));
+    assert_impl(result, "../resources/ext/3.rs");
 }
 
 #[test]

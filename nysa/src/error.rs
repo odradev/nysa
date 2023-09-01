@@ -6,6 +6,8 @@ use crate::model::ir::{NumSize, NysaExpression, NysaFunction, NysaType};
 pub enum ParserError {
     #[error("Unsupported type `{0:?}`.")]
     UnsupportedType(NysaType),
+    #[error("Unsupported state type `{0:?}`.")]
+    UnsupportedStateType(NysaType),
     #[error("Unsupported num size `{0:?}`.")]
     UnsupportedUnit(NumSize),
     #[error("Unexpected expression, expected `{0}`, but found `{1:?}`.")]

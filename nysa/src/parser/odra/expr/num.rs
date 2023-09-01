@@ -22,7 +22,12 @@ pub(crate) fn to_generic_int_expr(ty: &NumSize, value: &[u8]) -> Result<syn::Exp
 pub(crate) fn to_typed_int_expr(ty: &NumSize, value: &[u8]) -> Result<syn::Expr, ParserError> {
     match ty {
         NumSize::U8 => {
-            let num = to_unit!(&value[0..1], u8);
+            let num = if value.is_empty() {
+                0
+            } else {
+                to_unit!(&value[0..1], u8)
+            };
+
             Ok(parse_quote!(#num.into()))
         }
         NumSize::U16 => {

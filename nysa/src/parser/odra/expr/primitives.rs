@@ -175,6 +175,7 @@ fn get_expr(stream: TokenStream, key_expr: Option<syn::Expr>, ty: NysaType) -> s
     let key = key_expr.clone().map(|k| quote!(&#k));
     match ty {
         NysaType::Address => parse_quote!(#stream.get(#key).unwrap_or(None)),
+        NysaType::Contract(_) => parse_quote!(#stream.get(#key).unwrap_or(None)),
         NysaType::String | NysaType::Bool | NysaType::Uint(_) | NysaType::Int(_) => {
             parse_quote!(#stream.get_or_default(#key))
         }

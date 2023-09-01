@@ -108,7 +108,8 @@ impl From<&&pt::VariableDefinition> for NysaVar {
             name: value.name.name.to_owned(),
             ty: match &value.ty {
                 pt::Expression::Type(_, ty) => NysaType::from(ty),
-                _ => panic!("Not a type. {:?}", value),
+                pt::Expression::Variable(id) => NysaType::from(id),
+                t => panic!("Not a type. {:?}", t),
             },
             initializer: value.initializer.as_ref().map(NysaExpression::from),
         }
