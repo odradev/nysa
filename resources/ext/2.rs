@@ -1,7 +1,7 @@
 pub mod errors {}
 pub mod events {}
 pub mod caller {
-    #![allow(unused_braces, non_snake_case)]
+    #![allow(unused_braces, non_snake_case, unused_imports)]
 
     use super::callee::*;
     use super::errors::*;
@@ -68,11 +68,11 @@ pub mod caller {
 }
 
 pub mod callee {
-    #![allow(unused_braces, non_snake_case)]
+    #![allow(unused_braces, non_snake_case, unused_imports)]
 
     use super::errors::*;
     use super::events::*;
-    
+
     {{STACK_DEF}}
 
     #[derive(Clone)]

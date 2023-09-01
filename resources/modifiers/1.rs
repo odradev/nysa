@@ -1,13 +1,13 @@
 pub mod errors {}
 pub mod events {}
 pub mod function_modifier {
-    #![allow(unused_braces, non_snake_case)]
+    #![allow(unused_braces, non_snake_case, unused_imports)]
 
     use super::errors::*;
     use super::events::*;
     
     {{STACK_DEF}}
-    
+
     #[derive(Clone)]
     enum ClassName {
         FunctionModifier,

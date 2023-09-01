@@ -10,7 +10,7 @@ pub mod external_contract {
 }
 
 pub mod my_contract {
-    #![allow(unused_braces, non_snake_case)]
+    #![allow(unused_braces, non_snake_case, unused_imports)]
 
     use super::external_contract::*;
     use super::errors::*;
