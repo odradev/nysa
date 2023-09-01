@@ -46,8 +46,8 @@ pub(super) fn def(
     Ok(FnDef::Complex(ComplexFnDef {
         attrs,
         name: top_lvl_func.name.as_str().into(),
-        args: common::args(&top_lvl_func.params, top_lvl_func.is_mutable)?,
-        ret: common::parse_ret_type(&top_lvl_func.ret)?,
+        args: common::args(&top_lvl_func.params, top_lvl_func.is_mutable, ctx)?,
+        ret: common::parse_ret_type(&top_lvl_func.ret, ctx)?,
         implementations,
     }))
 }

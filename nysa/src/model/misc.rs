@@ -6,16 +6,12 @@ use super::expr::NysaExpression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NysaContract {
-    name: String,
+    pub name: String,
     base_impl: Vec<NysaBaseImpl>,
     is_abstract: bool,
 }
 
 impl NysaContract {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     pub fn base_impl(&self) -> &[NysaBaseImpl] {
         &self.base_impl
     }
@@ -54,7 +50,6 @@ pub enum NysaType {
     Bytes(u8),
     Mapping(Box<NysaExpression>, Box<NysaExpression>),
     Custom(String),
-    Contract(String),
 }
 
 impl From<&pt::Type> for NysaType {
@@ -80,7 +75,7 @@ impl From<&pt::Type> for NysaType {
 impl From<&pt::Identifier> for NysaType {
     fn from(value: &pt::Identifier) -> Self {
         let name = value.name.clone();
-        Self::Contract(name)
+        Self::Custom(name)
     }
 }
 
@@ -167,5 +162,19 @@ impl From<&&pt::ContractDefinition> for NysaInterface {
     fn from(value: &&pt::ContractDefinition) -> Self {
         let name = value.name.name.to_owned();
         Self { name }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NysaEnum {
+    pub name: String,
+    pub variants: Vec<String>,
+}
+
+impl From<&&pt::EnumDefinition> for NysaEnum {
+    fn from(value: &&pt::EnumDefinition) -> Self {
+        let name = value.name.name.to_owned();
+        let variants = value.values.iter().map(|v| v.name.to_string()).collect();
+        Self { name, variants }
     }
 }

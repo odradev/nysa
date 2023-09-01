@@ -59,8 +59,8 @@ pub(super) fn def(
                 Ok(FnDef::Plain(PlainFnDef {
                     attrs,
                     name: name.clone(),
-                    args: common::args(&c.params, c.is_mutable)?,
-                    ret: common::parse_ret_type(&c.ret)?,
+                    args: common::args(&c.params, c.is_mutable, ctx)?,
+                    ret: common::parse_ret_type(&c.ret, ctx)?,
                     implementation: ClassFnImpl {
                         class: None,
                         fun: name,
@@ -72,8 +72,8 @@ pub(super) fn def(
                 Ok(FnDef::Plain(PlainFnDef {
                     attrs,
                     name: name.clone(),
-                    args: common::args(&c.params, c.is_mutable)?,
-                    ret: common::parse_ret_type(&c.ret)?,
+                    args: common::args(&c.params, c.is_mutable, ctx)?,
+                    ret: common::parse_ret_type(&c.ret, ctx)?,
                     implementation: ClassFnImpl {
                         class: None,
                         fun: name,

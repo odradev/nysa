@@ -1,7 +1,4 @@
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-};
+use std::hash::Hash;
 
 use c3_lang_linearization::Class;
 use solidity_parser::pt;
@@ -12,6 +9,7 @@ use super::{
     expr::{to_nysa_expr, NysaExpression},
     misc::{NysaBaseImpl, NysaType},
     stmt::NysaStmt,
+    Named,
 };
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,35 +25,12 @@ pub enum NysaFunction {
     Modifier(Modifier),
 }
 
-impl NysaFunction {
-    pub fn signature_hash(&self) -> u64 {
-        let mut hasher = DefaultHasher::new();
+impl Named for NysaFunction {
+    fn name(&self) -> String {
         match self {
-            NysaFunction::Function(f) => {
-                f.name.hash(&mut hasher);
-                f.params.iter().for_each(|p| p.name.hash(&mut hasher));
-                f.ret.iter().for_each(|r| r.hash(&mut hasher));
-            }
-            NysaFunction::Constructor(c) => {
-                c.name.hash(&mut hasher);
-                c.params.iter().for_each(|p| p.name.hash(&mut hasher));
-                c.ret.iter().for_each(|r| r.hash(&mut hasher));
-            }
-            NysaFunction::Modifier(m) => {
-                m.base_name.hash(&mut hasher);
-                m.params.iter().for_each(|p| p.name.hash(&mut hasher));
-            }
-        }
-        hasher.finish()
-    }
-}
-
-impl NysaFunction {
-    pub fn name(&self) -> &String {
-        match self {
-            NysaFunction::Function(f) => &f.name,
-            NysaFunction::Constructor(c) => &c.name,
-            NysaFunction::Modifier(m) => &m.base_name,
+            NysaFunction::Function(f) => f.name.clone(),
+            NysaFunction::Constructor(c) => c.name.clone(),
+            NysaFunction::Modifier(m) => m.base_name.clone(),
         }
     }
 }

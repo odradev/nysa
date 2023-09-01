@@ -29,7 +29,7 @@ pub(super) fn def(
 
     let before_fn: Class = format!("modifier_before_{}", def.base_name).into();
     let after_fn: Class = format!("modifier_after_{}", def.base_name).into();
-    let args = common::args(&def.params, def.is_mutable)?;
+    let args = common::args(&def.params, def.is_mutable, ctx)?;
     Ok((
         FnDef::Plain(PlainFnDef {
             attrs: vec![],

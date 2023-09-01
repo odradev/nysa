@@ -2,10 +2,24 @@ use std::collections::HashSet;
 
 use crate::model::ir::{FnImplementations, NysaExpression, NysaVar};
 
+#[allow(dead_code)]
+pub enum ItemType {
+    Contract,
+    Interface,
+    Enum(String),
+    Event,
+    Storage,
+    Unknown,
+}
+
 #[derive(Debug, Default)]
 pub struct Context<'a> {
     current_fn: Option<FnImplementations>,
     storage: &'a [NysaVar],
+    events: Vec<String>,
+    interfaces: Vec<String>,
+    enums: Vec<String>,
+    errors: Vec<String>,
     classes: Vec<String>,
     external_calls: HashSet<String>,
     emitted_events: HashSet<String>,
@@ -53,6 +67,34 @@ impl<'a> Context<'a> {
         }
     }
 
+    pub fn is_class(&self, name: &String) -> bool {
+        self.classes.contains(name)
+    }
+
+    pub fn item_type(&self, name: &String) -> ItemType {
+        if self.classes.contains(name) {
+            return ItemType::Contract;
+        }
+        if self.events.contains(name) {
+            return ItemType::Event;
+        }
+        if self.interfaces.contains(name) {
+            return ItemType::Interface;
+        }
+        if self.enums.contains(name) {
+            return ItemType::Enum(name.clone());
+        }
+
+        return ItemType::Unknown;
+    }
+
+    pub fn item_type2(&self, name: &NysaExpression) -> ItemType {
+        match name {
+            NysaExpression::Variable { name } => self.item_type(name),
+            _ => ItemType::Unknown,
+        }
+    }
+
     pub fn register_external_call(&mut self, class: &str) {
         self.external_calls.insert(class.to_owned());
     }
@@ -67,5 +109,25 @@ impl<'a> Context<'a> {
 
     pub fn emitted_events(&self) -> Vec<&String> {
         self.emitted_events.iter().collect::<Vec<_>>()
+    }
+
+    pub fn set_events(&mut self, events: Vec<String>) {
+        self.events = events;
+    }
+
+    pub fn set_interfaces(&mut self, interfaces: Vec<String>) {
+        self.interfaces = interfaces;
+    }
+
+    pub fn set_enums(&mut self, enums: Vec<String>) {
+        self.enums = enums;
+    }
+
+    pub fn set_errors(&mut self, errors: Vec<String>) {
+        self.errors = errors;
+    }
+
+    pub fn has_enums(&self) -> bool {
+        !self.enums.is_empty()
     }
 }

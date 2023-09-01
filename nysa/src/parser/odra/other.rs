@@ -23,6 +23,13 @@ pub(super) fn imports_code(ctx: &Context) -> Vec<syn::Item> {
             let ident = utils::to_snake_case_ident(class);
             parse_quote!(use super::#ident::*;)
         })
+        .chain(if ctx.has_enums() {
+            vec![parse_quote!(
+                use super::enums::*;
+            )]
+        } else {
+            vec![]
+        })
         .chain(vec![
             parse_quote!(
                 use super::errors::*;

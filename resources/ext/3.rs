@@ -1,5 +1,4 @@
-pub mod errors {}
-pub mod events {}
+{{DEFAULT_MODULES}}
 
 pub mod i_uniswap_v_3_pool {
     #[odra::external_contract]
@@ -18,8 +17,7 @@ pub mod simple_uniswap_v_3_pool {
     #![allow(unused_braces, non_snake_case, unused_imports)]
     
     use super::i_uniswap_v_3_pool::*;
-    use super::errors::*;
-    use super::events::*;
+    {{DEFAULT_IMPORTS}}
     
     {{STACK_DEF}}
 

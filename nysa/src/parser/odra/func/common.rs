@@ -16,16 +16,20 @@ pub(super) fn parse_visibility(vis: &NysaVisibility) -> syn::Visibility {
     }
 }
 
-pub(super) fn parse_parameter(param: &NysaParam) -> Result<syn::FnArg, ParserError> {
-    let ty = ty::parse_plain_type_from_ty(&param.ty)?;
+pub(super) fn parse_parameter(param: &NysaParam, ctx: &Context) -> Result<syn::FnArg, ParserError> {
+    let ty = ty::parse_plain_type_from_ty(&param.ty, ctx)?;
     let name = utils::to_snake_case_ident(&param.name);
     Ok(parse_quote!( #name: #ty ))
 }
 
-pub(super) fn args(params: &[NysaParam], is_mutable: bool) -> Result<Vec<FnArg>, ParserError> {
+pub(super) fn args(
+    params: &[NysaParam],
+    is_mutable: bool,
+    ctx: &Context,
+) -> Result<Vec<FnArg>, ParserError> {
     let mut args = params
         .iter()
-        .map(parse_parameter)
+        .map(|p| parse_parameter(p, ctx))
         .collect::<Result<Vec<_>, _>>()?;
     if is_mutable {
         args.insert(0, parse_quote!(&mut self))
@@ -35,18 +39,21 @@ pub(super) fn args(params: &[NysaParam], is_mutable: bool) -> Result<Vec<FnArg>,
     Ok(args)
 }
 
-pub(super) fn parse_ret_type(returns: &[NysaExpression]) -> Result<syn::ReturnType, ParserError> {
+pub(super) fn parse_ret_type(
+    returns: &[NysaExpression],
+    ctx: &Context,
+) -> Result<syn::ReturnType, ParserError> {
     Ok(match returns.len() {
         0 => parse_quote!(),
         1 => {
             let param = returns.get(0).unwrap().clone();
-            let ty = ty::parse_plain_type_from_expr(&param)?;
+            let ty = ty::parse_plain_type_from_expr(&param, ctx)?;
             parse_quote!(-> #ty)
         }
         _ => {
             let types = returns
                 .iter()
-                .map(|ret| ty::parse_plain_type_from_expr(ret))
+                .map(|ret| ty::parse_plain_type_from_expr(ret, ctx))
                 .collect::<Result<syn::punctuated::Punctuated<syn::Type, syn::Token![,]>, _>>()?;
             parse_quote!(-> (#types))
         }
@@ -68,12 +75,21 @@ pub(super) fn parse_external_contract_statements(
     params
         .iter()
         .filter_map(|param| match &param.ty {
-            NysaType::Contract(contract_name) => Some((contract_name, &param.name)),
+            NysaType::Custom(contract_name) => Some((contract_name, &param.name)),
             _ => None,
         })
-        .map(|(contract_name, param_name)| {
-            let ident = quote::format_ident!("{}", param_name);
-            stmt::parse_ext_contract_stmt(contract_name, ident.clone(), ident, ctx)
+        .filter_map(|(name, param_name)| {
+            if ctx.is_class(name) {
+                let ident = quote::format_ident!("{}", param_name);
+                Some(stmt::parse_ext_contract_stmt(
+                    name,
+                    ident.clone(),
+                    ident,
+                    ctx,
+                ))
+            } else {
+                None
+            }
         })
         .collect::<Vec<_>>()
 }

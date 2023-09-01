@@ -7,16 +7,21 @@ use syn::parse_quote;
 
 use crate::{
     model::ir::{NysaEvent, Package},
+    parser::context::Context,
     utils, ParserError,
 };
 
 use super::ty;
 
-pub(crate) fn events_def(package: &Package) -> Result<Vec<ClassDef>, ParserError> {
-    package.events().iter().map(|ev| event_def(ev)).collect()
+pub(crate) fn events_def(package: &Package, ctx: &Context) -> Result<Vec<ClassDef>, ParserError> {
+    package
+        .events()
+        .iter()
+        .map(|ev| event_def(ev, ctx))
+        .collect()
 }
 
-fn event_def(ev: &NysaEvent) -> Result<ClassDef, ParserError> {
+fn event_def(ev: &NysaEvent, ctx: &Context) -> Result<ClassDef, ParserError> {
     let class: Class = ev.name.clone().into();
     let path = vec![class.clone()];
     let variables = ev
@@ -24,7 +29,7 @@ fn event_def(ev: &NysaEvent) -> Result<ClassDef, ParserError> {
         .iter()
         .map(|(field_name, ty)| {
             let ident = utils::to_snake_case_ident(field_name);
-            let ty = ty::parse_plain_type_from_expr(ty)?;
+            let ty = ty::parse_plain_type_from_expr(ty, ctx)?;
             Ok(VarDef { ident, ty })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -34,7 +39,7 @@ fn event_def(ev: &NysaEvent) -> Result<ClassDef, ParserError> {
         .iter()
         .map(|(field_name, ty)| {
             let ident = utils::to_snake_case_ident(field_name);
-            let ty = ty::parse_plain_type_from_expr(ty)?;
+            let ty = ty::parse_plain_type_from_expr(ty, ctx)?;
             Ok(parse_quote!(#ident: #ty))
         })
         .collect::<Result<Vec<_>, _>>()?;

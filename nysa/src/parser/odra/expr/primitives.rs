@@ -94,6 +94,18 @@ pub fn assign(
     }
 }
 
+pub fn assign_default(left: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr, ParserError> {
+    if let NysaExpression::Variable { name } = left {
+        let value_expr = parse_quote!(Default::default());
+        parse_variable(&name, Some(value_expr), ctx)
+    } else {
+        Err(ParserError::UnexpectedExpression(
+            String::from("NysaExpression::Variable"),
+            left.clone(),
+        ))
+    }
+}
+
 /// Parses a single value interactions.
 ///
 /// In solidity referring to a contract storage value and a local variable is the same.
@@ -127,7 +139,7 @@ pub fn parse_variable(
         }
     } else {
         match var {
-            Ok(ty) => Ok(get_expr(quote!(#self_ty #ident), None, ty)),
+            Ok(ty) => Ok(get_expr(quote!(#self_ty #ident), None, ty, ctx)),
             Err(_) => Ok(parse_quote!(#self_ty #ident)),
         }
     }
@@ -151,7 +163,7 @@ pub fn parse_mapping(
             if let Some(value) = value_expr {
                 Ok(parse_quote!(#field_ts.set(&#key, #value)))
             } else {
-                Ok(get_expr(field_ts, Some(key), ty))
+                Ok(get_expr(field_ts, Some(key), ty, ctx))
             }
         }
         n => {
@@ -165,23 +177,37 @@ pub fn parse_mapping(
             if let Some(value) = value_expr {
                 Ok(parse_quote!(#token_stream.set(&#key, #value)))
             } else {
-                Ok(get_expr(token_stream, Some(key), ty))
+                Ok(get_expr(token_stream, Some(key), ty, ctx))
             }
         }
     }
 }
 
-fn get_expr(stream: TokenStream, key_expr: Option<syn::Expr>, ty: NysaType) -> syn::Expr {
+fn get_expr(
+    stream: TokenStream,
+    key_expr: Option<syn::Expr>,
+    ty: NysaType,
+    ctx: &Context,
+) -> syn::Expr {
     let key = key_expr.clone().map(|k| quote!(&#k));
     match ty {
         NysaType::Address => parse_quote!(#stream.get(#key).unwrap_or(None)),
-        NysaType::Contract(_) => parse_quote!(#stream.get(#key).unwrap_or(None)),
+        NysaType::Custom(name) => match ctx.item_type(&name) {
+            crate::parser::context::ItemType::Contract => {
+                parse_quote!(#stream.get(#key).unwrap_or(None))
+            }
+            crate::parser::context::ItemType::Interface => {
+                parse_quote!(#stream.get(#key).unwrap_or(None))
+            }
+            crate::parser::context::ItemType::Enum(_) => parse_quote!(#stream.get_or_default(#key)),
+            _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
+        },
         NysaType::String | NysaType::Bool | NysaType::Uint(_) | NysaType::Int(_) => {
             parse_quote!(#stream.get_or_default(#key))
         }
         NysaType::Mapping(_, v) => {
             let ty = NysaType::try_from(&*v).unwrap();
-            get_expr(stream, key_expr, ty)
+            get_expr(stream, key_expr, ty, ctx)
         }
         _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
     }

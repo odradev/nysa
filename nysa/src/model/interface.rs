@@ -2,7 +2,7 @@ use solidity_parser::pt;
 
 use crate::utils::{ast, map_collection};
 
-use super::{func::NysaFunction, misc::NysaContract};
+use super::{func::NysaFunction, misc::NysaContract, Named};
 
 pub struct InterfaceData {
     contract: NysaContract,
@@ -23,5 +23,11 @@ impl InterfaceData {
 
     pub fn fns(&self) -> &[NysaFunction] {
         self.fns.as_ref()
+    }
+}
+
+impl Named for InterfaceData {
+    fn name(&self) -> String {
+        self.contract.name().to_string()
     }
 }

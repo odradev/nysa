@@ -156,14 +156,12 @@ mod t {
 
     #[test]
     fn revert_with_error() {
-        let error_msg = "An error occurred";
+        let error_msg = "MyError";
         let stmt = NysaStmt::RevertWithError {
             error: error_msg.to_string(),
         };
         let result = parse_statement(&stmt, &mut Context::default()).unwrap();
-        let expected: syn::Stmt = parse_quote!(
-            odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "An error occurred"));
-        );
+        let expected: syn::Stmt = parse_quote!(odra::contract_env::revert(Error::MyError););
 
         assert(result, expected)
     }

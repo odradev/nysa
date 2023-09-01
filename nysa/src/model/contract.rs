@@ -13,6 +13,7 @@ use crate::{
 use super::{
     func::{Constructor, FnImplementations, NysaFunction},
     misc::{NysaContract, NysaVar},
+    Named,
 };
 
 pub struct ContractData {
@@ -94,7 +95,7 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
 
                     let fn_name = func.name();
                     let record = (class.clone(), func.clone());
-                    match fn_map.get_mut(fn_name) {
+                    match fn_map.get_mut(&fn_name) {
                         Some(v) => v.push(record),
                         None => {
                             fn_map.insert(fn_name.clone(), vec![record]);
@@ -156,7 +157,7 @@ impl ContractData {
     }
 
     pub fn functions_str(&self) -> Vec<String> {
-        self.c3.functions_str(self.contract.name())
+        self.c3.functions_str(self.contract.name().as_str())
     }
 
     pub fn vars(&self) -> Vec<NysaVar> {
@@ -197,8 +198,14 @@ impl ContractData {
     pub fn is_abstract(&self, class: &Class) -> bool {
         self.all_contracts
             .iter()
-            .find(|c| c.name() == &class.to_string())
+            .find(|c| c.name() == class.to_string())
             .map(|c| c.is_abstract())
             .unwrap_or_default()
+    }
+}
+
+impl Named for ContractData {
+    fn name(&self) -> String {
+        self.contract.name().to_string()
     }
 }

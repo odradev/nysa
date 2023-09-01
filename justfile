@@ -22,3 +22,6 @@ test-examples:
     just test-status-contract-odra
     just test-token-contract-solidity
     just test-token-contract-odra
+
+test:
+    cargo test --package nysa

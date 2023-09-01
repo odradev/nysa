@@ -7,13 +7,13 @@ pub mod ast;
 pub type SolidityAST = Vec<SourceUnitPart>;
 
 /// Converts a &str into snake-cased Ident preserving the heading `_`
-pub fn to_snake_case_ident(name: &str) -> proc_macro2::Ident {
-    format_ident!("{}", to_snake_case(name))
+pub fn to_snake_case_ident<T: AsRef<str>>(name: T) -> proc_macro2::Ident {
+    format_ident!("{}", to_snake_case(name.as_ref()))
 }
 
 /// Converts a &str into snake-cased Ident starting with a `prefix ` and preserving the heading `_`
-pub fn to_prefixed_snake_case_ident(prefix: &str, name: &str) -> proc_macro2::Ident {
-    format_ident!("{}{}", prefix, to_snake_case(name))
+pub fn to_prefixed_snake_case_ident<T: AsRef<str>>(prefix: &str, name: T) -> proc_macro2::Ident {
+    format_ident!("{}{}", prefix, to_snake_case(name.as_ref()))
 }
 
 /// Converts a &str into snake-cased String preserving the heading `_`
@@ -31,8 +31,6 @@ pub fn convert_to_array<const T: usize>(input: &[u8]) -> [u8; T] {
     let mut array: [u8; T] = [0; T];
     array.copy_from_slice(&input[..T]);
     array
-    // let arr = utils::convert_to_array(value);
-    // let num = u64::from_le_bytes(arr);
 }
 
 #[macro_export]

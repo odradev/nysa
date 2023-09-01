@@ -58,6 +58,12 @@ fn test_ownable() {
 }
 
 #[test]
+fn test_types() {
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/types/enum.sol"));
+    assert_impl(result, "../resources/types/enum.rs");
+}
+
+#[test]
 #[ignore]
 fn test_plascoin() {
     let result = parse::<OdraParser, _>(include_str!("../../../../resources/plascoin.sol"));
@@ -74,11 +80,22 @@ fn assert_impl(result: TokenStream, file_path: &str) {
     let mut content = String::new();
     file.read_to_string(&mut content).unwrap();
     let content = content.replace("{{STACK_DEF}}", STACK_DEF);
-
-    // dbg!(&content);
+    let content = content.replace("{{DEFAULT_MODULES}}", DEFAULT_MODULES);
+    let content = content.replace("{{DEFAULT_IMPORTS}}", DEFAULT_IMPORTS);
 
     pretty_assertions::assert_eq!(parse(result.to_string().as_str()), parse(content.as_str()));
 }
+
+const DEFAULT_MODULES: &str = r#"
+pub mod errors {}
+pub mod events {}
+pub mod enums {}
+"#;
+
+const DEFAULT_IMPORTS: &str = r#"
+use super::errors::*;
+use super::events::*;
+"#;
 
 const STACK_DEF: &str = r#"
 use odra::prelude::vec::Vec;

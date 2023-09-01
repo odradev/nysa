@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     interface::InterfaceData,
-    misc::{NysaError, NysaEvent},
+    misc::{NysaEnum, NysaError, NysaEvent},
     ContractData,
 };
 
@@ -15,7 +15,8 @@ pub struct Package {
     contracts: Vec<ContractData>,
     events: Vec<NysaEvent>,
     errors: Vec<NysaError>,
-    interfaces: Vec<InterfaceData>, // c3: C3,
+    enums: Vec<NysaEnum>,
+    interfaces: Vec<InterfaceData>,
 }
 
 impl Package {
@@ -33,6 +34,7 @@ impl Package {
 
         let events = map_collection(ast::extract_events(&ast));
         let errors = map_collection(ast::extract_errors(&ast));
+        let enums = map_collection(ast::extract_enums(&ast));
 
         let contracts = contract_classes
             .iter()
@@ -46,6 +48,7 @@ impl Package {
             contracts,
             events,
             errors,
+            enums,
             interfaces,
         })
     }
@@ -64,5 +67,9 @@ impl Package {
 
     pub fn interfaces(&self) -> &[InterfaceData] {
         self.interfaces.as_ref()
+    }
+
+    pub fn enums(&self) -> &[NysaEnum] {
+        self.enums.as_ref()
     }
 }

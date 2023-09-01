@@ -13,13 +13,13 @@ use super::ty;
 
 /// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
 pub fn variables_def(data: &ContractData, ctx: &mut Context) -> Result<Vec<VarDef>, ParserError> {
-    data.vars().iter().map(variable_def).collect()
+    data.vars().iter().map(|v| variable_def(v, ctx)).collect()
 }
 
 /// Transforms [NysaVar] into a c3 ast [VarDef].
-fn variable_def(v: &NysaVar) -> Result<VarDef, ParserError> {
+fn variable_def(v: &NysaVar, ctx: &Context) -> Result<VarDef, ParserError> {
     let ident = utils::to_snake_case_ident(&v.name);
-    let ty = ty::parse_odra_ty(&v.ty)?;
+    let ty = ty::parse_odra_ty(&v.ty, ctx)?;
     Ok(VarDef { ident, ty })
 }
 

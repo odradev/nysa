@@ -1,10 +1,8 @@
-pub mod errors {}
-pub mod events {}
+{{DEFAULT_MODULES}}
 pub mod my_contract {
     #![allow(unused_braces, non_snake_case, unused_imports)]
 
-    use super::errors::*;
-    use super::events::*;
+    {{DEFAULT_IMPORTS}}
 
     {{STACK_DEF}}
 

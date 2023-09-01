@@ -5,6 +5,7 @@ use syn::parse_quote;
 use crate::model::ir::NysaExpression;
 use crate::model::ir::NysaType;
 use crate::parser::context::Context;
+use crate::parser::context::ItemType;
 use crate::utils;
 use crate::utils::to_snake_case_ident;
 use crate::ParserError;
@@ -41,6 +42,7 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             Ok(parse_quote!(#self_ty #ident))
         }
         NysaExpression::Assign { left, right } => primitives::assign(left, right, None, ctx),
+        NysaExpression::AssignDefault { left } => primitives::assign_default(left, ctx),
         NysaExpression::StringLiteral(string) => {
             Ok(parse_quote!(odra::prelude::string::String::from(#string)))
         }
@@ -69,9 +71,19 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             Ok(parse_quote!(#expr -= 1))
         }
         NysaExpression::MemberAccess { expr, name } => {
-            let base_expr: syn::Expr = parse(expr, ctx)?;
-            let member: syn::Member = format_ident!("{}", name).into();
-            Ok(parse_quote!(#base_expr.#member))
+            dbg!(expr);
+            match ctx.item_type2(expr) {
+                ItemType::Enum(ty) => {
+                    let ty = format_ident!("{}", ty);
+                    let member: syn::Member = format_ident!("{}", name).into();
+                    Ok(parse_quote!(#ty::#member))
+                }
+                _ => {
+                    let base_expr: syn::Expr = parse(expr, ctx)?;
+                    let member: syn::Member = format_ident!("{}", name).into();
+                    Ok(parse_quote!(#base_expr.#member))
+                }
+            }
         }
         NysaExpression::NumberLiteral { ty, value } => num::to_typed_int_expr(ty, value),
         NysaExpression::Func { name, args } => parse_func(name, args, ctx),
@@ -91,7 +103,7 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             Ok(parse_quote!(#ty::#property))
         }
         NysaExpression::Type { ty } => {
-            let ty = ty::parse_plain_type_from_ty(ty)?;
+            let ty = ty::parse_plain_type_from_ty(ty, ctx)?;
             Ok(parse_quote!(#ty))
         }
         NysaExpression::Power { left, right } => {
@@ -159,7 +171,7 @@ fn parse_ext_call(
     // If a ref was created from an address, the function may be called
     // straight away.
     match variable.as_var(ctx) {
-        Ok(NysaType::Contract(class_name)) => {
+        Ok(NysaType::Custom(class_name)) => {
             ctx.register_external_call(&class_name);
             let ref_ident = format_ident!("{}Ref", class_name);
             let addr = args.get(0);

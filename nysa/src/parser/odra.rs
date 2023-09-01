@@ -1,7 +1,7 @@
 use crate::{
     model::{
         ir::{NysaExpression, NysaVar, Package},
-        ContractData,
+        AsStringVec, ContractData,
     },
     utils, ParserError,
 };
@@ -16,6 +16,7 @@ use syn::parse_quote;
 
 use super::{context::Context, Parser};
 
+mod enums;
 mod errors;
 mod event;
 mod expr;
@@ -40,11 +41,18 @@ pub struct OdraParser;
 
 impl Parser for OdraParser {
     fn parse(package: Package) -> Result<TokenStream, ParserError> {
-        let packages = parse_packages(&package)?;
+        let mut ctx = Context::default();
+        ctx.set_events(package.events().as_string_vec());
+        ctx.set_interfaces(package.interfaces().as_string_vec());
+        ctx.set_classes(package.contracts().as_string_vec());
+        ctx.set_errors(package.errors().as_string_vec());
 
-        let events = event::events_def(&package)?;
+        let events = event::events_def(&package, &ctx)?;
         let errors = errors::errors_def(&package);
-        let ext = ext::errors_ext_contract(&package)?;
+        let enums = enums::enums_def(&package);
+        let ext = ext::ext_contracts_def(&package, &ctx)?;
+
+        let packages = parse_packages(&package)?;
 
         let contracts = packages
             .iter()
@@ -68,6 +76,10 @@ impl Parser for OdraParser {
                 #(#events)*
             }
 
+            pub mod enums {
+                #(#enums)*
+            }
+
             #(#ext)*
 
             #contracts
@@ -76,6 +88,10 @@ impl Parser for OdraParser {
 }
 
 fn parse_packages(package: &Package) -> Result<Vec<PackageDef>, ParserError> {
+    let errors = package.errors().as_string_vec();
+    let events = package.events().as_string_vec();
+    let enums = package.enums().as_string_vec();
+
     package
         .contracts()
         .iter()
@@ -86,6 +102,8 @@ fn parse_packages(package: &Package) -> Result<Vec<PackageDef>, ParserError> {
             let mut ctx = Context::default();
             ctx.set_storage(&storage);
             ctx.set_classes(data.contract_names());
+            ctx.set_enums(enums.clone());
+            ctx.set_events(events.clone());
 
             let classes = vec![contract_def(&data, &mut ctx)?];
 
