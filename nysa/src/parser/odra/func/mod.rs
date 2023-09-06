@@ -1,4 +1,10 @@
-use crate::{model::ContractData, parser::context::Context, ParserError};
+use crate::{
+    model::ContractData,
+    parser::context::{
+        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    },
+    ParserError,
+};
 use c3_lang_parser::c3_ast::FnDef;
 
 mod common;
@@ -8,10 +14,10 @@ pub(super) mod interface;
 mod modifier;
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
-pub fn functions_def<'a>(
-    data: &ContractData,
-    ctx: &mut Context,
-) -> Result<Vec<FnDef>, ParserError> {
+pub fn functions_def<'a, T>(data: &ContractData, ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     let names = data.functions_str();
 
     let result = data

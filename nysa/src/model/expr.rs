@@ -30,17 +30,13 @@ pub enum NysaExpression {
     Placeholder,
     ZeroAddress,
     Message(Message),
-    Mapping {
+    Collection {
         name: String,
         key: Box<NysaExpression>,
     },
-    Mapping2 {
+    NestedCollection {
         name: String,
         keys: Box<(NysaExpression, NysaExpression)>,
-    },
-    Mapping3 {
-        name: String,
-        keys: Box<(NysaExpression, NysaExpression, NysaExpression)>,
     },
     Variable {
         name: String,
@@ -135,6 +131,13 @@ pub enum NysaExpression {
     Not {
         expr: Box<NysaExpression>,
     },
+    BytesLiteral {
+        bytes: Vec<u8>,
+    },
+    ArrayLiteral {
+        values: Vec<NysaExpression>,
+    },
+    Initializer(Box<NysaExpression>),
     UnknownExpr,
 }
 
@@ -145,6 +148,25 @@ pub fn to_nysa_expr(solidity_expressions: Vec<pt::Expression>) -> Vec<NysaExpres
 impl From<&pt::Expression> for NysaExpression {
     fn from(value: &pt::Expression) -> Self {
         parse_expr(value)
+    }
+}
+
+impl From<&str> for NysaExpression {
+    fn from(value: &str) -> Self {
+        NysaExpression::Variable {
+            name: value.to_string(),
+        }
+    }
+}
+
+impl TryInto<String> for NysaExpression {
+    type Error = ParserError;
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        match self {
+            Self::Variable { name } => Ok(name.clone()),
+            _ => Err(ParserError::InvalidExpression),
+        }
     }
 }
 
@@ -227,6 +249,15 @@ fn try_to_ext_contract_call(
 fn parse_expr(e: &pt::Expression) -> NysaExpression {
     match e {
         pt::Expression::ArraySubscript(_, arr, key) => {
+            // Eg uint[]
+            if key.is_none() {
+                let expr = NysaExpression::from(&**arr);
+                let ty = NysaExpression::Type {
+                    ty: NysaType::Array(Box::new(NysaType::try_from(&expr).unwrap())),
+                };
+                return ty;
+            }
+
             let key_expr = key
                 .clone()
                 .map(|key_expr| key_expr.as_ref().into())
@@ -236,15 +267,15 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                 let key_expr2 = key2
                     .clone()
                     .map(|key_expr| key_expr.as_ref().into())
-                    .expect("Unspecfied key");
-                let name = try_to_variable_name(arr2).expect("Mapping name expected");
-                NysaExpression::Mapping2 {
+                    .expect("Unspecified key");
+                let name = try_to_variable_name(arr2).expect("Collection name expected");
+                NysaExpression::NestedCollection {
                     name,
                     keys: Box::new((key_expr2, key_expr)),
                 }
             } else {
-                let name = try_to_variable_name(arr).expect("Mapping name expected");
-                NysaExpression::Mapping {
+                let name = try_to_variable_name(arr).expect("Collection name expected");
+                NysaExpression::Collection {
                     name,
                     key: Box::new(key_expr),
                 }
@@ -419,6 +450,81 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
         pt::Expression::Delete(_, expr) => NysaExpression::AssignDefault {
             left: Box::new(expr.as_ref().into()),
         },
-        _ => NysaExpression::UnknownExpr,
+        pt::Expression::HexNumberLiteral(_, hex_string) => {
+            // Check if the input string starts with "0x" and remove it if present.
+            let hex_string = if hex_string.starts_with("0x") {
+                &hex_string[2..]
+            } else {
+                hex_string
+            };
+            let bytes = hex_string_to_u8_array(hex_string).unwrap_or_default();
+
+            NysaExpression::BytesLiteral { bytes }
+        }
+        pt::Expression::HexLiteral(hex) => {
+            let hex = hex.first().unwrap();
+            let bytes = hex_string_to_u8_array(&hex.hex).unwrap_or_default();
+            NysaExpression::BytesLiteral { bytes }
+        }
+        pt::Expression::New(_, initializer) => {
+            NysaExpression::Initializer(Box::new(initializer.as_ref().into()))
+        }
+        pt::Expression::ArraySlice(_, _, _, _) => todo!(),
+        pt::Expression::FunctionCallBlock(_, _, _) => todo!(),
+        pt::Expression::NamedFunctionCall(_, _, _) => todo!(),
+        pt::Expression::Complement(_, _) => todo!(),
+        pt::Expression::UnaryPlus(_, _) => todo!(),
+        pt::Expression::UnaryMinus(_, _) => todo!(),
+        pt::Expression::Multiply(_, _, _) => todo!(),
+        pt::Expression::Divide(_, _, _) => todo!(),
+        pt::Expression::Modulo(_, _, _) => todo!(),
+        pt::Expression::ShiftLeft(_, _, _) => todo!(),
+        pt::Expression::ShiftRight(_, _, _) => todo!(),
+        pt::Expression::BitwiseAnd(_, _, _) => todo!(),
+        pt::Expression::BitwiseXor(_, _, _) => todo!(),
+        pt::Expression::BitwiseOr(_, _, _) => todo!(),
+        pt::Expression::And(_, _, _) => todo!(),
+        pt::Expression::Or(_, _, _) => todo!(),
+        pt::Expression::Ternary(_, _, _, _) => todo!(),
+        pt::Expression::AssignOr(_, _, _) => todo!(),
+        pt::Expression::AssignAnd(_, _, _) => todo!(),
+        pt::Expression::AssignXor(_, _, _) => todo!(),
+        pt::Expression::AssignShiftLeft(_, _, _) => todo!(),
+        pt::Expression::AssignShiftRight(_, _, _) => todo!(),
+        pt::Expression::AssignMultiply(_, _, _) => todo!(),
+        pt::Expression::AssignDivide(_, _, _) => todo!(),
+        pt::Expression::AssignModulo(_, _, _) => todo!(),
+        pt::Expression::RationalNumberLiteral(_, _) => todo!(),
+        pt::Expression::AddressLiteral(_, _) => todo!(),
+        pt::Expression::List(_, _) => todo!(),
+        pt::Expression::ArrayLiteral(_, values) => {
+            let values = values.iter().map(From::from).collect();
+            NysaExpression::ArrayLiteral { values }
+        }
+        pt::Expression::Unit(_, _, _) => todo!(),
+        pt::Expression::This(_) => todo!(),
     }
+}
+
+fn hex_string_to_u8_array(hex_string: &str) -> Option<Vec<u8>> {
+    // Check if the input string has an even number of characters (2 characters per byte).
+    if hex_string.len() % 2 != 0 {
+        return None;
+    }
+
+    // Use the chunks iterator to split the string into 2-character chunks.
+    let hex_bytes = hex_string.as_bytes();
+    let mut result = Vec::with_capacity(hex_bytes.len() / 2);
+
+    for chunk in hex_bytes.chunks(2) {
+        // Parse each 2-character chunk as a hexadecimal number.
+        if let Ok(byte) = u8::from_str_radix(std::str::from_utf8(chunk).unwrap(), 16) {
+            result.push(byte);
+        } else {
+            // If parsing fails, return None.
+            return None;
+        }
+    }
+
+    Some(result)
 }

@@ -14,7 +14,10 @@ use std::{
 };
 use syn::parse_quote;
 
-use super::{context::Context, Parser};
+use super::{
+    context::{ContractContext, EventsRegister, GlobalContext, LocalContext},
+    Parser,
+};
 
 mod enums;
 mod errors;
@@ -41,18 +44,20 @@ pub struct OdraParser;
 
 impl Parser for OdraParser {
     fn parse(package: Package) -> Result<TokenStream, ParserError> {
-        let mut ctx = Context::default();
-        ctx.set_events(package.events().as_string_vec());
-        ctx.set_interfaces(package.interfaces().as_string_vec());
-        ctx.set_classes(package.contracts().as_string_vec());
-        ctx.set_errors(package.errors().as_string_vec());
+        let ctx = GlobalContext::new(
+            package.events().as_string_vec(),
+            package.interfaces().as_string_vec(),
+            package.enums().as_string_vec(),
+            package.errors().as_string_vec(),
+            package.contracts().as_string_vec(),
+        );
 
         let events = event::events_def(&package, &ctx)?;
         let errors = errors::errors_def(&package);
         let enums = enums::enums_def(&package);
         let ext = ext::ext_contracts_def(&package, &ctx)?;
 
-        let packages = parse_packages(&package)?;
+        let packages = parse_packages(&package, &ctx)?;
 
         let contracts = packages
             .iter()
@@ -87,11 +92,7 @@ impl Parser for OdraParser {
     }
 }
 
-fn parse_packages(package: &Package) -> Result<Vec<PackageDef>, ParserError> {
-    let errors = package.errors().as_string_vec();
-    let events = package.events().as_string_vec();
-    let enums = package.enums().as_string_vec();
-
+fn parse_packages(package: &Package, ctx: &GlobalContext) -> Result<Vec<PackageDef>, ParserError> {
     package
         .contracts()
         .iter()
@@ -99,11 +100,7 @@ fn parse_packages(package: &Package) -> Result<Vec<PackageDef>, ParserError> {
             let class_name = data.c3_class_name_def();
             let storage = data.vars();
 
-            let mut ctx = Context::default();
-            ctx.set_storage(&storage);
-            ctx.set_classes(data.contract_names());
-            ctx.set_enums(enums.clone());
-            ctx.set_events(events.clone());
+            let mut ctx = LocalContext::new(ContractContext::new(ctx, &storage));
 
             let classes = vec![contract_def(&data, &mut ctx)?];
 
@@ -123,7 +120,7 @@ fn parse_packages(package: &Package) -> Result<Vec<PackageDef>, ParserError> {
 }
 
 /// Builds a c3 contract class definition
-fn contract_def(data: &ContractData, ctx: &mut Context) -> Result<ClassDef, ParserError> {
+fn contract_def(data: &ContractData, ctx: &mut LocalContext) -> Result<ClassDef, ParserError> {
     let variables = var::variables_def(data, ctx)?;
     let functions = func::functions_def(data, ctx)?;
 

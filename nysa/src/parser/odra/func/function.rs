@@ -6,19 +6,27 @@ use crate::{
         ir::{FnImplementations, Function, NysaBaseImpl},
         ContractData,
     },
-    parser::{context::Context, odra::expr},
+    parser::{
+        context::{
+            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        },
+        odra::expr,
+    },
     utils, ParserError,
 };
 
 use super::common;
 
 /// Transforms [NysaVar] into a c3 ast [FnDef].
-pub(super) fn def(
+pub(super) fn def<T>(
     impls: &FnImplementations,
     data: &ContractData,
     names: &[String],
-    ctx: &mut Context,
-) -> Result<FnDef, ParserError> {
+    ctx: &mut T,
+) -> Result<FnDef, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     let definitions = impls.as_functions();
 
     let (_, top_lvl_func) = definitions
@@ -52,7 +60,10 @@ pub(super) fn def(
     }))
 }
 
-fn parse_body(def: &Function, names: &[String], ctx: &mut Context) -> syn::Block {
+fn parse_body<T>(def: &Function, names: &[String], ctx: &mut T) -> syn::Block
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     // parse solidity function body
     let stmts: Vec<syn::Stmt> = common::parse_statements(&def.stmts, ctx);
 

@@ -2,7 +2,13 @@ use c3_lang_linearization::Class;
 use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, PlainFnDef};
 use syn::parse_quote;
 
-use crate::{model::ir::FnImplementations, parser::context::Context, ParserError};
+use crate::{
+    model::ir::FnImplementations,
+    parser::context::{
+        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    },
+    ParserError,
+};
 
 use super::common;
 
@@ -13,10 +19,10 @@ use super::common;
 /// Both functions have the same definition, except the implementation:
 /// the  first function takes statements before the `_`, and the second
 /// take the remaining statements.
-pub(super) fn def(
-    impls: &FnImplementations,
-    ctx: &mut Context,
-) -> Result<(FnDef, FnDef), ParserError> {
+pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<(FnDef, FnDef), ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     let modifiers = impls.as_modifiers();
 
     if modifiers.len() != 1 {

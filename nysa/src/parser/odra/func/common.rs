@@ -3,7 +3,9 @@ use syn::{parse_quote, FnArg};
 use crate::{
     model::ir::{NysaExpression, NysaParam, NysaStmt, NysaType, NysaVisibility},
     parser::{
-        context::Context,
+        context::{
+            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        },
         odra::{stmt, ty},
     },
     utils, ParserError,
@@ -16,20 +18,23 @@ pub(super) fn parse_visibility(vis: &NysaVisibility) -> syn::Visibility {
     }
 }
 
-pub(super) fn parse_parameter(param: &NysaParam, ctx: &Context) -> Result<syn::FnArg, ParserError> {
-    let ty = ty::parse_plain_type_from_ty(&param.ty, ctx)?;
+pub(super) fn parse_parameter<T: TypeInfo>(
+    param: &NysaParam,
+    info: &T,
+) -> Result<syn::FnArg, ParserError> {
+    let ty = ty::parse_plain_type_from_ty(&param.ty, info)?;
     let name = utils::to_snake_case_ident(&param.name);
     Ok(parse_quote!( #name: #ty ))
 }
 
-pub(super) fn args(
+pub(super) fn args<T: TypeInfo>(
     params: &[NysaParam],
     is_mutable: bool,
-    ctx: &Context,
+    info: &T,
 ) -> Result<Vec<FnArg>, ParserError> {
     let mut args = params
         .iter()
-        .map(|p| parse_parameter(p, ctx))
+        .map(|p| parse_parameter(p, info))
         .collect::<Result<Vec<_>, _>>()?;
     if is_mutable {
         args.insert(0, parse_quote!(&mut self))
@@ -39,28 +44,31 @@ pub(super) fn args(
     Ok(args)
 }
 
-pub(super) fn parse_ret_type(
+pub(super) fn parse_ret_type<T: TypeInfo>(
     returns: &[NysaExpression],
-    ctx: &Context,
+    t: &T,
 ) -> Result<syn::ReturnType, ParserError> {
     Ok(match returns.len() {
         0 => parse_quote!(),
         1 => {
             let param = returns.get(0).unwrap().clone();
-            let ty = ty::parse_plain_type_from_expr(&param, ctx)?;
+            let ty = ty::parse_plain_type_from_expr(&param, t)?;
             parse_quote!(-> #ty)
         }
         _ => {
             let types = returns
                 .iter()
-                .map(|ret| ty::parse_plain_type_from_expr(ret, ctx))
+                .map(|ret| ty::parse_plain_type_from_expr(ret, t))
                 .collect::<Result<syn::punctuated::Punctuated<syn::Type, syn::Token![,]>, _>>()?;
             parse_quote!(-> (#types))
         }
     })
 }
 
-pub(super) fn parse_statements(statements: &[NysaStmt], ctx: &mut Context) -> Vec<syn::Stmt> {
+pub(super) fn parse_statements<T>(statements: &[NysaStmt], ctx: &mut T) -> Vec<syn::Stmt>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     statements
         .iter()
         .map(|stmt| stmt::parse_statement(&stmt, ctx))
@@ -68,9 +76,9 @@ pub(super) fn parse_statements(statements: &[NysaStmt], ctx: &mut Context) -> Ve
         .collect::<Vec<_>>()
 }
 
-pub(super) fn parse_external_contract_statements(
+pub(super) fn parse_external_contract_statements<T: ExternalCallsRegister + ContractInfo>(
     params: &[NysaParam],
-    ctx: &mut Context,
+    ctx: &mut T,
 ) -> Vec<syn::Stmt> {
     params
         .iter()

@@ -3,18 +3,18 @@ use syn::parse_quote;
 
 use crate::{
     model::ir::{NysaExpression, NysaType},
-    parser::context::{self, Context},
+    parser::context::{self, TypeInfo},
     ParserError,
 };
 
 /// Parses solidity statement into a syn type.
 ///
 /// Panics if the input is an expression of type other than [NysaExpression::Type].
-pub fn parse_odra_ty(ty: &NysaType, ctx: &Context) -> Result<syn::Type, ParserError> {
+pub fn parse_odra_ty<T: TypeInfo>(ty: &NysaType, t: &T) -> Result<syn::Type, ParserError> {
     match ty {
         NysaType::Mapping(key, value) => {
-            let key = parse_plain_type_from_expr(key, ctx)?;
-            let value = parse_plain_type_from_expr(value, ctx)?;
+            let key = parse_plain_type_from_expr(key, t)?;
+            let value = parse_plain_type_from_expr(value, t)?;
             Ok(parse_quote!(odra::Mapping<#key, #value>))
         }
         NysaType::Address => Ok(parse_quote!(odra::Variable<Option<odra::types::Address>>)),
@@ -31,36 +31,47 @@ pub fn parse_odra_ty(ty: &NysaType, ctx: &Context) -> Result<syn::Type, ParserEr
             257..=512 => Ok(parse_quote!(odra::Variable<odra::types::U512>)),
             _ => Err(ParserError::UnsupportedStateType(ty.clone())),
         },
-        NysaType::Custom(name) => match ctx.item_type(name) {
-            context::ItemType::Contract => {
-                Ok(parse_quote!(odra::Variable<Option<odra::types::Address>>))
-            }
-            context::ItemType::Interface => {
-                Ok(parse_quote!(odra::Variable<Option<odra::types::Address>>))
-            }
-            context::ItemType::Enum(_) => {
-                let ident = format_ident!("{}", name);
-                Ok(parse_quote!(odra::Variable<#ident>))
-            }
-            context::ItemType::Event => todo!(),
-            context::ItemType::Storage => todo!(),
-            context::ItemType::Unknown => todo!(),
-        },
-        _ => Err(ParserError::UnsupportedStateType(ty.clone())),
+        NysaType::Custom(name) => t
+            .type_from_string(name)
+            .map(|ty| match ty {
+                context::ItemType::Contract(_) => {
+                    parse_quote!(odra::Variable<Option<odra::types::Address>>)
+                }
+                context::ItemType::Interface(_) => {
+                    parse_quote!(odra::Variable<Option<odra::types::Address>>)
+                }
+                context::ItemType::Enum(_) => {
+                    let ident = format_ident!("{}", name);
+                    parse_quote!(odra::Variable<#ident>)
+                }
+                context::ItemType::Event => todo!(),
+                context::ItemType::Storage(_) => todo!(),
+                context::ItemType::Local(_) => todo!(),
+            })
+            .ok_or(ParserError::InvalidType),
+        NysaType::Bytes(i) => {
+            let size = *i as usize;
+            Ok(parse_quote!(odra::Variable<[u8; #size]>))
+        }
+        NysaType::Array(ty) => {
+            let ty = parse_plain_type_from_ty(ty, t)?;
+            Ok(parse_quote!(odra::Variable<Vec<#ty>>))
+        }
+        NysaType::Unknown => Err(ParserError::InvalidType),
     }
 }
 
-pub fn parse_plain_type_from_expr(
+pub fn parse_plain_type_from_expr<T: TypeInfo>(
     expr: &NysaExpression,
-    ctx: &Context,
+    t: &T,
 ) -> Result<syn::Type, ParserError> {
     let err =
         || ParserError::UnexpectedExpression(String::from("NysaExpression::Type"), expr.clone());
 
     match expr {
-        NysaExpression::Type { ty } => parse_plain_type_from_ty(ty, ctx),
-        NysaExpression::Variable { name } => match ctx.item_type(name) {
-            context::ItemType::Enum(_) => {
+        NysaExpression::Type { ty } => parse_plain_type_from_ty(ty, t),
+        NysaExpression::Variable { name } => match t.type_from_string(name) {
+            Some(context::ItemType::Enum(_)) => {
                 let ident = format_ident!("{}", name);
                 Ok(parse_quote!(#ident))
             }
@@ -70,7 +81,10 @@ pub fn parse_plain_type_from_expr(
     }
 }
 
-pub fn parse_plain_type_from_ty(ty: &NysaType, ctx: &Context) -> Result<syn::Type, ParserError> {
+pub fn parse_plain_type_from_ty<T: TypeInfo>(
+    ty: &NysaType,
+    t: &T,
+) -> Result<syn::Type, ParserError> {
     match ty {
         NysaType::Address => Ok(parse_quote!(Option<odra::types::Address>)),
         NysaType::String => Ok(parse_quote!(odra::prelude::string::String)),
@@ -87,21 +101,29 @@ pub fn parse_plain_type_from_ty(ty: &NysaType, ctx: &Context) -> Result<syn::Typ
             _ => Err(ParserError::UnsupportedType(ty.clone())),
         },
         NysaType::Mapping(key, value) => {
-            let key = parse_plain_type_from_expr(key, ctx)?;
-            let value = parse_plain_type_from_expr(value, ctx)?;
+            let key = parse_plain_type_from_expr(key, t)?;
+            let value = parse_plain_type_from_expr(value, t)?;
             Ok(parse_quote!(odra::Mapping<#key, #value>))
         }
         NysaType::Bytes(_) => Err(ParserError::UnsupportedType(ty.clone())),
-        NysaType::Custom(name) => match ctx.item_type(name) {
-            context::ItemType::Contract => Ok(parse_quote!(Option<odra::types::Address>)),
-            context::ItemType::Interface => Ok(parse_quote!(Option<odra::types::Address>)),
-            context::ItemType::Enum(_) => {
-                let ident = format_ident!("{}", name);
-                Ok(parse_quote!(#ident))
-            }
-            context::ItemType::Event => todo!(),
-            context::ItemType::Storage => todo!(),
-            context::ItemType::Unknown => todo!(),
-        },
+        NysaType::Custom(name) => t
+            .type_from_string(name)
+            .map(|ty| match ty {
+                context::ItemType::Contract(_) => parse_quote!(Option<odra::types::Address>),
+                context::ItemType::Interface(_) => parse_quote!(Option<odra::types::Address>),
+                context::ItemType::Enum(_) => {
+                    let ident = format_ident!("{}", name);
+                    parse_quote!(#ident)
+                }
+                context::ItemType::Event => todo!(),
+                context::ItemType::Storage(_) => todo!(),
+                context::ItemType::Local(_) => todo!(),
+            })
+            .ok_or(ParserError::InvalidType),
+        NysaType::Array(ty) => {
+            let ty = parse_plain_type_from_ty(ty, t)?;
+            Ok(parse_quote!(odra::prelude::vec::Vec<#ty>))
+        }
+        NysaType::Unknown => Err(ParserError::InvalidType),
     }
 }

@@ -3,20 +3,28 @@ use syn::{parse_quote, BinOp};
 
 use super::parse;
 use crate::{
-    model::ir::{NysaExpression, NysaType},
-    parser::{context::Context, odra::var::AsVariable},
+    model::ir::{NysaExpression, NysaType, NysaVar},
+    parser::{
+        context::{
+            self, ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType,
+            StorageInfo, TypeInfo,
+        },
+        odra::expr::array,
+    },
     utils::to_snake_case_ident,
     ParserError,
 };
 use quote::quote;
 
-pub fn read_variable_or_parse(
+pub fn read_variable_or_parse<
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+>(
     expr: &NysaExpression,
-    ctx: &mut Context,
+    t: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     match expr {
-        NysaExpression::Variable { name } => parse_variable(name, None, ctx),
-        _ => parse(expr, ctx),
+        NysaExpression::Variable { name } => parse_variable(name, None, t),
+        _ => parse(expr, t),
     }
 }
 
@@ -41,28 +49,32 @@ pub fn read_variable_or_parse(
 /// * `right` - Right-hand side solidity expression.
 /// * `value_expr` - An optional operator (eg. +, -)
 /// * `ctx` - parser Context.
-pub fn assign(
+pub fn assign<
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+>(
     left: &NysaExpression,
     right: &NysaExpression,
     operator: Option<BinOp>,
-    ctx: &mut Context,
+    t: &mut T,
 ) -> Result<syn::Expr, ParserError> {
+    // dbg!(left);
+    // dbg!(right);
     if operator.is_none() {
-        return if let NysaExpression::Mapping { name, key } = left {
-            let value = read_variable_or_parse(right, ctx)?;
+        return if let NysaExpression::Collection { name, key } = left {
+            let value = read_variable_or_parse(right, t)?;
             let keys = vec![*key.clone()];
-            parse_mapping(name, &keys, Some(value), ctx)
-        } else if let NysaExpression::Mapping2 { name, keys } = left {
+            parse_collection(name, &keys, Some(value), t)
+        } else if let NysaExpression::NestedCollection { name, keys } = left {
             let keys = vec![keys.0.clone(), keys.1.clone()];
-            let value = read_variable_or_parse(right, ctx)?;
-            parse_mapping(name, &keys, Some(value), ctx)
+            let value = read_variable_or_parse(right, t)?;
+            parse_collection(name, &keys, Some(value), t)
         } else if let NysaExpression::Variable { name } = left {
-            let right = read_variable_or_parse(right, ctx)?;
-            parse_variable(&name, Some(right), ctx)
+            let right = read_variable_or_parse(right, t)?;
+            parse_variable(&name, Some(right), t)
         } else {
             Err(ParserError::UnexpectedExpression(
                 String::from(
-                    "NysaExpression::Mapping, NysaExpression::Mapping2 or NysaExpression::Variable",
+                    "NysaExpression::Collection, NysaExpression::NestedCollection or NysaExpression::Variable",
                 ),
                 left.clone(),
             ))
@@ -70,34 +82,53 @@ pub fn assign(
     }
 
     match left {
-        NysaExpression::Mapping { name, key } => {
+        NysaExpression::Collection { name, key } => {
             let keys = vec![*key.clone()];
-            let value_expr = read_variable_or_parse(right, ctx)?;
-            let current_value_expr = parse_mapping(name, &keys, None, ctx)?;
+            let value_expr = read_variable_or_parse(right, t)?;
+            let current_value_expr = parse_collection(name, &keys, None, t)?;
             let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
-            parse_mapping(name, &keys, Some(new_value), ctx)
+            parse_collection(name, &keys, Some(new_value), t)
         }
-        NysaExpression::Mapping2 { name, keys } => {
+        NysaExpression::NestedCollection { name, keys } => {
             let keys = vec![keys.0.clone(), keys.1.clone()];
-            let value_expr = read_variable_or_parse(right, ctx)?;
-            let current_value_expr = parse_mapping(name, &keys, None, ctx)?;
+            let value_expr = read_variable_or_parse(right, t)?;
+            let current_value_expr = parse_collection(name, &keys, None, t)?;
             let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
-            parse_mapping(name, &keys, Some(new_value), ctx)
+            parse_collection(name, &keys, Some(new_value), t)
         }
         NysaExpression::Variable { name } => {
-            let current_value_expr = parse_variable(&name, None, ctx)?;
-            let value_expr = read_variable_or_parse(right, ctx)?;
+            let current_value_expr = parse_variable(&name, None, t)?;
+            let value_expr = read_variable_or_parse(right, t)?;
             let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
-            parse_variable(&name, Some(new_value), ctx)
+            parse_variable(&name, Some(new_value), t)
         }
-        _ => parse(left, ctx),
+        _ => parse(left, t),
     }
 }
 
-pub fn assign_default(left: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr, ParserError> {
+pub fn assign_default<
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+>(
+    left: &NysaExpression,
+    t: &mut T,
+) -> Result<syn::Expr, ParserError> {
     if let NysaExpression::Variable { name } = left {
         let value_expr = parse_quote!(Default::default());
-        parse_variable(&name, Some(value_expr), ctx)
+        parse_variable(&name, Some(value_expr), t)
+    } else if let NysaExpression::Collection { name, key } = left {
+        if let Some(context::ItemType::Storage(NysaVar {
+            ty: NysaType::Array(ty),
+            ..
+        })) = t.type_from_string(name)
+        {
+            let default_value = parse_quote!(Default::default());
+            array::replace_value(name, key, default_value, t)
+        } else {
+            Err(ParserError::UnexpectedExpression(
+                String::from("NysaExpression::Variable"),
+                left.clone(),
+            ))
+        }
     } else {
         Err(ParserError::UnexpectedExpression(
             String::from("NysaExpression::Variable"),
@@ -122,48 +153,63 @@ pub fn assign_default(left: &NysaExpression, ctx: &mut Context) -> Result<syn::E
 /// # Returns
 ///
 /// A parsed syn expression.
-pub fn parse_variable(
+pub fn parse_variable<T: StorageInfo + TypeInfo + FnContext>(
     id: &str,
     value_expr: Option<syn::Expr>,
-    ctx: &mut Context,
+    ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let var = id.as_var(ctx);
+    let item = ctx.type_from_string(id);
     let ident = to_snake_case_ident(id);
-    let self_ty = var.is_ok().then(|| quote!(self.));
+
     if let Some(value) = value_expr {
-        match var {
+        match item {
             // Variable update must use the `set` function
-            Ok(_) => Ok(parse_quote!(#self_ty #ident.set(#value))),
+            Some(ItemType::Storage(_)) => Ok(parse_quote!(self.#ident.set(#value))),
             // regular, local value
-            Err(_) => Ok(parse_quote!(#ident = #value)),
+            Some(ItemType::Local(_)) => Ok(parse_quote!(#ident = #value)),
+            None => Ok(parse_quote!(#ident = #value)),
+            _ => Err(ParserError::InvalidExpression),
         }
     } else {
-        match var {
-            Ok(ty) => Ok(get_expr(quote!(#self_ty #ident), None, ty, ctx)),
-            Err(_) => Ok(parse_quote!(#self_ty #ident)),
+        match item {
+            Some(ItemType::Storage(v)) => Ok(get_expr(quote!(self.#ident), None, v.ty, ctx)),
+            Some(ItemType::Local(_)) => Ok(parse_quote!(#ident)),
+            None => Ok(parse_quote!(#ident)),
+            _ => Err(ParserError::InvalidExpression),
         }
     }
 }
 
-pub fn parse_mapping(
+pub fn parse_collection<
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+>(
     name: &str,
     keys_expr: &[NysaExpression],
     value_expr: Option<syn::Expr>,
-    ctx: &mut Context,
+    ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let ident = to_snake_case_ident(name);
     let field_ts = quote!(self.#ident);
-    let ty = name.as_var(ctx)?;
+    dbg!(ctx.type_from_string(name));
+    let var = ctx
+        .type_from_string(name)
+        .map(|i| match i {
+            ItemType::Storage(v) => Some(v),
+            ItemType::Local(v) => Some(v),
+            _ => None,
+        })
+        .flatten()
+        .ok_or(ParserError::InvalidExpression)?;
 
     match keys_expr.len() {
-        0 => return Err(ParserError::InvalidMapping),
+        0 => return Err(ParserError::InvalidCollection),
         1 => {
             let key_expr = keys_expr.first().unwrap();
             let key = read_variable_or_parse(key_expr, ctx)?;
             if let Some(value) = value_expr {
                 Ok(parse_quote!(#field_ts.set(&#key, #value)))
             } else {
-                Ok(get_expr(field_ts, Some(key), ty, ctx))
+                Ok(get_expr(field_ts, Some(key), var.ty, ctx))
             }
         }
         n => {
@@ -177,37 +223,50 @@ pub fn parse_mapping(
             if let Some(value) = value_expr {
                 Ok(parse_quote!(#token_stream.set(&#key, #value)))
             } else {
-                Ok(get_expr(token_stream, Some(key), ty, ctx))
+                Ok(get_expr(token_stream, Some(key), var.ty, ctx))
             }
         }
     }
 }
 
-fn get_expr(
+fn get_expr<T: StorageInfo + TypeInfo>(
     stream: TokenStream,
     key_expr: Option<syn::Expr>,
     ty: NysaType,
-    ctx: &Context,
+    t: &mut T,
 ) -> syn::Expr {
     let key = key_expr.clone().map(|k| quote!(&#k));
     match ty {
         NysaType::Address => parse_quote!(#stream.get(#key).unwrap_or(None)),
-        NysaType::Custom(name) => match ctx.item_type(&name) {
-            crate::parser::context::ItemType::Contract => {
-                parse_quote!(#stream.get(#key).unwrap_or(None))
-            }
-            crate::parser::context::ItemType::Interface => {
-                parse_quote!(#stream.get(#key).unwrap_or(None))
-            }
-            crate::parser::context::ItemType::Enum(_) => parse_quote!(#stream.get_or_default(#key)),
-            _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
-        },
+        NysaType::Custom(name) => t
+            .type_from_string(&name)
+            .map(|ty| match ty {
+                context::ItemType::Contract(_) => {
+                    parse_quote!(#stream.get(#key).unwrap_or(None))
+                }
+                context::ItemType::Interface(_) => {
+                    parse_quote!(#stream.get(#key).unwrap_or(None))
+                }
+                context::ItemType::Enum(_) => parse_quote!(#stream.get_or_default(#key)),
+                _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
+            })
+            .unwrap(),
         NysaType::String | NysaType::Bool | NysaType::Uint(_) | NysaType::Int(_) => {
             parse_quote!(#stream.get_or_default(#key))
         }
         NysaType::Mapping(_, v) => {
             let ty = NysaType::try_from(&*v).unwrap();
-            get_expr(stream, key_expr, ty, ctx)
+            get_expr(stream, key_expr, ty, t)
+        }
+        NysaType::Array(ty) => {
+            let key = key_expr.and_then(|key| match &*ty {
+                NysaType::Uint(size) => match size {
+                    256..=512 => Some(quote!([#key.as_usize()])),
+                    _ => Some(quote!([#key as usize])),
+                },
+                _ => Some(quote!([#key])),
+            });
+            parse_quote!(#stream.get_or_default()#key)
         }
         _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
     }

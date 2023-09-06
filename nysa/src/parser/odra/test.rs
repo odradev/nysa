@@ -61,6 +61,12 @@ fn test_ownable() {
 fn test_types() {
     let result = parse::<OdraParser, _>(include_str!("../../../../resources/types/enum.sol"));
     assert_impl(result, "../resources/types/enum.rs");
+
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/types/bytes.sol"));
+    assert_impl(result, "../resources/types/bytes.rs");
+
+    // let result = parse::<OdraParser, _>(include_str!("../../../../resources/types/array.sol"));
+    // assert_impl(result, "../resources/types/array.rs");
 }
 
 #[test]
@@ -85,6 +91,34 @@ fn assert_impl(result: TokenStream, file_path: &str) {
 
     pretty_assertions::assert_eq!(parse(result.to_string().as_str()), parse(content.as_str()));
 }
+
+// fn test_dir<P: AsRef<Path>>(dir_path: P) -> Result<(), std::io::Error> {
+//     // Use read_dir to get an iterator over the directory entries.
+//     let entries = std::fs::read_dir(dir_path)?;
+
+//     // Iterate over the entries in the directory.
+//     for entry in entries {
+//         // Unwrap the Result returned by read_dir.
+//         let entry = entry?;
+
+//         // Check if the entry is a file.
+//         if entry.file_type()?.is_file() {
+//             let mut file = File::open(entry.path()).unwrap();
+//             let mut solidity_code = String::new();
+//             file.read_to_string(&mut solidity_code).unwrap();
+
+//             let result = parse::<OdraParser, _>(solidity_code.as_str());
+//             assert_impl(result, "../resources/types/enum.rs");
+
+//             // Get the file name as a string.
+//             let file_name = entry.file_name();
+
+//             // Do something with the file_name or the entry.
+//             println!("Found file: {:?}", file_name);
+//         }
+//     }
+//     Ok(())
+// }
 
 const DEFAULT_MODULES: &str = r#"
 pub mod errors {}

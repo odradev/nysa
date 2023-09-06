@@ -3,13 +3,13 @@ use syn::parse_quote;
 
 use crate::{
     model::{ir::Package, Named},
-    parser::{context::Context, odra::func},
+    parser::{context::TypeInfo, odra::func},
     utils, ParserError,
 };
 
-pub(crate) fn ext_contracts_def(
+pub(crate) fn ext_contracts_def<T: TypeInfo>(
     package: &Package,
-    ctx: &Context,
+    info: &T,
 ) -> Result<Vec<syn::ItemMod>, ParserError> {
     let interfaces = package.interfaces();
 
@@ -20,7 +20,7 @@ pub(crate) fn ext_contracts_def(
             let fns: Vec<syn::TraitItem> = i
                 .fns()
                 .iter()
-                .map(|f| func::interface::def(f, ctx))
+                .map(|f| func::interface::def(f, info))
                 .collect::<Result<Vec<_>, _>>()?;
 
             let mod_ident = utils::to_snake_case_ident(i.name());

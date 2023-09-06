@@ -82,7 +82,7 @@ pub mod owner {
             match __class {
                 ClassName::Owner => {
                     self.modifier_before_only_owner();
-                    let old_owner = self.owner.get().unwrap_or(None);
+                    let mut old_owner = self.owner.get().unwrap_or(None);
                     self.owner.set(new_owner);
                     <OwnershipTransferred as odra::types::event::OdraEvent>::emit(OwnershipTransferred::new(
                         old_owner, new_owner

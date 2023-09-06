@@ -37,7 +37,7 @@ pub mod caller {
             match __class {
                 ClassName::Caller => {
                     let mut _callee = CalleeRef::at(&odra::UnwrapOrRevert::unwrap_or_revert(_callee));
-                    let x = _callee.set_x(_x);
+                    let mut x = _callee.set_x(_x);
                 }
                 #[allow(unreachable_patterns)]
                 _ => self.super_set_x(_callee, _x)

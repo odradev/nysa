@@ -50,6 +50,8 @@ pub enum NysaType {
     Bytes(u8),
     Mapping(Box<NysaExpression>, Box<NysaExpression>),
     Custom(String),
+    Array(Box<NysaType>),
+    Unknown,
 }
 
 impl From<&pt::Type> for NysaType {
@@ -104,6 +106,11 @@ impl From<&&pt::VariableDefinition> for NysaVar {
             ty: match &value.ty {
                 pt::Expression::Type(_, ty) => NysaType::from(ty),
                 pt::Expression::Variable(id) => NysaType::from(id),
+                pt::Expression::ArraySubscript(_, ty, _) => {
+                    let ty = NysaExpression::from(&**ty);
+                    let ty = NysaType::try_from(&ty).expect("Should be a valid array type");
+                    NysaType::Array(Box::new(ty))
+                }
                 t => panic!("Not a type. {:?}", t),
             },
             initializer: value.initializer.as_ref().map(NysaExpression::from),

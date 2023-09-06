@@ -1,44 +1,46 @@
-use quote::format_ident;
-use quote::quote;
-use syn::parse_quote;
+use proc_macro2::{Ident, TokenStream};
+use quote::{format_ident, quote};
+use syn::{parse_quote, punctuated::Punctuated, Token};
 
-use crate::model::ir::NysaExpression;
-use crate::model::ir::NysaType;
-use crate::parser::context::Context;
-use crate::parser::context::ItemType;
+use crate::model::ir::{NysaExpression, NysaType, NysaVar};
+use crate::parser::context::{
+    ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType, StorageInfo, TypeInfo,
+};
 use crate::utils;
-use crate::utils::to_snake_case_ident;
 use crate::ParserError;
 
 use super::ty;
-use super::var::AsVariable;
 
+mod array;
 pub(crate) mod error;
 mod math;
 mod num;
 mod op;
 pub(crate) mod primitives;
 
-pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr, ParserError> {
+pub fn parse<T>(expression: &NysaExpression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     match expression {
         NysaExpression::Require { condition, error } => error::revert(Some(condition), error, ctx),
         NysaExpression::Placeholder => Err(ParserError::EmptyExpression),
         NysaExpression::ZeroAddress => Ok(parse_quote!(None)),
         NysaExpression::Message(msg) => msg.try_into(),
-        NysaExpression::Mapping { name, key } => {
+        NysaExpression::Collection { name, key } => {
             let keys = vec![*key.clone()];
-            primitives::parse_mapping(name, &keys, None, ctx)
+            primitives::parse_collection(name, &keys, None, ctx)
         }
-        NysaExpression::Mapping2 { name, keys } => {
+        NysaExpression::NestedCollection { name, keys } => {
             let keys = vec![keys.0.clone(), keys.1.clone()];
-            primitives::parse_mapping(name, &keys, None, ctx)
-        }
-        NysaExpression::Mapping3 { name, keys } => {
-            todo!()
+            primitives::parse_collection(name, &keys, None, ctx)
         }
         NysaExpression::Variable { name } => {
-            let ident = to_snake_case_ident(&name);
-            let self_ty = name.as_var(ctx).is_ok().then(|| quote!(self.));
+            let ident = utils::to_snake_case_ident(name);
+            let self_ty = ctx
+                .type_from_string(name)
+                .filter(|i| matches!(i, ItemType::Storage(_)))
+                .map(|_| quote!(self.));
             Ok(parse_quote!(#self_ty #ident))
         }
         NysaExpression::Assign { left, right } => primitives::assign(left, right, None, ctx),
@@ -70,21 +72,7 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             let expr = parse(expr, ctx)?;
             Ok(parse_quote!(#expr -= 1))
         }
-        NysaExpression::MemberAccess { expr, name } => {
-            dbg!(expr);
-            match ctx.item_type2(expr) {
-                ItemType::Enum(ty) => {
-                    let ty = format_ident!("{}", ty);
-                    let member: syn::Member = format_ident!("{}", name).into();
-                    Ok(parse_quote!(#ty::#member))
-                }
-                _ => {
-                    let base_expr: syn::Expr = parse(expr, ctx)?;
-                    let member: syn::Member = format_ident!("{}", name).into();
-                    Ok(parse_quote!(#base_expr.#member))
-                }
-            }
-        }
+        NysaExpression::MemberAccess { expr, name } => parse_member_access(name, expr, ctx),
         NysaExpression::NumberLiteral { ty, value } => num::to_typed_int_expr(ty, value),
         NysaExpression::Func { name, args } => parse_func(name, args, ctx),
         NysaExpression::SuperCall { name, args } => parse_super_call(name, args, ctx),
@@ -116,28 +104,66 @@ pub fn parse(expression: &NysaExpression, ctx: &mut Context) -> Result<syn::Expr
             let expr = primitives::read_variable_or_parse(expr, ctx)?;
             Ok(parse_quote!(!(#expr)))
         }
+        NysaExpression::BytesLiteral { bytes } => {
+            let arr = bytes
+                .iter()
+                .map(|v| quote::quote!(#v))
+                .collect::<Punctuated<TokenStream, Token![,]>>();
+            let size = bytes.len();
+            Ok(parse_quote!([#arr]))
+        }
+        NysaExpression::ArrayLiteral { values } => {
+            let arr = values
+                .iter()
+                .map(|expression| parse(expression, ctx))
+                .map(|e| match e {
+                    Ok(r) => Ok(quote!(#r)),
+                    Err(e) => Err(e),
+                })
+                .collect::<Result<Punctuated<TokenStream, Token![,]>, ParserError>>()?;
+            Ok(parse_quote!(odra::prelude::vec![#arr]))
+        }
+        NysaExpression::Initializer(expr) => {
+            if let box NysaExpression::Func { name, args } = expr {
+                if let box NysaExpression::Type {
+                    ty: NysaType::Array(_),
+                } = name
+                {
+                    let args = parse_many(&args, ctx)?;
+                    return Ok(parse_quote!(odra::prelude::vec::Vec::with_capacity(#(#args),*)));
+                }
+            }
+            dbg!(expr);
+            todo!()
+        }
         NysaExpression::UnknownExpr => panic!("Unknown expression"),
     }
 }
 
-pub fn parse_many(
+pub fn parse_many<T>(
     expressions: &[NysaExpression],
-    ctx: &mut Context,
-) -> Result<Vec<syn::Expr>, ParserError> {
+    ctx: &mut T,
+) -> Result<Vec<syn::Expr>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     expressions
         .iter()
         .map(|e| parse(e, ctx))
         .collect::<Result<Vec<syn::Expr>, _>>()
 }
 
-fn parse_func(
+fn parse_func<T>(
     fn_name: &NysaExpression,
     args: &[NysaExpression],
-    ctx: &mut Context,
-) -> Result<syn::Expr, ParserError> {
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     let args = parse_many(&args, ctx)?;
     // Context allows us to distinct an external contract initialization from a regular function call
-    if let Some(class_name) = ctx.class(fn_name) {
+    if let Some(class_name) = ctx.as_contract_name(fn_name) {
         ctx.register_external_call(&class_name);
         // Storing a reference to a contract is disallowed, and in the constructor an external contract
         // should be considered an address, otherwise, a reference should be created
@@ -155,12 +181,16 @@ fn parse_func(
     }
 }
 
-fn parse_ext_call(
+//TODO: change naming
+fn parse_ext_call<T>(
     variable: &str,
     fn_name: &str,
     args: &[NysaExpression],
-    ctx: &mut Context,
-) -> Result<syn::Expr, ParserError> {
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     let fn_ident = utils::to_snake_case_ident(fn_name);
     let args = parse_many(&args, ctx)?;
     let var_ident = utils::to_snake_case_ident(variable);
@@ -170,32 +200,89 @@ fn parse_ext_call(
     // from the address.
     // If a ref was created from an address, the function may be called
     // straight away.
-    match variable.as_var(ctx) {
-        Ok(NysaType::Custom(class_name)) => {
-            ctx.register_external_call(&class_name);
-            let ref_ident = format_ident!("{}Ref", class_name);
-            let addr = args.get(0);
-
-            let addr = primitives::read_variable_or_parse(
-                &NysaExpression::Variable {
-                    name: variable.to_string(),
-                },
-                ctx,
-            )?;
-            Ok(parse_quote!(
-                #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr)).#fn_ident(#(#args),*)
-            ))
+    match ctx.type_from_string(variable) {
+        Some(ItemType::Storage(NysaVar {
+            ty: NysaType::Custom(ty),
+            ..
+        })) => {
+            let ty = ctx.type_from_string(&ty);
+            if let Some(ItemType::Contract(class_name)) | Some(ItemType::Interface(class_name)) = ty
+            {
+                ext_call(variable, &class_name, fn_ident, args, ctx)
+            } else {
+                Ok(parse_quote!(#var_ident.#fn_ident(#(#args),*)))
+            }
         }
+        Some(ItemType::Contract(class_name)) | Some(ItemType::Interface(class_name)) => {
+            ext_call(variable, &class_name, fn_ident, args, ctx)
+        }
+        Some(ItemType::Storage(NysaVar {
+            ty: NysaType::Array(ty),
+            ..
+        }))
+        | Some(ItemType::Local(NysaVar {
+            ty: NysaType::Array(ty),
+            ..
+        })) => array::fn_call(variable, fn_ident, args, ctx),
         _ => Ok(parse_quote!(#var_ident.#fn_ident(#(#args),*))),
     }
 }
 
-fn parse_super_call(
+fn ext_call<T>(
+    addr_var: &str,
+    class_name: &str,
+    fn_ident: Ident,
+    args: Vec<syn::Expr>,
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    ctx.register_external_call(&class_name);
+    let ref_ident = format_ident!("{}Ref", class_name);
+    let addr = args.get(0);
+
+    let addr = primitives::read_variable_or_parse(&NysaExpression::from(addr_var), ctx)?;
+    Ok(parse_quote!(
+        #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr)).#fn_ident(#(#args),*)
+    ))
+}
+
+fn parse_super_call<T>(
     fn_name: &str,
     args: &[NysaExpression],
-    ctx: &mut Context,
-) -> Result<syn::Expr, ParserError> {
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     let fn_name = utils::to_prefixed_snake_case_ident("super_", fn_name);
     let args = parse_many(&args, ctx)?;
     Ok(parse_quote!(self.#fn_name(#(#args),*)))
+}
+
+fn parse_member_access<T>(
+    member_name: &str,
+    expr: &NysaExpression,
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    match ctx.type_from_expression(expr) {
+        Some(ItemType::Enum(ty)) => {
+            let ty = format_ident!("{}", ty);
+            let member: syn::Member = format_ident!("{}", member_name).into();
+            Ok(parse_quote!(#ty::#member))
+        }
+        Some(ItemType::Storage(NysaVar {
+            ty: NysaType::Array(_),
+            ..
+        })) => array::read_property(member_name, expr, ctx),
+        _ => {
+            let base_expr: syn::Expr = parse(expr, ctx)?;
+            let member: syn::Member = format_ident!("{}", member_name).into();
+            Ok(parse_quote!(#base_expr.#member))
+        }
+    }
 }

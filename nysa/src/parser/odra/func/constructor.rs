@@ -1,13 +1,12 @@
 use crate::{
     model::{
-        ir::{
-            Constructor, FnImplementations, NysaBaseImpl, NysaExpression, NysaStmt, NysaType,
-            NysaVar,
-        },
+        ir::{Constructor, FnImplementations, NysaBaseImpl, NysaExpression, NysaStmt, NysaType},
         ContractData,
     },
     parser::{
-        context::Context,
+        context::{
+            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        },
         odra::{expr, stmt},
     },
     utils, ParserError,
@@ -18,11 +17,14 @@ use syn::{parse_quote, Ident};
 
 use super::common;
 
-pub(super) fn def(
+pub(super) fn def<T>(
     impls: &FnImplementations,
     data: &ContractData,
-    ctx: &mut Context,
-) -> Result<Vec<FnDef>, ParserError> {
+    ctx: &mut T,
+) -> Result<Vec<FnDef>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     let impls = impls.as_constructors();
 
     let (primary_constructor_class, primary_constructor) = impls
@@ -86,39 +88,41 @@ pub(super) fn def(
         .collect::<Result<Vec<_>, _>>()
 }
 
-fn init_storage_fields(ctx: &mut Context) -> Result<Vec<syn::Stmt>, ParserError> {
+fn init_storage_fields<T>(ctx: &mut T) -> Result<Vec<syn::Stmt>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     ctx.storage()
         .iter()
         .filter(|v| v.initializer.is_some())
-        .map(
-            |NysaVar {
-                 name,
-                 ty,
-                 initializer,
-             }| {
-                let init_expr = initializer.clone().unwrap();
-                let left = match ty {
-                    NysaType::Mapping(k, v) => Err(ParserError::MappingInit),
-                    _ => Ok(NysaExpression::Variable { name: name.clone() }),
-                }?;
+        .map(|v| {
+            let init_expr = v.initializer.clone().unwrap();
+            let left = match &v.ty {
+                NysaType::Mapping(k, v) => Err(ParserError::MappingInit),
+                _ => Ok(NysaExpression::Variable {
+                    name: v.name.clone(),
+                }),
+            }?;
 
-                let stmt = NysaStmt::Expression {
-                    expr: NysaExpression::Assign {
-                        left: Box::new(left),
-                        right: Box::new(initializer.clone().unwrap()),
-                    },
-                };
-                stmt::parse_statement(&stmt, ctx)
-            },
-        )
+            let stmt = NysaStmt::Expression {
+                expr: NysaExpression::Assign {
+                    left: Box::new(left),
+                    right: Box::new(v.initializer.clone().unwrap()),
+                },
+            };
+            stmt::parse_statement(&stmt, ctx)
+        })
         .collect::<Result<_, _>>()
 }
 
-fn parse_base_calls(
+fn parse_base_calls<T>(
     constructor: &Constructor,
     constructors: &[(&Class, &Constructor)],
-    ctx: &mut Context,
-) -> Vec<syn::Stmt> {
+    ctx: &mut T,
+) -> Vec<syn::Stmt>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     let mut stmts = vec![];
     let find_base_class = |class: &Class| {
         constructor
@@ -137,7 +141,10 @@ fn parse_base_calls(
     stmts
 }
 
-fn parse_base_args(base: &NysaBaseImpl, ctx: &mut Context) -> Vec<syn::Expr> {
+fn parse_base_args<T>(base: &NysaBaseImpl, ctx: &mut T) -> Vec<syn::Expr>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
     expr::parse_many(&base.args, ctx).unwrap_or(vec![])
 }
 

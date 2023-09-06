@@ -1,6 +1,6 @@
 use solidity_parser::pt;
 
-use super::expr::NysaExpression;
+use super::{expr::NysaExpression, misc::NysaType};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NysaStmt {
@@ -13,10 +13,12 @@ pub enum NysaStmt {
     },
     VarDefinition {
         declaration: String,
+        ty: NysaType,
         init: NysaExpression,
     },
     VarDeclaration {
         declaration: String,
+        ty: NysaType,
     },
     If {
         assertion: NysaExpression,
@@ -79,15 +81,22 @@ impl From<&pt::Statement> for NysaStmt {
                     Self::Expression { expr }
                 }
             }
-            pt::Statement::VariableDefinition(_, declaration, init) => match init {
-                Some(expr) => Self::VarDefinition {
-                    declaration: declaration.name.name.clone(),
-                    init: expr.into(),
-                },
-                None => Self::VarDeclaration {
-                    declaration: declaration.name.name.clone(),
-                },
-            },
+            pt::Statement::VariableDefinition(_, declaration, init) => {
+                let name = declaration.name.name.clone();
+                let ty = NysaExpression::from(&declaration.ty);
+                let ty = NysaType::try_from(&ty).unwrap_or(NysaType::Unknown);
+                match init {
+                    Some(expr) => Self::VarDefinition {
+                        declaration: name,
+                        ty,
+                        init: expr.into(),
+                    },
+                    None => Self::VarDeclaration {
+                        declaration: name,
+                        ty,
+                    },
+                }
+            }
             pt::Statement::For(_, _, _, _, _) => Self::Unknown,
             pt::Statement::DoWhile(_, _, _) => Self::Unknown,
             pt::Statement::Continue(_) => Self::Unknown,

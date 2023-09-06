@@ -26,8 +26,12 @@ pub enum ParserError {
     UnknownProperty(String),
     #[error("Not a state variable")]
     NotStateVariable,
-    #[error("Invalid mapping")]
-    InvalidMapping,
+    #[error("Invalid collection")]
+    InvalidCollection,
+    #[error("Invalid type")]
+    InvalidType,
     #[error("Mapping cannot be initialized")]
     MappingInit,
+    #[error("Invalid expression")]
+    InvalidExpression,
 }
