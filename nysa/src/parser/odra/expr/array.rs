@@ -1,6 +1,6 @@
 use super::{
     parse,
-    primitives::{self, read_variable_or_parse},
+    primitives::{self, get_var_or_parse},
 };
 use crate::{
     model::ir::NysaExpression,
@@ -22,7 +22,7 @@ pub fn read_property<
     expr: &NysaExpression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let base_expr: syn::Expr = read_variable_or_parse(expr, ctx)?;
+    let base_expr: syn::Expr = get_var_or_parse(expr, ctx)?;
     if member_name == PROPERTY_LENGTH {
         Ok(parse_quote!(#base_expr.len().into()))
     } else {
@@ -41,7 +41,7 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     let result_expr: syn::Expr = parse_quote!(result);
-    let arr = primitives::read_variable_or_parse(&NysaExpression::from(array_name), ctx)?;
+    let arr = primitives::get_var_or_parse(&NysaExpression::from(array_name), ctx)?;
     let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
         let mut #result_expr = #arr;
@@ -60,7 +60,7 @@ pub fn replace_value<
 ) -> Result<syn::Expr, ParserError> {
     let result_expr: syn::Expr = parse_quote!(result);
     let index = parse(index, ctx)?;
-    let arr = primitives::read_variable_or_parse(&NysaExpression::from(array_name), ctx)?;
+    let arr = primitives::get_var_or_parse(&NysaExpression::from(array_name), ctx)?;
     let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
         let mut #result_expr = #arr;

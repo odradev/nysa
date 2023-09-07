@@ -34,7 +34,7 @@ where
                     return Ok(parse_ext_contract_stmt(&class_name, pat, addr, ctx));
                 }
             };
-            let expr: syn::Expr = expr::primitives::read_variable_or_parse(init, ctx)?;
+            let expr: syn::Expr = expr::primitives::get_var_or_parse(init, ctx)?;
             ctx.register_local_var(declaration, ty);
             Ok(parse_quote!(let mut #pat = #expr;))
         }

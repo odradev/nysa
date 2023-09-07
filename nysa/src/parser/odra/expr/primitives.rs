@@ -16,7 +16,7 @@ use crate::{
 };
 use quote::quote;
 
-pub fn read_variable_or_parse<
+pub fn get_var_or_parse<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
     expr: &NysaExpression,
@@ -244,7 +244,7 @@ where
 {
     match num::try_to_generic_int_expr(key) {
         Ok(e) => Ok(e),
-        Err(_) => read_variable_or_parse(key, ctx),
+        Err(_) => get_var_or_parse(key, ctx),
     }
 }
 
@@ -260,9 +260,7 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
         NysaType::Custom(name) => ctx
             .type_from_string(&name)
             .map(|ty| match ty {
-                context::ItemType::Contract(_) => {
-                    parse_quote!(#stream.get(#key).unwrap_or(None))
-                }
+                context::ItemType::Contract(_) |
                 context::ItemType::Interface(_) => {
                     parse_quote!(#stream.get(#key).unwrap_or(None))
                 }
@@ -302,10 +300,10 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     if operator.is_none() {
-        let value = read_variable_or_parse(right, ctx)?;
+        let value = get_var_or_parse(right, ctx)?;
         parse_collection(name, &keys, Some(value), ctx)
     } else {
-        let value_expr = read_variable_or_parse(right, ctx)?;
+        let value_expr = get_var_or_parse(right, ctx)?;
         let current_value_expr = parse_collection(name, &keys, None, ctx)?;
         let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
         parse_collection(name, &keys, Some(new_value), ctx)
@@ -322,11 +320,11 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     if operator.is_none() {
-        let right = read_variable_or_parse(right, ctx)?;
+        let right = get_var_or_parse(right, ctx)?;
         set_var(&name, right, ctx)
     } else {
         let current_value_expr = get_var(&name, ctx)?;
-        let value_expr = read_variable_or_parse(right, ctx)?;
+        let value_expr = get_var_or_parse(right, ctx)?;
         let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
         set_var(&name, new_value, ctx)
     }

@@ -95,13 +95,13 @@ where
             Ok(parse_quote!(#ty))
         }
         NysaExpression::Power { left, right } => {
-            let left = primitives::read_variable_or_parse(left, ctx)?;
-            let right = primitives::read_variable_or_parse(right, ctx)?;
+            let left = primitives::get_var_or_parse(left, ctx)?;
+            let right = primitives::get_var_or_parse(right, ctx)?;
             Ok(parse_quote!(#left.pow(#right)))
         }
         NysaExpression::BoolLiteral(b) => Ok(parse_quote!(#b)),
         NysaExpression::Not { expr } => {
-            let expr = primitives::read_variable_or_parse(expr, ctx)?;
+            let expr = primitives::get_var_or_parse(expr, ctx)?;
             Ok(parse_quote!(!(#expr)))
         }
         NysaExpression::BytesLiteral { bytes } => {
@@ -242,7 +242,7 @@ where
     let ref_ident = format_ident!("{}Ref", class_name);
     let addr = args.get(0);
 
-    let addr = primitives::read_variable_or_parse(&NysaExpression::from(addr_var), ctx)?;
+    let addr = primitives::get_var_or_parse(&NysaExpression::from(addr_var), ctx)?;
     Ok(parse_quote!(
         #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr)).#fn_ident(#(#args),*)
     ))

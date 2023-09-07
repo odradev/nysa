@@ -17,7 +17,7 @@ pub(crate) fn bin_op<
     op: BinOp,
     t: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let left = primitives::read_variable_or_parse(left, t)?;
-    let right = primitives::read_variable_or_parse(right, t)?;
+    let left = primitives::get_var_or_parse(left, t)?;
+    let right = primitives::get_var_or_parse(right, t)?;
     Ok(parse_quote!(#left #op #right))
 }
