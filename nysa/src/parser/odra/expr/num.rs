@@ -1,4 +1,7 @@
-use crate::{model::ir::NumSize, to_unit, ParserError};
+use crate::{
+    model::ir::{NumSize, NysaExpression},
+    to_unit, ParserError,
+};
 use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
@@ -61,4 +64,11 @@ pub(crate) fn to_generic_lit_expr<N: num_traits::Num + ToString>(num: N) -> syn:
             proc_macro2::Span::call_site(),
         )),
     })
+}
+
+pub(crate) fn try_to_generic_int_expr(expr: &NysaExpression) -> Result<syn::Expr, ParserError> {
+    match expr {
+        NysaExpression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
+        _ => Err(ParserError::InvalidExpression),
+    }
 }

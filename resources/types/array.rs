@@ -36,7 +36,7 @@ pub mod array {
             match __class {
                 ClassName::Array => {
                     let mut a = odra::prelude::vec::Vec::with_capacity(5u8.into());
-                    a[0] = 123.into();
+                    a[1] = 123u8.into();
                 }
                 #[allow(unreachable_patterns)]
                 _ => self.super_examples(),

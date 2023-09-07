@@ -20,9 +20,9 @@ pub fn read_property<
 >(
     member_name: &str,
     expr: &NysaExpression,
-    t: &mut T,
+    ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let base_expr: syn::Expr = read_variable_or_parse(expr, t)?;
+    let base_expr: syn::Expr = read_variable_or_parse(expr, ctx)?;
     if member_name == PROPERTY_LENGTH {
         Ok(parse_quote!(#base_expr.len().into()))
     } else {
@@ -35,14 +35,14 @@ pub fn fn_call<T>(
     array_name: &str,
     fn_ident: Ident,
     args: Vec<syn::Expr>,
-    t: &mut T,
+    ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     let result_expr: syn::Expr = parse_quote!(result);
-    let arr = primitives::read_variable_or_parse(&NysaExpression::from(array_name), t)?;
-    let update = primitives::parse_variable(array_name, Some(result_expr.clone()), t)?;
+    let arr = primitives::read_variable_or_parse(&NysaExpression::from(array_name), ctx)?;
+    let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
         let mut #result_expr = #arr;
         result.#fn_ident(#(#args),*);
@@ -56,12 +56,12 @@ pub fn replace_value<
     array_name: &str,
     index: &NysaExpression,
     value: syn::Expr,
-    t: &mut T,
+    ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let result_expr: syn::Expr = parse_quote!(result);
-    let index = parse(index, t)?;
-    let arr = primitives::read_variable_or_parse(&NysaExpression::from(array_name), t)?;
-    let update = primitives::parse_variable(array_name, Some(result_expr.clone()), t)?;
+    let index = parse(index, ctx)?;
+    let arr = primitives::read_variable_or_parse(&NysaExpression::from(array_name), ctx)?;
+    let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
         let mut #result_expr = #arr;
         result[#index] = #value;

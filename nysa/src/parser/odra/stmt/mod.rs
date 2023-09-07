@@ -18,7 +18,6 @@ pub fn parse_statement<T>(stmt: &NysaStmt, ctx: &mut T) -> Result<syn::Stmt, Par
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
-    // dbg!(stmt);
     match stmt {
         NysaStmt::Expression { expr } => expr::parse(expr, ctx).map(|e| parse_quote!(#e;)),
         NysaStmt::VarDefinition {
@@ -47,9 +46,7 @@ where
         }
         NysaStmt::Return { expr } => {
             let ret = match expr {
-                NysaExpression::Variable { name } => {
-                    expr::primitives::parse_variable(name, None, ctx)
-                }
+                NysaExpression::Variable { name } => expr::primitives::get_var(name, ctx),
                 expr => expr::parse(expr, ctx),
             }?;
             Ok(parse_quote!(return #ret;))
