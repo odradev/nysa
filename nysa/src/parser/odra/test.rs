@@ -35,8 +35,8 @@ fn test_modifier() {
 
 #[test]
 fn test_default_value() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/default_values.sol"));
-    assert_impl(result, "../resources/default_values.rs");
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/misc/default_values.sol"));
+    assert_impl(result, "../resources/misc/default_values.rs");
 }
 
 #[test]
@@ -53,8 +53,8 @@ fn test_ext() {
 
 #[test]
 fn test_ownable() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ownable.sol"));
-    assert_impl(result, "../resources/ownable.rs");
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/contracts/ownable.sol"));
+    assert_impl(result, "../resources/contracts/ownable.rs");
 }
 
 #[test]
@@ -72,8 +72,8 @@ fn test_types() {
 #[test]
 #[ignore]
 fn test_plascoin() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/plascoin.sol"));
-    assert_impl(result, "../resources/plascoin.rs");
+    let result = parse::<OdraParser, _>(include_str!("../../../../resources/contracts/plascoin.sol"));
+    assert_impl(result, "../resources/contracts/plascoin.rs");
 }
 
 fn assert_impl(result: TokenStream, file_path: &str) {
