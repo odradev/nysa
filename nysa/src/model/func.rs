@@ -4,56 +4,56 @@ use solidity_parser::pt;
 use crate::utils;
 
 use super::{
-    expr::{to_nysa_expr, NysaExpression},
-    misc::{NysaBaseImpl, NysaType},
-    stmt::NysaStmt,
+    expr::{to_expr, Expression},
+    misc::{BaseImpl, Type},
+    stmt::Stmt,
     Named,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NysaParam {
+pub struct Param {
     pub name: String,
-    pub ty: NysaType,
+    pub ty: Type,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NysaFunction {
-    Function(Function),
+pub enum Function {
+    Function(Func),
     Constructor(Constructor),
     Modifier(Modifier),
 }
 
-impl Named for NysaFunction {
+impl Named for Function {
     fn name(&self) -> String {
         match self {
-            NysaFunction::Function(f) => f.name.clone(),
-            NysaFunction::Constructor(c) => c.name.clone(),
-            NysaFunction::Modifier(m) => m.base_name.clone(),
+            Function::Function(f) => f.name.clone(),
+            Function::Constructor(c) => c.name.clone(),
+            Function::Modifier(m) => m.base_name.clone(),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Function {
+pub struct Func {
     pub name: String,
-    pub vis: NysaVisibility,
-    pub params: Vec<NysaParam>,
+    pub vis: Visibility,
+    pub params: Vec<Param>,
     pub is_payable: bool,
     pub is_mutable: bool,
-    pub ret: Vec<(Option<String>, NysaExpression)>,
-    pub stmts: Vec<NysaStmt>,
-    pub modifiers: Vec<NysaBaseImpl>,
+    pub ret: Vec<(Option<String>, Expression)>,
+    pub stmts: Vec<Stmt>,
+    pub modifiers: Vec<BaseImpl>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Constructor {
     pub name: String,
-    pub params: Vec<NysaParam>,
+    pub params: Vec<Param>,
     pub is_payable: bool,
     pub is_mutable: bool,
-    pub ret: Vec<(Option<String>, NysaExpression)>,
-    pub stmts: Vec<NysaStmt>,
-    pub base: Vec<NysaBaseImpl>,
+    pub ret: Vec<(Option<String>, Expression)>,
+    pub stmts: Vec<Stmt>,
+    pub base: Vec<BaseImpl>,
 }
 
 impl Default for Constructor {
@@ -71,7 +71,7 @@ impl Default for Constructor {
 }
 
 impl Constructor {
-    pub fn extend_base(&mut self, base: Vec<NysaBaseImpl>) {
+    pub fn extend_base(&mut self, base: Vec<BaseImpl>) {
         base.iter().for_each(|b| {
             if self
                 .base
@@ -88,13 +88,13 @@ impl Constructor {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Modifier {
     pub base_name: String,
-    pub params: Vec<NysaParam>,
+    pub params: Vec<Param>,
     pub is_mutable: bool,
-    pub before_stmts: Vec<NysaStmt>,
-    pub after_stmts: Vec<NysaStmt>,
+    pub before_stmts: Vec<Stmt>,
+    pub after_stmts: Vec<Stmt>,
 }
 
-impl From<&&pt::FunctionDefinition> for NysaFunction {
+impl From<&&pt::FunctionDefinition> for Function {
     fn from(value: &&pt::FunctionDefinition) -> Self {
         let is_payable = parse_payable(value);
         let is_constructor = parse_constructor(value);
@@ -102,7 +102,7 @@ impl From<&&pt::FunctionDefinition> for NysaFunction {
         let is_modifier = parse_modifier(value);
         let params = parse_params(value);
         if is_constructor {
-            NysaFunction::Constructor(Constructor {
+            Function::Constructor(Constructor {
                 name: parse_name(value),
                 params,
                 is_payable,
@@ -113,7 +113,7 @@ impl From<&&pt::FunctionDefinition> for NysaFunction {
             })
         } else if is_modifier {
             let (before_stmts, after_stmts) = parse_modifier_statements(value);
-            NysaFunction::Modifier(Modifier {
+            Function::Modifier(Modifier {
                 base_name: parse_name(value),
                 params,
                 is_mutable,
@@ -121,7 +121,7 @@ impl From<&&pt::FunctionDefinition> for NysaFunction {
                 after_stmts,
             })
         } else {
-            NysaFunction::Function(Function {
+            Function::Function(Func {
                 name: parse_name(value),
                 vis: parse_visibility(value),
                 params,
@@ -136,12 +136,12 @@ impl From<&&pt::FunctionDefinition> for NysaFunction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NysaVisibility {
+pub enum Visibility {
     Public,
     Private,
 }
 
-impl From<&pt::Visibility> for NysaVisibility {
+impl From<&pt::Visibility> for Visibility {
     fn from(value: &pt::Visibility) -> Self {
         // Internal is the default modifier
         match value {
@@ -155,7 +155,7 @@ impl From<&pt::Visibility> for NysaVisibility {
     }
 }
 
-fn parse_visibility(func: &pt::FunctionDefinition) -> NysaVisibility {
+fn parse_visibility(func: &pt::FunctionDefinition) -> Visibility {
     func.attributes
         .iter()
         .filter_map(|attr| match attr {
@@ -210,10 +210,10 @@ fn parse_mutability(func: &pt::FunctionDefinition) -> bool {
     }
 }
 
-fn parse_return(func: &pt::FunctionDefinition) -> Vec<(Option<String>, NysaExpression)> {
-    fn parse_param(param: &pt::Parameter) -> (Option<String>, NysaExpression) {
+fn parse_return(func: &pt::FunctionDefinition) -> Vec<(Option<String>, Expression)> {
+    fn parse_param(param: &pt::Parameter) -> (Option<String>, Expression) {
         let name = param.name.as_ref().map(|i| i.name.to_owned());
-        let e = NysaExpression::from(&param.ty);
+        let e = Expression::from(&param.ty);
         (name, e)
     }
     if func.return_not_returns.is_some() {
@@ -252,7 +252,7 @@ fn parse_name(func: &pt::FunctionDefinition) -> String {
     }
 }
 
-fn parse_params(func: &pt::FunctionDefinition) -> Vec<NysaParam> {
+fn parse_params(func: &pt::FunctionDefinition) -> Vec<Param> {
     func.params
         .iter()
         .filter_map(|p| p.1.as_ref())
@@ -265,37 +265,37 @@ fn parse_params(func: &pt::FunctionDefinition) -> Vec<NysaParam> {
                 .unwrap_or(format!("param_{}", idx));
 
             let ty = match &param.ty {
-                pt::Expression::Type(_, ty) => NysaType::from(ty),
-                pt::Expression::Variable(name) => NysaType::from(name),
+                pt::Expression::Type(_, ty) => Type::from(ty),
+                pt::Expression::Variable(name) => Type::from(name),
                 _ => panic!("Function param must be of type Type"),
             };
 
-            NysaParam { name, ty }
+            Param { name, ty }
         })
         .collect()
 }
 
-fn parse_statements(func: &pt::FunctionDefinition) -> Vec<NysaStmt> {
+fn parse_statements(func: &pt::FunctionDefinition) -> Vec<Stmt> {
     match &func.body {
         Some(v) => match v {
             pt::Statement::Block {
                 loc,
                 unchecked,
                 statements,
-            } => statements.iter().map(NysaStmt::from).collect(),
+            } => statements.iter().map(Stmt::from).collect(),
             _ => panic!("Invalid statement - pt::Statement::Block expected"),
         },
         None => vec![],
     }
 }
 
-fn parse_modifier_statements(func: &pt::FunctionDefinition) -> (Vec<NysaStmt>, Vec<NysaStmt>) {
-    let stmts: Vec<NysaStmt> = parse_statements(func);
+fn parse_modifier_statements(func: &pt::FunctionDefinition) -> (Vec<Stmt>, Vec<Stmt>) {
+    let stmts: Vec<Stmt> = parse_statements(func);
 
     let split_idx = stmts
         .iter()
         .enumerate()
-        .find(|(idx, stmt)| **stmt == NysaStmt::Placeholder)
+        .find(|(idx, stmt)| **stmt == Stmt::Placeholder)
         .map(|(idx, _)| idx)
         .unwrap_or(stmts.len());
 
@@ -313,7 +313,7 @@ fn parse_modifier_statements(func: &pt::FunctionDefinition) -> (Vec<NysaStmt>, V
     (before_stmts, after_stmts)
 }
 
-fn parse_base(func: &pt::FunctionDefinition) -> Vec<NysaBaseImpl> {
+fn parse_base(func: &pt::FunctionDefinition) -> Vec<BaseImpl> {
     func.attributes
         .iter()
         .filter_map(|attr| match attr {
@@ -322,8 +322,8 @@ fn parse_base(func: &pt::FunctionDefinition) -> Vec<NysaBaseImpl> {
         })
         .map(|base| {
             let class_name = base.name.name.to_owned();
-            let args = base.args.clone().map(to_nysa_expr).unwrap_or_default();
-            NysaBaseImpl { class_name, args }
+            let args = base.args.clone().map(to_expr).unwrap_or_default();
+            BaseImpl { class_name, args }
         })
         .collect::<Vec<_>>()
 }
@@ -331,7 +331,7 @@ fn parse_base(func: &pt::FunctionDefinition) -> Vec<NysaBaseImpl> {
 #[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct FnImplementations {
     pub name: String,
-    pub implementations: Vec<(Class, NysaFunction)>,
+    pub implementations: Vec<(Class, Function)>,
 }
 
 impl Ord for FnImplementations {
@@ -344,20 +344,20 @@ impl FnImplementations {
     pub fn is_modifier(&self) -> bool {
         self.implementations
             .iter()
-            .all(|(_, f)| matches!(f, NysaFunction::Modifier(_)))
+            .all(|(_, f)| matches!(f, Function::Modifier(_)))
     }
 
     pub fn is_constructor(&self) -> bool {
         self.implementations
             .iter()
-            .all(|(_, f)| matches!(f, NysaFunction::Constructor(_)))
+            .all(|(_, f)| matches!(f, Function::Constructor(_)))
     }
 
     pub fn as_modifiers(&self) -> Vec<(&Class, &Modifier)> {
         self.implementations
             .iter()
             .filter_map(|(id, f)| match f {
-                NysaFunction::Modifier(f) => Some((id, f)),
+                Function::Modifier(f) => Some((id, f)),
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -367,17 +367,17 @@ impl FnImplementations {
         self.implementations
             .iter()
             .filter_map(|(id, f)| match f {
-                NysaFunction::Constructor(f) => Some((id, f)),
+                Function::Constructor(f) => Some((id, f)),
                 _ => None,
             })
             .collect::<Vec<_>>()
     }
 
-    pub fn as_functions(&self) -> Vec<(&Class, &Function)> {
+    pub fn as_functions(&self) -> Vec<(&Class, &Func)> {
         self.implementations
             .iter()
             .filter_map(|(id, f)| match f {
-                NysaFunction::Function(f) => Some((id, f)),
+                Function::Function(f) => Some((id, f)),
                 _ => None,
             })
             .collect::<Vec<_>>()

@@ -7,15 +7,15 @@ use crate::{
 
 use super::{
     interface::InterfaceData,
-    misc::{NysaEnum, NysaError, NysaEvent},
+    misc::{Enum, Error, Event},
     ContractData,
 };
 
 pub struct Package {
     contracts: Vec<ContractData>,
-    events: Vec<NysaEvent>,
-    errors: Vec<NysaError>,
-    enums: Vec<NysaEnum>,
+    events: Vec<Event>,
+    errors: Vec<Error>,
+    enums: Vec<Enum>,
     interfaces: Vec<InterfaceData>,
 }
 
@@ -53,11 +53,11 @@ impl Package {
         })
     }
 
-    pub fn events(&self) -> &[NysaEvent] {
+    pub fn events(&self) -> &[Event] {
         &self.events
     }
 
-    pub fn errors(&self) -> &[NysaError] {
+    pub fn errors(&self) -> &[Error] {
         &self.errors
     }
 
@@ -69,7 +69,7 @@ impl Package {
         self.interfaces.as_ref()
     }
 
-    pub fn enums(&self) -> &[NysaEnum] {
+    pub fn enums(&self) -> &[Enum] {
         self.enums.as_ref()
     }
 }

@@ -2,7 +2,7 @@ use quote::{format_ident, ToTokens};
 use syn::parse_quote;
 
 use crate::{
-    model::ir::{NysaExpression, NysaStmt},
+    model::ir::{Expression, Stmt},
     parser::context::{
         ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
     },
@@ -14,16 +14,12 @@ use super::expr;
 /// Parses solidity statement into a syn statement.
 ///
 /// Todo: to handle remaining statements.
-pub fn parse_statement<T>(
-    stmt: &NysaStmt,
-    is_semi: bool,
-    ctx: &mut T,
-) -> Result<syn::Stmt, ParserError>
+pub fn parse_statement<T>(stmt: &Stmt, is_semi: bool, ctx: &mut T) -> Result<syn::Stmt, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     match stmt {
-        NysaStmt::Expression { expr } => {
+        Stmt::Expression { expr } => {
             let expr = expr::parse(expr, ctx)?;
             if !is_semi {
                 Ok(syn::Stmt::Expr(expr))
@@ -31,14 +27,14 @@ where
                 Ok(syn::Stmt::Semi(expr, Default::default()))
             }
         }
-        NysaStmt::VarDefinition {
+        Stmt::VarDefinition {
             declaration,
             ty,
             init,
         } => {
             let name = utils::to_snake_case_ident(declaration);
             let pat: syn::Pat = parse_quote! { #name };
-            if let NysaExpression::Func { name, args } = init {
+            if let Expression::Func { name, args } = init {
                 if let Some(class_name) = ctx.as_contract_name(name) {
                     let args = expr::parse_many(&args, ctx)?;
                     let addr = args.get(0);
@@ -49,27 +45,27 @@ where
             ctx.register_local_var(declaration, ty);
             Ok(parse_quote!(let mut #pat = #expr;))
         }
-        NysaStmt::VarDeclaration { declaration, ty } => {
+        Stmt::VarDeclaration { declaration, ty } => {
             let name = utils::to_snake_case_ident(declaration);
             let pat: syn::Pat = parse_quote!(#name);
             ctx.register_local_var(declaration, ty);
             Ok(parse_quote!(let #pat;))
         }
-        NysaStmt::Return { expr } => {
+        Stmt::Return { expr } => {
             let ret = match expr {
-                NysaExpression::Variable { name } => expr::primitives::get_var(name, ctx),
+                Expression::Variable { name } => expr::primitives::get_var(name, ctx),
                 expr => expr::parse(expr, ctx),
             }?;
             Ok(parse_quote!(return #ret;))
         }
-        NysaStmt::ReturnVoid => Ok(parse_quote!(return;)),
-        NysaStmt::If { assertion, if_body } => {
+        Stmt::ReturnVoid => Ok(parse_quote!(return;)),
+        Stmt::If { assertion, if_body } => {
             let assertion = expr::parse(assertion, ctx)?;
             let if_body = parse_statement(if_body, false, ctx)?;
             let result: syn::Stmt = parse_quote!(if #assertion #if_body);
             Ok(result)
         }
-        NysaStmt::IfElse {
+        Stmt::IfElse {
             assertion,
             if_body,
             else_body,
@@ -80,7 +76,7 @@ where
 
             Ok(parse_quote!(if #assertion #if_body else #else_body))
         }
-        NysaStmt::Block { stmts } => {
+        Stmt::Block { stmts } => {
             let res = stmts
                 .iter()
                 .map(|stmt| parse_statement(stmt, false, ctx))
@@ -88,8 +84,8 @@ where
 
             Ok(parse_quote!({ #(#res);* }))
         }
-        NysaStmt::Emit { expr } => parse_emit_event(expr, ctx),
-        NysaStmt::Revert { msg } => {
+        Stmt::Emit { expr } => parse_emit_event(expr, ctx),
+        Stmt::Revert { msg } => {
             if let Some(error) = msg {
                 let expr = expr::error::revert(None, error, ctx)?;
                 Ok(parse_quote!(#expr;))
@@ -98,11 +94,11 @@ where
                 Ok(parse_quote!(#expr;))
             }
         }
-        NysaStmt::RevertWithError { error } => {
+        Stmt::RevertWithError { error } => {
             let expr = expr::error::revert_with_err(error)?;
             Ok(parse_quote!(#expr;))
         }
-        NysaStmt::While { assertion, block } => {
+        Stmt::While { assertion, block } => {
             let assertion = expr::parse(assertion, ctx)?;
             let block = parse_statement(block, false, ctx)?;
             dbg!(assertion.to_token_stream().to_string());
@@ -128,12 +124,12 @@ where
     parse_quote!(let mut #ident = #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr));)
 }
 
-fn parse_emit_event<T>(expr: &NysaExpression, ctx: &mut T) -> Result<syn::Stmt, ParserError>
+fn parse_emit_event<T>(expr: &Expression, ctx: &mut T) -> Result<syn::Stmt, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     match expr {
-        NysaExpression::Func { name, args } => {
+        Expression::Func { name, args } => {
             let event_ident = TryInto::<String>::try_into(*name.to_owned())
                 .map(|name| format_ident!("{}", name))?;
             let args = expr::parse_many(args, ctx)?;
@@ -150,7 +146,7 @@ where
     }
 }
 
-// pub fn parse_expr<T>(expr: &NysaExpression, is_semi: bool, c) -> Result<syn::Stmt, ParserError>
+// pub fn parse_expr<T>(expr: &Expression, is_semi: bool, c) -> Result<syn::Stmt, ParserError>
 // where
 //     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 // {

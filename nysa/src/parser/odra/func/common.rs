@@ -1,7 +1,7 @@
 use syn::{parse_quote, FnArg};
 
 use crate::{
-    model::ir::{NysaExpression, NysaParam, NysaStmt, NysaType, NysaVisibility},
+    model::ir::{Expression, Param, Stmt, Type, Visibility},
     parser::{
         context::{
             ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
@@ -11,15 +11,15 @@ use crate::{
     utils, ParserError,
 };
 
-pub(super) fn parse_visibility(vis: &NysaVisibility) -> syn::Visibility {
+pub(super) fn parse_visibility(vis: &Visibility) -> syn::Visibility {
     match vis {
-        NysaVisibility::Private => parse_quote!(),
-        NysaVisibility::Public => parse_quote!(pub),
+        Visibility::Private => parse_quote!(),
+        Visibility::Public => parse_quote!(pub),
     }
 }
 
 pub(super) fn parse_parameter<T: TypeInfo>(
-    param: &NysaParam,
+    param: &Param,
     info: &T,
 ) -> Result<syn::FnArg, ParserError> {
     let ty = ty::parse_plain_type_from_ty(&param.ty, info)?;
@@ -28,7 +28,7 @@ pub(super) fn parse_parameter<T: TypeInfo>(
 }
 
 pub(super) fn args<T: TypeInfo>(
-    params: &[NysaParam],
+    params: &[Param],
     is_mutable: bool,
     info: &T,
 ) -> Result<Vec<FnArg>, ParserError> {
@@ -45,7 +45,7 @@ pub(super) fn args<T: TypeInfo>(
 }
 
 pub(super) fn parse_ret_type<T: TypeInfo>(
-    returns: &[(Option<String>, NysaExpression)],
+    returns: &[(Option<String>, Expression)],
     ctx: &T,
 ) -> Result<syn::ReturnType, ParserError> {
     Ok(match returns.len() {
@@ -65,7 +65,7 @@ pub(super) fn parse_ret_type<T: TypeInfo>(
     })
 }
 
-pub(super) fn parse_statements<T>(statements: &[NysaStmt], ctx: &mut T) -> Vec<syn::Stmt>
+pub(super) fn parse_statements<T>(statements: &[Stmt], ctx: &mut T) -> Vec<syn::Stmt>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
@@ -77,13 +77,13 @@ where
 }
 
 pub(super) fn parse_external_contract_statements<T: ExternalCallsRegister + ContractInfo>(
-    params: &[NysaParam],
+    params: &[Param],
     ctx: &mut T,
 ) -> Vec<syn::Stmt> {
     params
         .iter()
         .filter_map(|param| match &param.ty {
-            NysaType::Custom(contract_name) => Some((contract_name, &param.name)),
+            Type::Custom(contract_name) => Some((contract_name, &param.name)),
             _ => None,
         })
         .filter_map(|(name, param_name)| {

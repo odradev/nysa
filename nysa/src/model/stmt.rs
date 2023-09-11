@@ -1,56 +1,56 @@
 use solidity_parser::pt;
 
-use super::{expr::NysaExpression, misc::NysaType};
+use super::{expr::Expression, misc::Type};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NysaStmt {
+pub enum Stmt {
     ReturnVoid,
     Return {
-        expr: NysaExpression,
+        expr: Expression,
     },
     Expression {
-        expr: NysaExpression,
+        expr: Expression,
     },
     VarDefinition {
         declaration: String,
-        ty: NysaType,
-        init: NysaExpression,
+        ty: Type,
+        init: Expression,
     },
     VarDeclaration {
         declaration: String,
-        ty: NysaType,
+        ty: Type,
     },
     If {
-        assertion: NysaExpression,
-        if_body: Box<NysaStmt>,
+        assertion: Expression,
+        if_body: Box<Stmt>,
     },
     IfElse {
-        assertion: NysaExpression,
-        if_body: Box<NysaStmt>,
-        else_body: Box<NysaStmt>,
+        assertion: Expression,
+        if_body: Box<Stmt>,
+        else_body: Box<Stmt>,
     },
     Block {
-        stmts: Vec<NysaStmt>,
+        stmts: Vec<Stmt>,
     },
     Emit {
-        expr: NysaExpression,
+        expr: Expression,
     },
     RevertWithError {
         error: String,
     },
     Revert {
-        msg: Option<NysaExpression>,
+        msg: Option<Expression>,
     },
     Placeholder,
     While {
-        assertion: NysaExpression,
-        block: Box<NysaStmt>,
+        assertion: Expression,
+        block: Box<Stmt>,
     },
 
     Unknown,
 }
 
-impl From<&pt::Statement> for NysaStmt {
+impl From<&pt::Statement> for Stmt {
     fn from(value: &pt::Statement) -> Self {
         match value {
             pt::Statement::Block {
@@ -82,8 +82,8 @@ impl From<&pt::Statement> for NysaStmt {
                 block: Box::new(block.as_ref().into()),
             },
             pt::Statement::Expression(_, expr) => {
-                let expr: NysaExpression = expr.into();
-                if expr == NysaExpression::Placeholder {
+                let expr: Expression = expr.into();
+                if expr == Expression::Placeholder {
                     Self::Placeholder
                 } else {
                     Self::Expression { expr }
@@ -91,8 +91,8 @@ impl From<&pt::Statement> for NysaStmt {
             }
             pt::Statement::VariableDefinition(_, declaration, init) => {
                 let name = declaration.name.name.clone();
-                let ty = NysaExpression::from(&declaration.ty);
-                let ty = NysaType::try_from(&ty).unwrap_or(NysaType::Unknown);
+                let ty = Expression::from(&declaration.ty);
+                let ty = Type::try_from(&ty).unwrap_or(Type::Unknown);
                 match init {
                     Some(expr) => Self::VarDefinition {
                         declaration: name,

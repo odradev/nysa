@@ -1,6 +1,6 @@
 use crate::{
     model::{
-        ir::{Constructor, FnImplementations, NysaBaseImpl, NysaExpression, NysaStmt, NysaType},
+        ir::{BaseImpl, Constructor, Expression, FnImplementations, Stmt, Type},
         ContractData,
     },
     parser::{
@@ -98,14 +98,14 @@ where
         .map(|v| {
             let init_expr = v.initializer.clone().unwrap();
             let left = match &v.ty {
-                NysaType::Mapping(k, v) => Err(ParserError::MappingInit),
-                _ => Ok(NysaExpression::Variable {
+                Type::Mapping(k, v) => Err(ParserError::MappingInit),
+                _ => Ok(Expression::Variable {
                     name: v.name.clone(),
                 }),
             }?;
 
-            let stmt = NysaStmt::Expression {
-                expr: NysaExpression::Assign {
+            let stmt = Stmt::Expression {
+                expr: Expression::Assign {
                     left: Box::new(left),
                     right: Box::new(v.initializer.clone().unwrap()),
                 },
@@ -141,14 +141,14 @@ where
     stmts
 }
 
-fn parse_base_args<T>(base: &NysaBaseImpl, ctx: &mut T) -> Vec<syn::Expr>
+fn parse_base_args<T>(base: &BaseImpl, ctx: &mut T) -> Vec<syn::Expr>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     expr::parse_many(&base.args, ctx).unwrap_or(vec![])
 }
 
-fn parse_base_ident(base: &NysaBaseImpl) -> Ident {
+fn parse_base_ident(base: &BaseImpl) -> Ident {
     let base = utils::to_snake_case(&base.class_name);
     let prefix = format!("_{}_", base);
     let ident = utils::to_prefixed_snake_case_ident(&prefix, "init");

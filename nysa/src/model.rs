@@ -10,16 +10,16 @@ mod stmt;
 pub use contract::ContractData;
 use itertools::Itertools;
 
-use self::misc::{NysaContract, NysaEnum, NysaError, NysaEvent};
+use self::misc::{Contract, Enum, Error, Event};
 
 pub mod ir {
-    pub use super::expr::{to_nysa_expr, NumSize, NysaExpression};
+    pub use super::expr::{to_expr, Expression, NumSize};
     pub use super::func::*;
     pub use super::interface::InterfaceData;
     pub use super::misc::*;
     pub use super::op::Op;
     pub use super::package::Package;
-    pub use super::stmt::NysaStmt;
+    pub use super::stmt::Stmt;
 }
 
 pub trait Named {
@@ -48,4 +48,4 @@ macro_rules! impl_named {
     };
 }
 
-impl_named!(NysaEnum, NysaError, NysaEvent, NysaContract);
+impl_named!(Enum, Error, Event, Contract);

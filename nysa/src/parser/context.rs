@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::model::ir::{FnImplementations, NysaExpression, NysaType, NysaVar};
+use crate::model::ir::{Expression, FnImplementations, Type, Var};
 
 #[derive(Debug)]
 pub enum ItemType {
@@ -8,15 +8,15 @@ pub enum ItemType {
     Interface(String),
     Enum(String),
     Event,
-    Storage(NysaVar),
-    Local(NysaVar),
+    Storage(Var),
+    Local(Var),
 }
 
 pub trait TypeInfo {
     fn type_from_string(&self, name: &str) -> Option<ItemType>;
-    fn type_from_expression(&self, name: &NysaExpression) -> Option<ItemType> {
+    fn type_from_expression(&self, name: &Expression) -> Option<ItemType> {
         match name {
-            NysaExpression::Variable { name } => self.type_from_string(name),
+            Expression::Variable { name } => self.type_from_string(name),
             _ => None,
         }
     }
@@ -24,12 +24,12 @@ pub trait TypeInfo {
 }
 
 pub trait ContractInfo {
-    fn as_contract_name(&self, name: &NysaExpression) -> Option<String>;
+    fn as_contract_name(&self, name: &Expression) -> Option<String>;
     fn is_class(&self, name: &str) -> bool;
 }
 
 pub trait StorageInfo {
-    fn storage(&self) -> Vec<NysaVar>;
+    fn storage(&self) -> Vec<Var>;
 }
 
 pub trait EventsRegister {
@@ -46,8 +46,8 @@ pub trait FnContext {
     fn set_current_fn(&mut self, func: &FnImplementations);
     fn clear_current_fn(&mut self);
     fn current_fn(&self) -> &FnImplementations;
-    fn register_local_var(&mut self, name: &str, ty: &NysaType);
-    fn get_local_var_by_name(&self, name: &str) -> Option<&NysaVar>;
+    fn register_local_var(&mut self, name: &str, ty: &Type);
+    fn get_local_var_by_name(&self, name: &str) -> Option<&Var>;
 }
 
 #[allow(dead_code)]
@@ -77,7 +77,7 @@ impl GlobalContext {
         }
     }
 
-    pub fn as_contract_name(&self, name: &NysaExpression) -> Option<String> {
+    pub fn as_contract_name(&self, name: &Expression) -> Option<String> {
         match self.type_from_expression(name) {
             Some(ItemType::Contract(c)) => Some(c),
             Some(ItemType::Interface(i)) => Some(i),
@@ -116,13 +116,13 @@ impl TypeInfo for GlobalContext {
 #[derive(Debug)]
 pub struct ContractContext<'a> {
     global: &'a GlobalContext,
-    storage: &'a [NysaVar],
+    storage: &'a [Var],
     external_calls: HashSet<String>,
     emitted_events: HashSet<String>,
 }
 
 impl<'a> ContractContext<'a> {
-    pub fn new(ctx: &'a GlobalContext, storage: &'a [NysaVar]) -> Self {
+    pub fn new(ctx: &'a GlobalContext, storage: &'a [Var]) -> Self {
         Self {
             global: ctx,
             storage,
@@ -153,13 +153,13 @@ impl EventsRegister for ContractContext<'_> {
 }
 
 impl StorageInfo for ContractContext<'_> {
-    fn storage(&self) -> Vec<NysaVar> {
+    fn storage(&self) -> Vec<Var> {
         self.storage.to_vec()
     }
 }
 
 impl ContractInfo for ContractContext<'_> {
-    fn as_contract_name(&self, name: &NysaExpression) -> Option<String> {
+    fn as_contract_name(&self, name: &Expression) -> Option<String> {
         self.global.as_contract_name(name)
     }
 
@@ -190,7 +190,7 @@ impl TypeInfo for ContractContext<'_> {
 pub struct LocalContext<'a> {
     contract: ContractContext<'a>,
     current_fn: Option<FnImplementations>,
-    local_vars: Vec<NysaVar>,
+    local_vars: Vec<Var>,
 }
 
 impl<'a> LocalContext<'a> {
@@ -224,13 +224,13 @@ impl EventsRegister for LocalContext<'_> {
 }
 
 impl StorageInfo for LocalContext<'_> {
-    fn storage(&self) -> Vec<NysaVar> {
+    fn storage(&self) -> Vec<Var> {
         self.contract.storage()
     }
 }
 
 impl ContractInfo for LocalContext<'_> {
-    fn as_contract_name(&self, name: &NysaExpression) -> Option<String> {
+    fn as_contract_name(&self, name: &Expression) -> Option<String> {
         self.contract.as_contract_name(name)
     }
 
@@ -272,8 +272,8 @@ impl FnContext for LocalContext<'_> {
             .expect("The current function should be set")
     }
 
-    fn register_local_var(&mut self, name: &str, ty: &NysaType) {
-        let var = NysaVar {
+    fn register_local_var(&mut self, name: &str, ty: &Type) {
+        let var = Var {
             name: name.to_owned(),
             ty: ty.to_owned(),
             initializer: None,
@@ -281,14 +281,14 @@ impl FnContext for LocalContext<'_> {
         self.local_vars.push(var);
     }
 
-    fn get_local_var_by_name(&self, name: &str) -> Option<&NysaVar> {
+    fn get_local_var_by_name(&self, name: &str) -> Option<&Var> {
         self.local_vars.iter().find(|v| v.name == name)
     }
 }
 
 #[cfg(test)]
 pub mod test {
-    use crate::model::ir::NysaExpression;
+    use crate::model::ir::Expression;
 
     use super::{
         ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
@@ -297,7 +297,7 @@ pub mod test {
     pub struct EmptyContext;
 
     impl StorageInfo for EmptyContext {
-        fn storage(&self) -> Vec<crate::model::ir::NysaVar> {
+        fn storage(&self) -> Vec<crate::model::ir::Var> {
             vec![]
         }
     }
@@ -313,7 +313,7 @@ pub mod test {
     }
 
     impl ContractInfo for EmptyContext {
-        fn as_contract_name(&self, name: &NysaExpression) -> Option<String> {
+        fn as_contract_name(&self, name: &Expression) -> Option<String> {
             None
         }
 
@@ -347,11 +347,11 @@ pub mod test {
             todo!()
         }
 
-        fn register_local_var(&mut self, name: &str, ty: &crate::model::ir::NysaType) {
+        fn register_local_var(&mut self, name: &str, ty: &crate::model::ir::Type) {
             todo!()
         }
 
-        fn get_local_var_by_name(&self, name: &str) -> Option<&crate::model::ir::NysaVar> {
+        fn get_local_var_by_name(&self, name: &str) -> Option<&crate::model::ir::Var> {
             todo!()
         }
     }

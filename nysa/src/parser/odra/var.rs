@@ -1,7 +1,7 @@
 use c3_lang_parser::c3_ast::VarDef;
 
 use crate::{
-    model::{ir::NysaVar, ContractData},
+    model::{ir::Var, ContractData},
     parser::context::TypeInfo,
     utils, ParserError,
 };
@@ -17,7 +17,7 @@ pub fn variables_def<T: TypeInfo>(
 }
 
 /// Transforms [NysaVar] into a c3 ast [VarDef].
-fn variable_def<T: TypeInfo>(v: &NysaVar, t: &T) -> Result<VarDef, ParserError> {
+fn variable_def<T: TypeInfo>(v: &Var, t: &T) -> Result<VarDef, ParserError> {
     let ident = utils::to_snake_case_ident(&v.name);
     let ty = ty::parse_odra_ty(&v.ty, t)?;
     Ok(VarDef { ident, ty })

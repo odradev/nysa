@@ -2,7 +2,7 @@ use quote::{format_ident, ToTokens};
 use syn::parse_quote;
 
 use crate::{
-    model::ir::NysaExpression,
+    model::ir::Expression,
     parser::{
         context::{
             ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
@@ -17,15 +17,15 @@ use super::parse;
 pub fn revert<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    condition: Option<&NysaExpression>,
-    error: &NysaExpression,
+    condition: Option<&Expression>,
+    error: &Expression,
     t: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    if let NysaExpression::StringLiteral(message) = error {
+    if let Expression::StringLiteral(message) = error {
         revert_with_str(condition, message, t)
     } else {
         Err(ParserError::UnexpectedExpression(
-            String::from("Error should be NysaExpression::StringLiteral"),
+            String::from("Error should be Expression::StringLiteral"),
             error.clone(),
         ))
     }
@@ -34,7 +34,7 @@ pub fn revert<
 pub fn revert_with_str<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    condition: Option<&NysaExpression>,
+    condition: Option<&Expression>,
     message: &str,
     t: &mut T,
 ) -> Result<syn::Expr, ParserError> {

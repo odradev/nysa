@@ -11,16 +11,16 @@ use crate::{
 };
 
 use super::{
-    func::{Constructor, FnImplementations, NysaFunction},
-    misc::{NysaContract, NysaVar},
+    func::{Constructor, FnImplementations, Function},
+    misc::{Contract, Var},
     Named,
 };
 
 pub struct ContractData {
-    contract: NysaContract,
-    all_contracts: Vec<NysaContract>,
-    fn_map: HashMap<String, Vec<(Class, NysaFunction)>>,
-    var_map: HashMap<Class, Vec<NysaVar>>,
+    contract: Contract,
+    all_contracts: Vec<Contract>,
+    fn_map: HashMap<String, Vec<(Class, Function)>>,
+    var_map: HashMap<Class, Vec<Var>>,
     c3: C3,
 }
 
@@ -29,18 +29,18 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
 
     fn try_from(value: (&Class, &Vec<&ContractDefinition>)) -> Result<Self, Self::Error> {
         let (class, contracts) = value;
-        let all_contracts = contracts.iter().map(|c| NysaContract::from(*c)).collect();
+        let all_contracts = contracts.iter().map(|c| Contract::from(*c)).collect();
 
         let contract = contracts
             .iter()
             .find(|c| c.name.name == class.to_string())
             .ok_or("No contract found")?
             .to_owned();
-        let contract = NysaContract::from(contract);
+        let contract = Contract::from(contract);
 
         let mut c3 = c3::linearization(&contracts);
 
-        let mut fn_map: HashMap<String, Vec<(Class, NysaFunction)>> = HashMap::new();
+        let mut fn_map: HashMap<String, Vec<(Class, Function)>> = HashMap::new();
         let mut var_map = HashMap::new();
 
         c3.path(&contract.name().into())
@@ -53,18 +53,18 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
                     .find(|c| c.name.name == class.to_string())
                     .unwrap();
 
-                let contract = NysaContract::from(*c);
+                let contract = Contract::from(*c);
 
                 let class = Class::from(contract.name());
-                let mut fns: Vec<NysaFunction> = map_collection(ast::extract_functions(c));
+                let mut fns: Vec<Function> = map_collection(ast::extract_functions(c));
 
                 let constructor = fns
                     .iter_mut()
-                    .find(|f| matches!(f, NysaFunction::Constructor(_)))
+                    .find(|f| matches!(f, Function::Constructor(_)))
                     .map(|f| match f {
-                        NysaFunction::Function(_) => None,
-                        NysaFunction::Constructor(c) => Some(c),
-                        NysaFunction::Modifier(_) => None,
+                        Function::Function(_) => None,
+                        Function::Constructor(c) => Some(c),
+                        Function::Modifier(_) => None,
                     })
                     .flatten();
 
@@ -86,7 +86,7 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
                     // a default empty constructor.
                     let mut default_constructor = Constructor::default();
                     default_constructor.extend_base(contract_base);
-                    fns.push(NysaFunction::Constructor(default_constructor));
+                    fns.push(Function::Constructor(default_constructor));
                 }
 
                 for func in fns.iter() {
@@ -103,7 +103,7 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
                     };
                 }
 
-                let vars: Vec<NysaVar> = map_collection(ast::extract_vars(c));
+                let vars: Vec<Var> = map_collection(ast::extract_vars(c));
                 for var in vars.iter() {
                     let var_class = Class::from(var.name.as_str());
                     c3.register_var(class.clone(), var_class)
@@ -160,7 +160,7 @@ impl ContractData {
         self.c3.functions_str(self.contract.name().as_str())
     }
 
-    pub fn vars(&self) -> Vec<NysaVar> {
+    pub fn vars(&self) -> Vec<Var> {
         let class = self.c3_class().to_string();
         let c3_vars = self.c3.varialbes_str(&class);
         let mut vars = self
@@ -176,7 +176,7 @@ impl ContractData {
         vars
     }
 
-    pub fn vars_to_initialize(&self) -> Vec<NysaVar> {
+    pub fn vars_to_initialize(&self) -> Vec<Var> {
         let mut vars = self
             .var_map
             .iter()

@@ -3,7 +3,7 @@ use syn::{parse_quote, BinOp};
 
 use super::{num, parse};
 use crate::{
-    model::ir::{NysaExpression, NysaType, NysaVar},
+    model::ir::{Expression, Type, Var},
     parser::{
         context::{
             self, ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType,
@@ -19,11 +19,11 @@ use quote::quote;
 pub fn get_var_or_parse<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    expr: &NysaExpression,
+    expr: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     match expr {
-        NysaExpression::Variable { name } => get_var(name, ctx),
+        Expression::Variable { name } => get_var(name, ctx),
         _ => parse(expr, ctx),
     }
 }
@@ -52,21 +52,21 @@ pub fn get_var_or_parse<
 pub fn assign<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    left: &NysaExpression,
-    right: &NysaExpression,
+    left: &Expression,
+    right: &Expression,
     operator: Option<BinOp>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     match left {
-        NysaExpression::Collection { name, key } => {
+        Expression::Collection { name, key } => {
             let keys = vec![*key.clone()];
             update_collection(name, keys, right, operator, ctx)
         }
-        NysaExpression::NestedCollection { name, keys } => {
+        Expression::NestedCollection { name, keys } => {
             let keys = vec![keys.0.clone(), keys.1.clone()];
             update_collection(name, keys, right, operator, ctx)
         }
-        NysaExpression::Variable { name } => update_variable(name, right, operator, ctx),
+        Expression::Variable { name } => update_variable(name, right, operator, ctx),
         _ => parse(left, ctx),
     }
 }
@@ -74,21 +74,20 @@ pub fn assign<
 pub fn assign_default<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    left: &NysaExpression,
+    left: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let err = || {
-        ParserError::UnexpectedExpression(String::from("NysaExpression::Variable"), left.clone())
-    };
+    let err =
+        || ParserError::UnexpectedExpression(String::from("Expression::Variable"), left.clone());
 
     match left {
-        NysaExpression::Variable { name } => {
+        Expression::Variable { name } => {
             let value_expr = parse_quote!(Default::default());
             set_var(&name, value_expr, ctx)
         }
-        NysaExpression::Collection { name, key } => match ctx.type_from_string(name) {
-            Some(context::ItemType::Storage(NysaVar {
-                ty: NysaType::Array(ty),
+        Expression::Collection { name, key } => match ctx.type_from_string(name) {
+            Some(context::ItemType::Storage(Var {
+                ty: Type::Array(ty),
                 ..
             })) => {
                 let default_value = parse_quote!(Default::default());
@@ -162,7 +161,7 @@ pub fn get_var<T: StorageInfo + TypeInfo + FnContext>(
 
 pub fn parse_collection<T>(
     name: &str,
-    keys_expr: &[NysaExpression],
+    keys_expr: &[Expression],
     value_expr: Option<syn::Expr>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
@@ -183,9 +182,9 @@ where
 
 fn parse_local_collection<T>(
     var_ident: Ident,
-    keys_expr: &[NysaExpression],
+    keys_expr: &[Expression],
     value_expr: Option<syn::Expr>,
-    ty: &NysaType,
+    ty: &Type,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
@@ -210,9 +209,9 @@ where
 
 fn parse_storage_collection<T>(
     var_ident: Ident,
-    keys_expr: &[NysaExpression],
+    keys_expr: &[Expression],
     value_expr: Option<syn::Expr>,
-    ty: &NysaType,
+    ty: &Type,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
@@ -238,7 +237,7 @@ where
     }
 }
 
-fn parse_key<T>(key: &NysaExpression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+fn parse_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
@@ -251,13 +250,13 @@ where
 fn to_read_expr<T: StorageInfo + TypeInfo>(
     stream: TokenStream,
     key_expr: Option<syn::Expr>,
-    ty: &NysaType,
+    ty: &Type,
     ctx: &mut T,
 ) -> syn::Expr {
     let key = key_expr.clone().map(|k| quote!(&#k));
     match ty {
-        NysaType::Address => parse_quote!(#stream.get(#key).unwrap_or(None)),
-        NysaType::Custom(name) => ctx
+        Type::Address => parse_quote!(#stream.get(#key).unwrap_or(None)),
+        Type::Custom(name) => ctx
             .type_from_string(&name)
             .map(|ty| match ty {
                 context::ItemType::Contract(_) | context::ItemType::Interface(_) => {
@@ -267,16 +266,16 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
                 _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
             })
             .unwrap(),
-        NysaType::String | NysaType::Bool | NysaType::Uint(_) | NysaType::Int(_) => {
+        Type::String | Type::Bool | Type::Uint(_) | Type::Int(_) => {
             parse_quote!(#stream.get_or_default(#key))
         }
-        NysaType::Mapping(_, v) => {
-            let ty = NysaType::try_from(&**v).unwrap();
+        Type::Mapping(_, v) => {
+            let ty = Type::try_from(&**v).unwrap();
             to_read_expr(stream, key_expr, &ty, ctx)
         }
-        NysaType::Array(ty) => {
+        Type::Array(ty) => {
             let key = key_expr.and_then(|key| match &**ty {
-                NysaType::Uint(size) => match size {
+                Type::Uint(size) => match size {
                     256..=512 => Some(quote!([#key.as_usize()])),
                     _ => Some(quote!([#key as usize])),
                 },
@@ -290,8 +289,8 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
 
 fn update_collection<T>(
     name: &str,
-    keys: Vec<NysaExpression>,
-    right: &NysaExpression,
+    keys: Vec<Expression>,
+    right: &Expression,
     operator: Option<BinOp>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
@@ -311,7 +310,7 @@ where
 
 fn update_variable<T>(
     name: &str,
-    right: &NysaExpression,
+    right: &Expression,
     operator: Option<BinOp>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>

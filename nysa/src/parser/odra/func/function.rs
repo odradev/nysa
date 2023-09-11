@@ -4,7 +4,7 @@ use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
     model::{
-        ir::{FnImplementations, Function, NysaBaseImpl},
+        ir::{BaseImpl, FnImplementations, Func},
         ContractData,
     },
     parser::{
@@ -18,7 +18,7 @@ use crate::{
 
 use super::common;
 
-/// Transforms [NysaVar] into a c3 ast [FnDef].
+/// Transforms [Var] into a c3 ast [FnDef].
 pub(super) fn def<T>(
     impls: &FnImplementations,
     data: &ContractData,
@@ -61,7 +61,7 @@ where
     }))
 }
 
-fn parse_body<T>(def: &Function, names: &[String], ctx: &mut T) -> syn::Block
+fn parse_body<T>(def: &Func, names: &[String], ctx: &mut T) -> syn::Block
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
@@ -100,7 +100,7 @@ where
     let before_stmts = def
         .modifiers
         .iter()
-        .filter_map(|NysaBaseImpl { class_name, args }| {
+        .filter_map(|BaseImpl { class_name, args }| {
             let args = expr::parse_many(args, ctx).unwrap_or(vec![]);
             if names.contains(&utils::to_snake_case(class_name)) {
                 // modifier call
@@ -117,7 +117,7 @@ where
         .modifiers
         .iter()
         .rev()
-        .filter_map(|NysaBaseImpl { class_name, args }| {
+        .filter_map(|BaseImpl { class_name, args }| {
             let args = expr::parse_many(&args, ctx).unwrap_or(vec![]);
             if names.contains(&utils::to_snake_case(class_name)) {
                 // modifier call

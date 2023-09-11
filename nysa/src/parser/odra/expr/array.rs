@@ -3,7 +3,7 @@ use super::{
     primitives::{self, get_var_or_parse},
 };
 use crate::{
-    model::ir::NysaExpression,
+    model::ir::Expression,
     parser::context::{
         ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
     },
@@ -19,7 +19,7 @@ pub fn read_property<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
     member_name: &str,
-    expr: &NysaExpression,
+    expr: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let base_expr: syn::Expr = get_var_or_parse(expr, ctx)?;
@@ -41,7 +41,7 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     let result_expr: syn::Expr = parse_quote!(result);
-    let arr = primitives::get_var_or_parse(&NysaExpression::from(array_name), ctx)?;
+    let arr = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
     let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
         let mut #result_expr = #arr;
@@ -54,13 +54,13 @@ pub fn replace_value<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
     array_name: &str,
-    index: &NysaExpression,
+    index: &Expression,
     value: syn::Expr,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let result_expr: syn::Expr = parse_quote!(result);
     let index = parse(index, ctx)?;
-    let arr = primitives::get_var_or_parse(&NysaExpression::from(array_name), ctx)?;
+    let arr = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
     let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
         let mut #result_expr = #arr;

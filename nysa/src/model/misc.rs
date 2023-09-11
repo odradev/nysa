@@ -1,18 +1,18 @@
 use solidity_parser::pt;
 
-use crate::model::expr::to_nysa_expr;
+use crate::model::expr::to_expr;
 
-use super::expr::NysaExpression;
+use super::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct NysaContract {
+pub struct Contract {
     pub name: String,
-    base_impl: Vec<NysaBaseImpl>,
+    base_impl: Vec<BaseImpl>,
     is_abstract: bool,
 }
 
-impl NysaContract {
-    pub fn base_impl(&self) -> &[NysaBaseImpl] {
+impl Contract {
+    pub fn base_impl(&self) -> &[BaseImpl] {
         &self.base_impl
     }
 
@@ -21,14 +21,14 @@ impl NysaContract {
     }
 }
 
-impl From<&pt::ContractDefinition> for NysaContract {
+impl From<&pt::ContractDefinition> for Contract {
     fn from(value: &pt::ContractDefinition) -> Self {
         let base_impl = value
             .base
             .iter()
-            .map(|base| NysaBaseImpl {
+            .map(|base| BaseImpl {
                 class_name: base.name.name.to_owned(),
-                args: base.args.clone().map(to_nysa_expr).unwrap_or_default(),
+                args: base.args.clone().map(to_expr).unwrap_or_default(),
             })
             .collect::<Vec<_>>();
 
@@ -41,20 +41,20 @@ impl From<&pt::ContractDefinition> for NysaContract {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
-pub enum NysaType {
+pub enum Type {
     Address,
     Bool,
     String,
     Int(u16),
     Uint(u16),
     Bytes(u8),
-    Mapping(Box<NysaExpression>, Box<NysaExpression>),
+    Mapping(Box<Expression>, Box<Expression>),
     Custom(String),
-    Array(Box<NysaType>),
+    Array(Box<Type>),
     Unknown,
 }
 
-impl From<&pt::Type> for NysaType {
+impl From<&pt::Type> for Type {
     fn from(value: &pt::Type) -> Self {
         match value {
             pt::Type::Address => Self::Address,
@@ -66,64 +66,64 @@ impl From<&pt::Type> for NysaType {
             pt::Type::Uint(i) => Self::Uint(*i),
             pt::Type::Bytes(i) => Self::Bytes(*i),
             pt::Type::Mapping(_, k, v) => Self::Mapping(
-                Box::new(NysaExpression::from(&**k)),
-                Box::new(NysaExpression::from(&**v)),
+                Box::new(Expression::from(&**k)),
+                Box::new(Expression::from(&**v)),
             ),
             _ => panic!("Unsupported type {:?}", value),
         }
     }
 }
 
-impl From<&pt::Identifier> for NysaType {
+impl From<&pt::Identifier> for Type {
     fn from(value: &pt::Identifier) -> Self {
         let name = value.name.clone();
         Self::Custom(name)
     }
 }
 
-impl TryFrom<&NysaExpression> for NysaType {
+impl TryFrom<&Expression> for Type {
     type Error = ();
 
-    fn try_from(value: &NysaExpression) -> Result<Self, Self::Error> {
+    fn try_from(value: &Expression) -> Result<Self, Self::Error> {
         match value {
-            NysaExpression::Type { ty } => Ok(ty.clone()),
+            Expression::Type { ty } => Ok(ty.clone()),
             _ => Err(()),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
-pub struct NysaVar {
+pub struct Var {
     pub name: String,
-    pub ty: NysaType,
-    pub initializer: Option<NysaExpression>,
+    pub ty: Type,
+    pub initializer: Option<Expression>,
 }
 
-impl From<&&pt::VariableDefinition> for NysaVar {
+impl From<&&pt::VariableDefinition> for Var {
     fn from(value: &&pt::VariableDefinition) -> Self {
         Self {
             name: value.name.name.to_owned(),
             ty: match &value.ty {
-                pt::Expression::Type(_, ty) => NysaType::from(ty),
-                pt::Expression::Variable(id) => NysaType::from(id),
+                pt::Expression::Type(_, ty) => Type::from(ty),
+                pt::Expression::Variable(id) => Type::from(id),
                 pt::Expression::ArraySubscript(_, ty, _) => {
-                    let ty = NysaExpression::from(&**ty);
-                    let ty = NysaType::try_from(&ty).expect("Should be a valid array type");
-                    NysaType::Array(Box::new(ty))
+                    let ty = Expression::from(&**ty);
+                    let ty = Type::try_from(&ty).expect("Should be a valid array type");
+                    Type::Array(Box::new(ty))
                 }
                 t => panic!("Not a type. {:?}", t),
             },
-            initializer: value.initializer.as_ref().map(NysaExpression::from),
+            initializer: value.initializer.as_ref().map(Expression::from),
         }
     }
 }
 
-pub struct NysaEvent {
+pub struct Event {
     pub name: String,
-    pub fields: Vec<(String, NysaExpression)>,
+    pub fields: Vec<(String, Expression)>,
 }
 
-impl From<&&pt::EventDefinition> for NysaEvent {
+impl From<&&pt::EventDefinition> for Event {
     fn from(value: &&pt::EventDefinition) -> Self {
         let name = value.name.name.to_owned();
 
@@ -133,7 +133,7 @@ impl From<&&pt::EventDefinition> for NysaEvent {
                     .as_ref()
                     .map(|id| id.name.to_owned())
                     .unwrap_or(format!("field_{}", idx)),
-                NysaExpression::from(&f.ty),
+                Expression::from(&f.ty),
             )
         };
 
@@ -143,11 +143,11 @@ impl From<&&pt::EventDefinition> for NysaEvent {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct NysaError {
+pub struct Error {
     pub name: String,
 }
 
-impl From<&&pt::ErrorDefinition> for NysaError {
+impl From<&&pt::ErrorDefinition> for Error {
     fn from(value: &&pt::ErrorDefinition) -> Self {
         let name = value.name.name.to_owned();
         Self { name }
@@ -155,17 +155,17 @@ impl From<&&pt::ErrorDefinition> for NysaError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NysaBaseImpl {
+pub struct BaseImpl {
     pub class_name: String,
-    pub args: Vec<NysaExpression>,
+    pub args: Vec<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct NysaInterface {
+pub struct Interface {
     pub name: String,
 }
 
-impl From<&&pt::ContractDefinition> for NysaInterface {
+impl From<&&pt::ContractDefinition> for Interface {
     fn from(value: &&pt::ContractDefinition) -> Self {
         let name = value.name.name.to_owned();
         Self { name }
@@ -173,12 +173,12 @@ impl From<&&pt::ContractDefinition> for NysaInterface {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct NysaEnum {
+pub struct Enum {
     pub name: String,
     pub variants: Vec<String>,
 }
 
-impl From<&&pt::EnumDefinition> for NysaEnum {
+impl From<&&pt::EnumDefinition> for Enum {
     fn from(value: &&pt::EnumDefinition) -> Self {
         let name = value.name.name.to_owned();
         let variants = value.values.iter().map(|v| v.name.to_string()).collect();

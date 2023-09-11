@@ -3,7 +3,7 @@ use syn::parse_quote;
 
 use crate::ParserError;
 
-use super::{misc::NysaType, op::Op, stmt::NysaStmt};
+use super::{misc::Type, op::Op, stmt::Stmt};
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NumSize {
@@ -22,21 +22,21 @@ pub enum NumSize {
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
-pub enum NysaExpression {
+pub enum Expression {
     Require {
-        condition: Box<NysaExpression>,
-        error: Box<NysaExpression>,
+        condition: Box<Expression>,
+        error: Box<Expression>,
     },
     Placeholder,
     ZeroAddress,
     Message(Message),
     Collection {
         name: String,
-        key: Box<NysaExpression>,
+        key: Box<Expression>,
     },
     NestedCollection {
         name: String,
-        keys: Box<(NysaExpression, NysaExpression)>,
+        keys: Box<(Expression, Expression)>,
     },
     Variable {
         name: String,
@@ -44,79 +44,55 @@ pub enum NysaExpression {
     BoolLiteral(bool),
     StringLiteral(String),
     Assign {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     Compare {
         var_left: Option<String>,
-        left: Box<NysaExpression>,
+        left: Box<Expression>,
         var_right: Option<String>,
-        right: Box<NysaExpression>,
+        right: Box<Expression>,
         op: Op,
     },
-    // LessEqual {
-    //     left: Box<NysaExpression>,
-    //     right: Box<NysaExpression>,
-    // },
-    // MoreEqual {
-    //     left: Box<NysaExpression>,
-    //     right: Box<NysaExpression>,
-    // },
-    // Less {
-    //     left: Box<NysaExpression>,
-    //     right: Box<NysaExpression>,
-    // },
-    // More {
-    //     left: Box<NysaExpression>,
-    //     right: Box<NysaExpression>,
-    // },
     Add {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     Subtract {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     Divide {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     Multiply {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     Power {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
-    // Equal {
-    //     left: Box<NysaExpression>,
-    //     right: Box<NysaExpression>,
-    // },
-    // NotEqual {
-    //     left: Box<NysaExpression>,
-    //     right: Box<NysaExpression>,
-    // },
     AssignSubtract {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     AssignAdd {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     AssignDefault {
-        left: Box<NysaExpression>,
+        left: Box<Expression>,
     },
     Increment {
-        expr: Box<NysaExpression>,
+        expr: Box<Expression>,
     },
     Decrement {
-        expr: Box<NysaExpression>,
+        expr: Box<Expression>,
     },
     MemberAccess {
-        expr: Box<NysaExpression>,
+        expr: Box<Expression>,
         name: String,
     },
     NumberLiteral {
@@ -124,62 +100,62 @@ pub enum NysaExpression {
         value: Vec<u8>,
     },
     Func {
-        name: Box<NysaExpression>,
-        args: Vec<NysaExpression>,
+        name: Box<Expression>,
+        args: Vec<Expression>,
     },
     SuperCall {
         name: String,
-        args: Vec<NysaExpression>,
+        args: Vec<Expression>,
     },
     ExternalCall {
         variable: String,
         fn_name: String,
-        args: Vec<NysaExpression>,
+        args: Vec<Expression>,
     },
     TypeInfo {
-        ty: Box<NysaExpression>,
+        ty: Box<Expression>,
         property: String,
     },
     Type {
-        ty: NysaType,
+        ty: Type,
     },
     Not {
-        expr: Box<NysaExpression>,
+        expr: Box<Expression>,
     },
     BytesLiteral {
         bytes: Vec<u8>,
     },
     ArrayLiteral {
-        values: Vec<NysaExpression>,
+        values: Vec<Expression>,
     },
-    Initializer(Box<NysaExpression>),
-    Statement(Box<NysaStmt>),
+    Initializer(Box<Expression>),
+    Statement(Box<Stmt>),
     Or {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     UnknownExpr,
 }
 
-pub fn to_nysa_expr(solidity_expressions: Vec<pt::Expression>) -> Vec<NysaExpression> {
+pub fn to_expr(solidity_expressions: Vec<pt::Expression>) -> Vec<Expression> {
     solidity_expressions.iter().map(From::from).collect()
 }
 
-impl From<&pt::Expression> for NysaExpression {
+impl From<&pt::Expression> for Expression {
     fn from(value: &pt::Expression) -> Self {
         parse_expr(value)
     }
 }
 
-impl From<&str> for NysaExpression {
+impl From<&str> for Expression {
     fn from(value: &str) -> Self {
-        NysaExpression::Variable {
+        Expression::Variable {
             name: value.to_string(),
         }
     }
 }
 
-impl TryInto<String> for NysaExpression {
+impl TryInto<String> for Expression {
     type Error = ParserError;
 
     fn try_into(self) -> Result<String, Self::Error> {
@@ -210,21 +186,21 @@ impl TryInto<syn::Expr> for &Message {
     }
 }
 
-fn try_to_zero_address(name: &pt::Expression) -> Option<NysaExpression> {
+fn try_to_zero_address(name: &pt::Expression) -> Option<Expression> {
     if let pt::Expression::Type(_, ty) = name {
         if *ty == pt::Type::Address || *ty == pt::Type::AddressPayable {
-            return Some(NysaExpression::ZeroAddress);
+            return Some(Expression::ZeroAddress);
         }
     }
     None
 }
 
-fn try_to_require(name: &pt::Expression, args: &[pt::Expression]) -> Option<NysaExpression> {
+fn try_to_require(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expression> {
     if let pt::Expression::Variable(ref id) = name {
         if id.name.as_str() == "require" {
             let condition = args.get(0).expect("Should be revert condition").into();
             let error = args.get(1).expect("Should be the error message").into();
-            return Some(NysaExpression::Require {
+            return Some(Expression::Require {
                 condition: Box::new(condition),
                 error: Box::new(error),
             });
@@ -233,10 +209,10 @@ fn try_to_require(name: &pt::Expression, args: &[pt::Expression]) -> Option<Nysa
     None
 }
 
-fn try_to_super_call(name: &pt::Expression, args: &[pt::Expression]) -> Option<NysaExpression> {
+fn try_to_super_call(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expression> {
     if let pt::Expression::MemberAccess(_, box pt::Expression::Variable(var), fn_id) = name {
         if &var.name == "super" {
-            return Some(NysaExpression::SuperCall {
+            return Some(Expression::SuperCall {
                 name: fn_id.name.to_owned(),
                 args: args.iter().map(From::from).collect(),
             });
@@ -252,12 +228,9 @@ fn try_to_variable_name(name: &pt::Expression) -> Option<String> {
     None
 }
 
-fn try_to_ext_contract_call(
-    name: &pt::Expression,
-    args: &[pt::Expression],
-) -> Option<NysaExpression> {
+fn try_to_ext_contract_call(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expression> {
     if let pt::Expression::MemberAccess(_, box pt::Expression::Variable(var), fn_id) = name {
-        return Some(NysaExpression::ExternalCall {
+        return Some(Expression::ExternalCall {
             variable: var.name.to_owned(),
             fn_name: fn_id.name.to_owned(),
             args: args.iter().map(From::from).collect(),
@@ -266,14 +239,14 @@ fn try_to_ext_contract_call(
     None
 }
 
-fn parse_expr(e: &pt::Expression) -> NysaExpression {
+fn parse_expr(e: &pt::Expression) -> Expression {
     match e {
         pt::Expression::ArraySubscript(_, arr, key) => {
             // Eg uint[]
             if key.is_none() {
-                let expr = NysaExpression::from(&**arr);
-                let ty = NysaExpression::Type {
-                    ty: NysaType::Array(Box::new(NysaType::try_from(&expr).unwrap())),
+                let expr = Expression::from(&**arr);
+                let ty = Expression::Type {
+                    ty: Type::Array(Box::new(Type::try_from(&expr).unwrap())),
                 };
                 return ty;
             }
@@ -289,19 +262,19 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                     .map(|key_expr| key_expr.as_ref().into())
                     .expect("Unspecified key");
                 let name = try_to_variable_name(arr2).expect("Collection name expected");
-                NysaExpression::NestedCollection {
+                Expression::NestedCollection {
                     name,
                     keys: Box::new((key_expr2, key_expr)),
                 }
             } else {
                 let name = try_to_variable_name(arr).expect("Collection name expected");
-                NysaExpression::Collection {
+                Expression::Collection {
                     name,
                     key: Box::new(key_expr),
                 }
             }
         }
-        pt::Expression::Assign(_, l, r) => NysaExpression::Assign {
+        pt::Expression::Assign(_, l, r) => Expression::Assign {
             left: Box::new(l.as_ref().into()),
             right: Box::new(r.as_ref().into()),
         },
@@ -310,10 +283,10 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                 .iter()
                 .map(|lit| lit.string.clone())
                 .collect::<Vec<_>>();
-            NysaExpression::StringLiteral(strings.join(","))
+            Expression::StringLiteral(strings.join(","))
         }
         pt::Expression::FunctionCall(_, name, args) => {
-            let to_func = || NysaExpression::Func {
+            let to_func = || Expression::Func {
                 name: Box::new(name.as_ref().into()),
                 args: args.iter().map(From::from).collect(),
             };
@@ -325,17 +298,17 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                 .unwrap_or_else(to_func)
         }
         pt::Expression::Variable(id) => match id.name.as_str() {
-            "_" => NysaExpression::Placeholder,
-            name => NysaExpression::Variable {
+            "_" => Expression::Placeholder,
+            name => Expression::Variable {
                 name: name.to_string(),
             },
         },
         pt::Expression::MemberAccess(_, expression, id) => match expression.as_ref() {
             pt::Expression::Variable(var) => {
                 if &var.name == "msg" && &id.name == "sender" {
-                    NysaExpression::Message(Message::Sender)
+                    Expression::Message(Message::Sender)
                 } else {
-                    NysaExpression::MemberAccess {
+                    Expression::MemberAccess {
                         expr: Box::new(expression.as_ref().into()),
                         name: id.name.to_owned(),
                     }
@@ -347,7 +320,7 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                     pt::Expression::Variable(v) => {
                         if &v.name == "type" {
                             let ty = args.first().unwrap();
-                            Some(NysaExpression::TypeInfo {
+                            Some(Expression::TypeInfo {
                                 ty: Box::new(ty.into()),
                                 property: id.name.to_owned(),
                             })
@@ -357,12 +330,12 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                     }
                     _ => None,
                 };
-                expr.unwrap_or(NysaExpression::MemberAccess {
+                expr.unwrap_or(Expression::MemberAccess {
                     expr: Box::new(expression.as_ref().into()),
                     name: id.name.to_owned(),
                 })
             }
-            _ => NysaExpression::MemberAccess {
+            _ => Expression::MemberAccess {
                 expr: Box::new(expression.as_ref().into()),
                 name: id.name.to_owned(),
             },
@@ -376,7 +349,7 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
 
             // u32::MAX or less
             if digs.is_empty() {
-                return NysaExpression::NumberLiteral {
+                return Expression::NumberLiteral {
                     ty: NumSize::U8,
                     value: vec![],
                 };
@@ -389,7 +362,7 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                 } else if value <= u16::MAX.into() {
                     ty = NumSize::U16;
                 }
-                NysaExpression::NumberLiteral {
+                Expression::NumberLiteral {
                     ty,
                     value: digs[0].to_le_bytes().to_vec(),
                 }
@@ -397,59 +370,59 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                 let (sign, digs) = num.to_u64_digits();
                 // u32::MAX..u64::MAX
                 if digs.len() == 1 {
-                    NysaExpression::NumberLiteral {
+                    Expression::NumberLiteral {
                         ty: NumSize::U64,
                         value: digs[0].to_le_bytes().to_vec(),
                     }
                 } else {
                     let (_, bytes) = num.to_bytes_le();
-                    NysaExpression::NumberLiteral {
+                    Expression::NumberLiteral {
                         ty: NumSize::U256,
                         value: bytes,
                     }
                 }
             }
         }
-        pt::Expression::Add(_, l, r) => NysaExpression::Add {
+        pt::Expression::Add(_, l, r) => Expression::Add {
             left: Box::new(l.as_ref().into()),
             right: Box::new(r.as_ref().into()),
         },
-        pt::Expression::Subtract(_, l, r) => NysaExpression::Subtract {
+        pt::Expression::Subtract(_, l, r) => Expression::Subtract {
             left: Box::new(l.as_ref().into()),
             right: Box::new(r.as_ref().into()),
         },
-        pt::Expression::PostIncrement(_, expression) => NysaExpression::Increment {
+        pt::Expression::PostIncrement(_, expression) => Expression::Increment {
             expr: Box::new(expression.as_ref().into()),
         },
-        pt::Expression::PostDecrement(_, expression) => NysaExpression::Decrement {
+        pt::Expression::PostDecrement(_, expression) => Expression::Decrement {
             expr: Box::new(expression.as_ref().into()),
         },
-        pt::Expression::PreIncrement(_, expression) => NysaExpression::Increment {
+        pt::Expression::PreIncrement(_, expression) => Expression::Increment {
             expr: Box::new(expression.as_ref().into()),
         },
-        pt::Expression::PreDecrement(_, expression) => NysaExpression::Decrement {
+        pt::Expression::PreDecrement(_, expression) => Expression::Decrement {
             expr: Box::new(expression.as_ref().into()),
         },
         pt::Expression::Equal(_, l, r) => to_compare_expr(l, r, Op::Eq),
         pt::Expression::NotEqual(_, l, r) => to_compare_expr(l, r, Op::NotEq),
-        pt::Expression::AssignSubtract(_, l, r) => NysaExpression::AssignSubtract {
+        pt::Expression::AssignSubtract(_, l, r) => Expression::AssignSubtract {
             left: Box::new(l.as_ref().into()),
             right: Box::new(r.as_ref().into()),
         },
-        pt::Expression::AssignAdd(_, l, r) => NysaExpression::AssignAdd {
+        pt::Expression::AssignAdd(_, l, r) => Expression::AssignAdd {
             left: Box::new(l.as_ref().into()),
             right: Box::new(r.as_ref().into()),
         },
-        pt::Expression::Type(_, ty) => NysaExpression::Type { ty: From::from(ty) },
-        pt::Expression::Power(_, l, r) => NysaExpression::Power {
+        pt::Expression::Type(_, ty) => Expression::Type { ty: From::from(ty) },
+        pt::Expression::Power(_, l, r) => Expression::Power {
             left: Box::new(l.as_ref().into()),
             right: Box::new(r.as_ref().into()),
         },
-        pt::Expression::BoolLiteral(_, b) => NysaExpression::BoolLiteral(*b),
-        pt::Expression::Not(_, expr) => NysaExpression::Not {
+        pt::Expression::BoolLiteral(_, b) => Expression::BoolLiteral(*b),
+        pt::Expression::Not(_, expr) => Expression::Not {
             expr: Box::new(expr.as_ref().into()),
         },
-        pt::Expression::Delete(_, expr) => NysaExpression::AssignDefault {
+        pt::Expression::Delete(_, expr) => Expression::AssignDefault {
             left: Box::new(expr.as_ref().into()),
         },
         pt::Expression::HexNumberLiteral(_, hex_string) => {
@@ -461,15 +434,15 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
             };
             let bytes = hex_string_to_u8_array(hex_string).unwrap_or_default();
 
-            NysaExpression::BytesLiteral { bytes }
+            Expression::BytesLiteral { bytes }
         }
         pt::Expression::HexLiteral(hex) => {
             let hex = hex.first().unwrap();
             let bytes = hex_string_to_u8_array(&hex.hex).unwrap_or_default();
-            NysaExpression::BytesLiteral { bytes }
+            Expression::BytesLiteral { bytes }
         }
         pt::Expression::New(_, initializer) => {
-            NysaExpression::Initializer(Box::new(initializer.as_ref().into()))
+            Expression::Initializer(Box::new(initializer.as_ref().into()))
         }
         pt::Expression::ArraySlice(_, _, _, _) => todo!(),
         pt::Expression::FunctionCallBlock(_, _, _) => todo!(),
@@ -477,11 +450,11 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
         pt::Expression::Complement(_, _) => todo!(),
         pt::Expression::UnaryPlus(_, _) => todo!(),
         pt::Expression::UnaryMinus(_, _) => todo!(),
-        pt::Expression::Multiply(_, left, right) => NysaExpression::Multiply {
+        pt::Expression::Multiply(_, left, right) => Expression::Multiply {
             left: Box::new(left.as_ref().into()),
             right: Box::new(right.as_ref().into()),
         },
-        pt::Expression::Divide(_, left, right) => NysaExpression::Divide {
+        pt::Expression::Divide(_, left, right) => Expression::Divide {
             left: Box::new(left.as_ref().into()),
             right: Box::new(right.as_ref().into()),
         },
@@ -492,25 +465,25 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
         pt::Expression::BitwiseXor(_, _, _) => todo!(),
         pt::Expression::BitwiseOr(_, _, _) => todo!(),
         pt::Expression::And(_, _, _) => todo!(),
-        pt::Expression::Or(_, left, right) => NysaExpression::Or {
+        pt::Expression::Or(_, left, right) => Expression::Or {
             left: Box::new(left.as_ref().into()),
             right: Box::new(right.as_ref().into()),
         },
         pt::Expression::Ternary(_, condition, left, right) => {
-            let if_else = NysaStmt::IfElse {
+            let if_else = Stmt::IfElse {
                 assertion: condition.as_ref().into(),
-                if_body: Box::new(NysaStmt::Block {
-                    stmts: vec![NysaStmt::Expression {
+                if_body: Box::new(Stmt::Block {
+                    stmts: vec![Stmt::Expression {
                         expr: left.as_ref().into(),
                     }],
                 }),
-                else_body: Box::new(NysaStmt::Block {
-                    stmts: vec![NysaStmt::Expression {
+                else_body: Box::new(Stmt::Block {
+                    stmts: vec![Stmt::Expression {
                         expr: right.as_ref().into(),
                     }],
                 }),
             };
-            NysaExpression::Statement(Box::new(if_else))
+            Expression::Statement(Box::new(if_else))
         }
         pt::Expression::AssignOr(_, _, _) => todo!(),
         pt::Expression::AssignAnd(_, _, _) => todo!(),
@@ -525,7 +498,7 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
         pt::Expression::List(_, _) => todo!(),
         pt::Expression::ArrayLiteral(_, values) => {
             let values = values.iter().map(From::from).collect();
-            NysaExpression::ArrayLiteral { values }
+            Expression::ArrayLiteral { values }
         }
         pt::Expression::Unit(_, _, _) => todo!(),
         pt::Expression::This(_) => todo!(),
@@ -555,13 +528,13 @@ fn hex_string_to_u8_array(hex_string: &str) -> Option<Vec<u8>> {
     Some(result)
 }
 
-fn to_compare_expr(l: &pt::Expression, r: &pt::Expression, op: Op) -> NysaExpression {
+fn to_compare_expr(l: &pt::Expression, r: &pt::Expression, op: Op) -> Expression {
     let left = l.into();
     let right = r.into();
 
     let mut var_left = None;
-    if let NysaExpression::Assign {
-        left: box NysaExpression::Variable { name },
+    if let Expression::Assign {
+        left: box Expression::Variable { name },
         ..
     } = &left
     {
@@ -569,15 +542,15 @@ fn to_compare_expr(l: &pt::Expression, r: &pt::Expression, op: Op) -> NysaExpres
     }
 
     let mut var_right = None;
-    if let NysaExpression::Assign {
-        left: box NysaExpression::Variable { name },
+    if let Expression::Assign {
+        left: box Expression::Variable { name },
         ..
     } = &right
     {
         var_right = Some(name.clone());
     }
 
-    NysaExpression::Compare {
+    Expression::Compare {
         var_left,
         left: Box::new(left),
         var_right,

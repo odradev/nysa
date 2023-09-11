@@ -6,7 +6,7 @@ use quote::quote;
 use syn::parse_quote;
 
 use crate::{
-    model::ir::{NysaEvent, Package},
+    model::ir::{Event, Package},
     parser::context::TypeInfo,
     utils, ParserError,
 };
@@ -20,7 +20,7 @@ pub(crate) fn events_def<T: TypeInfo>(
     package.events().iter().map(|ev| event_def(ev, t)).collect()
 }
 
-fn event_def<T: TypeInfo>(ev: &NysaEvent, t: &T) -> Result<ClassDef, ParserError> {
+fn event_def<T: TypeInfo>(ev: &Event, t: &T) -> Result<ClassDef, ParserError> {
     let class: Class = ev.name.clone().into();
     let path = vec![class.clone()];
     let variables = ev

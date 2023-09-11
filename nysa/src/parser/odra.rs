@@ -1,6 +1,6 @@
 use crate::{
     model::{
-        ir::{NysaExpression, NysaVar, Package},
+        ir::{Expression, Package, Var},
         AsStringVec, ContractData,
     },
     utils, ParserError,
@@ -37,7 +37,7 @@ lazy_static::lazy_static! {
     static ref MSG_DATA: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
     static ref SOLIDITY_ERRORS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
 
-    static ref DEFAULT_VARIABLES: Mutex<HashMap<NysaVar, NysaExpression>> = Mutex::new(HashMap::new());
+    static ref DEFAULT_VARIABLES: Mutex<HashMap<Var, Expression>> = Mutex::new(HashMap::new());
 }
 
 pub struct OdraParser;

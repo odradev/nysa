@@ -1,6 +1,6 @@
 use super::num;
 use crate::{
-    model::ir::NysaExpression,
+    model::ir::Expression,
     parser::{
         context::{
             ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
@@ -14,8 +14,8 @@ use syn::parse_quote;
 pub(crate) fn add<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    left: &NysaExpression,
-    right: &NysaExpression,
+    left: &Expression,
+    right: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let left = num::to_generic_int_expr_or_parse(left, ctx)?;
@@ -26,8 +26,8 @@ pub(crate) fn add<
 pub(crate) fn sub<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    left: &NysaExpression,
-    right: &NysaExpression,
+    left: &Expression,
+    right: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let left = num::to_generic_int_expr_or_parse(left, ctx)?;
@@ -38,13 +38,13 @@ pub(crate) fn sub<
 pub(crate) fn div<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    left: &NysaExpression,
-    right: &NysaExpression,
+    left: &Expression,
+    right: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let left = match left {
-        NysaExpression::Assign {
-            left: box NysaExpression::Variable { name },
+        Expression::Assign {
+            left: box Expression::Variable { name },
             right,
         } => {
             let ident = utils::to_snake_case_ident(name);
@@ -60,8 +60,8 @@ pub(crate) fn div<
 pub(crate) fn mul<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    left: &NysaExpression,
-    right: &NysaExpression,
+    left: &Expression,
+    right: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let left = num::to_generic_int_expr_or_parse(left, ctx)?;
@@ -72,11 +72,11 @@ pub(crate) fn mul<
 pub(crate) fn eval<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
-    expr: &NysaExpression,
+    expr: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let eval_or_parse = |e: &NysaExpression, ctx: &mut T| {
-        if let NysaExpression::Variable { name } = e {
+    let eval_or_parse = |e: &Expression, ctx: &mut T| {
+        if let Expression::Variable { name } = e {
             let expr = primitives::get_var_or_parse(expr, ctx)?;
             let ident = utils::to_snake_case_ident(name);
             Ok(parse_quote!({#expr; #ident}))
@@ -85,12 +85,12 @@ pub(crate) fn eval<
         }
     };
     match expr {
-        NysaExpression::Assign { left, right } => eval_or_parse(left, ctx),
-        NysaExpression::AssignSubtract { left, right } => eval_or_parse(left, ctx),
-        NysaExpression::AssignAdd { left, right } => eval_or_parse(left, ctx),
-        NysaExpression::AssignDefault { left } => eval_or_parse(left, ctx),
-        NysaExpression::Increment { expr } => eval_or_parse(expr, ctx),
-        NysaExpression::Decrement { expr } => eval_or_parse(expr, ctx),
+        Expression::Assign { left, right } => eval_or_parse(left, ctx),
+        Expression::AssignSubtract { left, right } => eval_or_parse(left, ctx),
+        Expression::AssignAdd { left, right } => eval_or_parse(left, ctx),
+        Expression::AssignDefault { left } => eval_or_parse(left, ctx),
+        Expression::Increment { expr } => eval_or_parse(expr, ctx),
+        Expression::Decrement { expr } => eval_or_parse(expr, ctx),
         _ => primitives::get_var_or_parse(expr, ctx),
     }
 }

@@ -1,7 +1,7 @@
 use syn::{parse_quote, BinOp};
 
 use crate::{
-    model::ir::NysaExpression,
+    model::ir::Expression,
     parser::{
         context::{
             ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
@@ -16,8 +16,8 @@ pub(crate) fn bin_op<
 >(
     left_var: &Option<String>,
     right_var: &Option<String>,
-    left: &NysaExpression,
-    right: &NysaExpression,
+    left: &Expression,
+    right: &Expression,
     op: BinOp,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {

@@ -1,5 +1,5 @@
 use crate::{
-    model::ir::{NumSize, NysaExpression},
+    model::ir::{Expression, NumSize},
     parser::context::{
         ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
     },
@@ -71,22 +71,22 @@ pub(crate) fn to_generic_lit_expr<N: num_traits::Num + ToString>(num: N) -> syn:
     })
 }
 
-pub(crate) fn try_to_generic_int_expr(expr: &NysaExpression) -> Result<syn::Expr, ParserError> {
+pub(crate) fn try_to_generic_int_expr(expr: &Expression) -> Result<syn::Expr, ParserError> {
     match expr {
-        NysaExpression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
+        Expression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
         _ => Err(ParserError::InvalidExpression),
     }
 }
 
 pub(crate) fn to_generic_int_expr_or_parse<T>(
-    expr: &NysaExpression,
+    expr: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     match expr {
-        NysaExpression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
+        Expression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
         _ => primitives::get_var_or_parse(expr, ctx),
     }
 }

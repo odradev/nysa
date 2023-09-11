@@ -3,13 +3,13 @@ use syn::parse_quote;
 
 use super::parse_statement;
 use crate::{
-    model::ir::{NysaExpression, NysaStmt},
+    model::ir::{Expression, Stmt},
     parser::context::test::EmptyContext,
 };
 
 #[test]
 fn revert_with_no_msg() {
-    let stmt = NysaStmt::Revert { msg: None };
+    let stmt = Stmt::Revert { msg: None };
     let result = parse_statement(&stmt, true, &mut EmptyContext).unwrap();
     let expected: syn::Stmt =
         parse_quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "")););
@@ -20,8 +20,8 @@ fn revert_with_no_msg() {
 #[test]
 fn revert_with_msg() {
     let error_msg = "An error occurred";
-    let stmt = NysaStmt::Revert {
-        msg: Some(NysaExpression::StringLiteral(error_msg.to_string())),
+    let stmt = Stmt::Revert {
+        msg: Some(Expression::StringLiteral(error_msg.to_string())),
     };
     let result = parse_statement(&stmt, true, &mut EmptyContext).unwrap();
     let expected: syn::Stmt = parse_quote!(
@@ -34,7 +34,7 @@ fn revert_with_msg() {
 #[test]
 fn revert_with_error() {
     let error_msg = "MyError";
-    let stmt = NysaStmt::RevertWithError {
+    let stmt = Stmt::RevertWithError {
         error: error_msg.to_string(),
     };
     let result = parse_statement(&stmt, true, &mut EmptyContext).unwrap();
@@ -46,8 +46,8 @@ fn revert_with_error() {
 #[test]
 fn invalid_revert_stmt() {
     let error_msg = "An error occurred";
-    let stmt = NysaStmt::Revert {
-        msg: Some(NysaExpression::Placeholder),
+    let stmt = Stmt::Revert {
+        msg: Some(Expression::Placeholder),
     };
     let result = parse_statement(&stmt, true, &mut EmptyContext);
 

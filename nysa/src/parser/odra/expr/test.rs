@@ -2,30 +2,30 @@ use quote::ToTokens;
 use syn::parse_quote;
 
 use crate::{
-    model::ir::{NumSize, NysaExpression, Op},
+    model::ir::{Expression, NumSize, Op},
     parser::context::test::EmptyContext,
 };
 
 #[test]
 fn assign_and_compare() {
     // sol: x = a + b <= 256
-    let expr = NysaExpression::Compare {
+    let expr = Expression::Compare {
         var_left: Some("x".to_string()),
-        left: Box::new(NysaExpression::Assign {
-            left: Box::new(NysaExpression::Variable {
+        left: Box::new(Expression::Assign {
+            left: Box::new(Expression::Variable {
                 name: "x".to_string(),
             }),
-            right: Box::new(NysaExpression::Add {
-                left: Box::new(NysaExpression::Variable {
+            right: Box::new(Expression::Add {
+                left: Box::new(Expression::Variable {
                     name: "b".to_string(),
                 }),
-                right: Box::new(NysaExpression::Variable {
+                right: Box::new(Expression::Variable {
                     name: "a".to_string(),
                 }),
             }),
         }),
         var_right: None,
-        right: Box::new(NysaExpression::NumberLiteral {
+        right: Box::new(Expression::NumberLiteral {
             ty: NumSize::U32,
             value: vec![0, 1, 0, 0],
         }),
@@ -45,42 +45,42 @@ fn assign_and_compare() {
 #[test]
 fn complex_stmt() {
     // sol: !(y == 0u8.into() || (z = (x * y) / y) == x)
-    let expr = NysaExpression::Not {
-        expr: Box::new(NysaExpression::Or {
-            left: Box::new(NysaExpression::Compare {
+    let expr = Expression::Not {
+        expr: Box::new(Expression::Or {
+            left: Box::new(Expression::Compare {
                 var_left: None,
-                left: Box::new(NysaExpression::Variable {
+                left: Box::new(Expression::Variable {
                     name: "y".to_string(),
                 }),
                 var_right: None,
-                right: Box::new(NysaExpression::NumberLiteral {
+                right: Box::new(Expression::NumberLiteral {
                     ty: NumSize::U32,
                     value: vec![0, 0, 0, 0],
                 }),
                 op: Op::Eq,
             }),
-            right: Box::new(NysaExpression::Compare {
+            right: Box::new(Expression::Compare {
                 var_left: Some("z".to_string()),
-                left: Box::new(NysaExpression::Divide {
-                    left: Box::new(NysaExpression::Assign {
-                        left: Box::new(NysaExpression::Variable {
+                left: Box::new(Expression::Divide {
+                    left: Box::new(Expression::Assign {
+                        left: Box::new(Expression::Variable {
                             name: "z".to_string(),
                         }),
-                        right: Box::new(NysaExpression::Multiply {
-                            left: Box::new(NysaExpression::Variable {
+                        right: Box::new(Expression::Multiply {
+                            left: Box::new(Expression::Variable {
                                 name: "x".to_string(),
                             }),
-                            right: Box::new(NysaExpression::Variable {
+                            right: Box::new(Expression::Variable {
                                 name: "y".to_string(),
                             }),
                         }),
                     }),
-                    right: Box::new(NysaExpression::Variable {
+                    right: Box::new(Expression::Variable {
                         name: "y".to_string(),
                     }),
                 }),
                 var_right: None,
-                right: Box::new(NysaExpression::Variable {
+                right: Box::new(Expression::Variable {
                     name: "x".to_string(),
                 }),
                 op: Op::Eq,
