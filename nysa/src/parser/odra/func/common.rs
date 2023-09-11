@@ -45,20 +45,20 @@ pub(super) fn args<T: TypeInfo>(
 }
 
 pub(super) fn parse_ret_type<T: TypeInfo>(
-    returns: &[NysaExpression],
-    t: &T,
+    returns: &[(Option<String>, NysaExpression)],
+    ctx: &T,
 ) -> Result<syn::ReturnType, ParserError> {
     Ok(match returns.len() {
         0 => parse_quote!(),
         1 => {
-            let param = returns.get(0).unwrap().clone();
-            let ty = ty::parse_plain_type_from_expr(&param, t)?;
+            let (_, e) = returns.get(0).unwrap().clone();
+            let ty = ty::parse_plain_type_from_expr(&e, ctx)?;
             parse_quote!(-> #ty)
         }
         _ => {
             let types = returns
                 .iter()
-                .map(|ret| ty::parse_plain_type_from_expr(ret, t))
+                .map(|(_, e)| ty::parse_plain_type_from_expr(e, ctx))
                 .collect::<Result<syn::punctuated::Punctuated<syn::Type, syn::Token![,]>, _>>()?;
             parse_quote!(-> (#types))
         }
@@ -71,7 +71,7 @@ where
 {
     statements
         .iter()
-        .map(|stmt| stmt::parse_statement(&stmt, ctx))
+        .map(|stmt| stmt::parse_statement(&stmt, true, ctx))
         .filter_map(|r| r.ok())
         .collect::<Vec<_>>()
 }

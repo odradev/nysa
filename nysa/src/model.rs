@@ -3,6 +3,7 @@ mod expr;
 mod func;
 mod interface;
 mod misc;
+mod op;
 mod package;
 mod stmt;
 
@@ -16,6 +17,7 @@ pub mod ir {
     pub use super::func::*;
     pub use super::interface::InterfaceData;
     pub use super::misc::*;
+    pub use super::op::Op;
     pub use super::package::Package;
     pub use super::stmt::NysaStmt;
 }

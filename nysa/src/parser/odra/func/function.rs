@@ -1,5 +1,6 @@
 use c3_lang_parser::c3_ast::{ClassFnImpl, ComplexFnDef, FnDef};
-use syn::parse_quote;
+use proc_macro2::TokenStream;
+use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
     model::{
@@ -69,6 +70,30 @@ where
 
     let ext = common::parse_external_contract_statements(&def.params, ctx);
 
+    let ret_names = def
+        .ret
+        .iter()
+        .filter_map(|(name, _)| match name {
+            Some(n) => Some(n),
+            None => None,
+        })
+        .map(|n| utils::to_snake_case_ident(n))
+        .map(|i| quote::quote!(let mut #i = Default::default();))
+        .collect::<Vec<_>>();
+
+    let ret = def
+        .ret
+        .iter()
+        .filter_map(|(name, _)| match name {
+            Some(n) => Some(n),
+            None => None,
+        })
+        .map(|n| utils::to_snake_case_ident(n))
+        .map(|i| quote::quote!(#i))
+        .collect::<Punctuated<TokenStream, Token![,]>>();
+
+    let ret = (!ret.is_empty()).then(|| quote::quote!(return (#ret);));
+
     // handle constructor of modifiers calls;
     // Eg `constructor(string memory _name) Named(_name) {}`
     // Eg `function mint(address _to, uint256 _amount) public onlyOwner {}`
@@ -105,9 +130,11 @@ where
         })
         .collect::<Vec<syn::Stmt>>();
     parse_quote!({
+        #(#ret_names)*
         #(#before_stmts)*
         #(#ext)*
         #(#stmts)*
         #(#after_stmts)*
+        #ret
     })
 }

@@ -14,12 +14,23 @@ use super::expr;
 /// Parses solidity statement into a syn statement.
 ///
 /// Todo: to handle remaining statements.
-pub fn parse_statement<T>(stmt: &NysaStmt, ctx: &mut T) -> Result<syn::Stmt, ParserError>
+pub fn parse_statement<T>(
+    stmt: &NysaStmt,
+    is_semi: bool,
+    ctx: &mut T,
+) -> Result<syn::Stmt, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     match stmt {
-        NysaStmt::Expression { expr } => expr::parse(expr, ctx).map(|e| parse_quote!(#e;)),
+        NysaStmt::Expression { expr } => {
+            let expr = expr::parse(expr, ctx)?;
+            if !is_semi {
+                Ok(syn::Stmt::Expr(expr))
+            } else {
+                Ok(syn::Stmt::Semi(expr, Default::default()))
+            }
+        }
         NysaStmt::VarDefinition {
             declaration,
             ty,
@@ -54,7 +65,7 @@ where
         NysaStmt::ReturnVoid => Ok(parse_quote!(return;)),
         NysaStmt::If { assertion, if_body } => {
             let assertion = expr::parse(assertion, ctx)?;
-            let if_body = parse_statement(if_body, ctx)?;
+            let if_body = parse_statement(if_body, false, ctx)?;
             let result: syn::Stmt = parse_quote!(if #assertion #if_body);
             Ok(result)
         }
@@ -64,14 +75,15 @@ where
             else_body,
         } => {
             let assertion = expr::parse(assertion, ctx)?;
-            let if_body = parse_statement(if_body, ctx)?;
-            let else_body = parse_statement(else_body, ctx)?;
+            let if_body = parse_statement(if_body, false, ctx)?;
+            let else_body = parse_statement(else_body, false, ctx)?;
+
             Ok(parse_quote!(if #assertion #if_body else #else_body))
         }
         NysaStmt::Block { stmts } => {
             let res = stmts
                 .iter()
-                .map(|stmt| parse_statement(stmt, ctx))
+                .map(|stmt| parse_statement(stmt, false, ctx))
                 .collect::<Result<Vec<syn::Stmt>, _>>()?;
 
             Ok(parse_quote!({ #(#res);* }))
@@ -89,6 +101,13 @@ where
         NysaStmt::RevertWithError { error } => {
             let expr = expr::error::revert_with_err(error)?;
             Ok(parse_quote!(#expr;))
+        }
+        NysaStmt::While { assertion, block } => {
+            let assertion = expr::parse(assertion, ctx)?;
+            let block = parse_statement(block, false, ctx)?;
+            dbg!(assertion.to_token_stream().to_string());
+            dbg!(block.to_token_stream().to_string());
+            Ok(parse_quote!(while #assertion #block))
         }
         _ => panic!("Unsupported statement {:?}", stmt),
     }
@@ -130,6 +149,13 @@ where
         _ => panic!("Invalid Emit statement"),
     }
 }
+
+// pub fn parse_expr<T>(expr: &NysaExpression, is_semi: bool, c) -> Result<syn::Stmt, ParserError>
+// where
+//     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+// {
+//     expr::parse(expr, ctx).map(|e| parse_quote!(#e;))
+// }
 
 #[cfg(test)]
 mod test;

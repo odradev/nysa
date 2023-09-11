@@ -16,7 +16,9 @@ pub mod my_contract {
         __stack: PathStack, 
         my_number: odra::Variable<odra::types::U256>,
         min_int: odra::Variable<i16>,
-        boo: odra::Variable<bool>
+        boo: odra::Variable<bool>,
+        my_uint: odra::Variable<odra::types::U256>,
+        my_uint_2: odra::Variable<odra::types::U256>,
     } 
 
     #[odra::module] 
@@ -42,10 +44,12 @@ pub mod my_contract {
         }
 
         #[odra(init)]
-        pub fn init(&mut self) {
+        pub fn init(&mut self, _my_uint: odra::types::U256) {
             self.my_number.set(42u8.into());
             self.min_int.set(i16::MIN);
             self.boo.set(true);
+            self.my_uint.set(123u8.into());
+            self.my_uint_2.set(_my_uint);
         }
     }
 }

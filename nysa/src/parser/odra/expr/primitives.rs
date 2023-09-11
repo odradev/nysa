@@ -260,8 +260,7 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
         NysaType::Custom(name) => ctx
             .type_from_string(&name)
             .map(|ty| match ty {
-                context::ItemType::Contract(_) |
-                context::ItemType::Interface(_) => {
+                context::ItemType::Contract(_) | context::ItemType::Interface(_) => {
                     parse_quote!(#stream.get(#key).unwrap_or(None))
                 }
                 context::ItemType::Enum(_) => parse_quote!(#stream.get_or_default(#key)),

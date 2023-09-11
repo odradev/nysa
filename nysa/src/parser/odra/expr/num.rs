@@ -1,9 +1,14 @@
 use crate::{
     model::ir::{NumSize, NysaExpression},
+    parser::context::{
+        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    },
     to_unit, ParserError,
 };
 use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
+
+use super::primitives;
 
 pub(crate) fn to_generic_int_expr(ty: &NumSize, value: &[u8]) -> Result<syn::Expr, ParserError> {
     match ty {
@@ -70,5 +75,18 @@ pub(crate) fn try_to_generic_int_expr(expr: &NysaExpression) -> Result<syn::Expr
     match expr {
         NysaExpression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
         _ => Err(ParserError::InvalidExpression),
+    }
+}
+
+pub(crate) fn to_generic_int_expr_or_parse<T>(
+    expr: &NysaExpression,
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    match expr {
+        NysaExpression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
+        _ => primitives::get_var_or_parse(expr, ctx),
     }
 }

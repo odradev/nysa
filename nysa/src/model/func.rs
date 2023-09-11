@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 use c3_lang_linearization::Class;
 use solidity_parser::pt;
 
@@ -12,7 +10,7 @@ use super::{
     Named,
 };
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NysaParam {
     pub name: String,
     pub ty: NysaType,
@@ -42,7 +40,7 @@ pub struct Function {
     pub params: Vec<NysaParam>,
     pub is_payable: bool,
     pub is_mutable: bool,
-    pub ret: Vec<NysaExpression>,
+    pub ret: Vec<(Option<String>, NysaExpression)>,
     pub stmts: Vec<NysaStmt>,
     pub modifiers: Vec<NysaBaseImpl>,
 }
@@ -53,7 +51,7 @@ pub struct Constructor {
     pub params: Vec<NysaParam>,
     pub is_payable: bool,
     pub is_mutable: bool,
-    pub ret: Vec<NysaExpression>,
+    pub ret: Vec<(Option<String>, NysaExpression)>,
     pub stmts: Vec<NysaStmt>,
     pub base: Vec<NysaBaseImpl>,
 }
@@ -212,7 +210,12 @@ fn parse_mutability(func: &pt::FunctionDefinition) -> bool {
     }
 }
 
-fn parse_return(func: &pt::FunctionDefinition) -> Vec<NysaExpression> {
+fn parse_return(func: &pt::FunctionDefinition) -> Vec<(Option<String>, NysaExpression)> {
+    fn parse_param(param: &pt::Parameter) -> (Option<String>, NysaExpression) {
+        let name = param.name.as_ref().map(|i| i.name.to_owned());
+        let e = NysaExpression::from(&param.ty);
+        (name, e)
+    }
     if func.return_not_returns.is_some() {
         vec![]
     } else {
@@ -222,11 +225,11 @@ fn parse_return(func: &pt::FunctionDefinition) -> Vec<NysaExpression> {
             1 => {
                 let param = returns.get(0).unwrap().clone();
                 let param = param.1.unwrap();
-                vec![NysaExpression::from(&param.ty)]
+                vec![parse_param(&param)]
             }
             _ => returns
                 .iter()
-                .map(|ret| NysaExpression::from(&ret.1.as_ref().unwrap().ty))
+                .map(|ret| parse_param(ret.1.as_ref().unwrap()))
                 .collect(),
         }
     }

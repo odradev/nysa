@@ -61,7 +61,7 @@ pub mod function_modifier {
                     self.x.set(self.x.get_or_default() - i);
 
                     if i > 1u8.into() {
-                        self.decrement(i - 1);
+                        self.decrement((i - 1))
                     }
 
                     self.modifier_after_no_reentrancy();

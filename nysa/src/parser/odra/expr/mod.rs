@@ -2,13 +2,14 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
-use crate::model::ir::{NysaExpression, NysaType, NysaVar};
+use crate::model::ir::{self, NysaExpression, NysaType, NysaVar};
 use crate::parser::context::{
     ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType, StorageInfo, TypeInfo,
 };
 use crate::utils;
 use crate::ParserError;
 
+use super::stmt::parse_statement;
 use super::ty;
 
 mod array;
@@ -17,6 +18,8 @@ mod math;
 mod num;
 mod op;
 pub(crate) mod primitives;
+#[cfg(test)]
+mod test;
 
 pub fn parse<T>(expression: &NysaExpression, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
@@ -48,14 +51,27 @@ where
         NysaExpression::StringLiteral(string) => {
             Ok(parse_quote!(odra::prelude::string::String::from(#string)))
         }
-        NysaExpression::LessEqual { left, right } => op::bin_op(left, right, parse_quote!(<=), ctx),
-        NysaExpression::MoreEqual { left, right } => op::bin_op(left, right, parse_quote!(>=), ctx),
-        NysaExpression::Less { left, right } => op::bin_op(left, right, parse_quote!(<), ctx),
-        NysaExpression::More { left, right } => op::bin_op(left, right, parse_quote!(>), ctx),
+        NysaExpression::Compare {
+            var_left,
+            left,
+            var_right,
+            right,
+            op,
+        } => {
+            let op = match op {
+                ir::Op::Less => parse_quote!(<),
+                ir::Op::LessEq => parse_quote!(<=),
+                ir::Op::More => parse_quote!(>),
+                ir::Op::MoreEq => parse_quote!(>=),
+                ir::Op::Eq => parse_quote!(==),
+                ir::Op::NotEq => parse_quote!(!=),
+            };
+            op::bin_op(var_left, var_right, left, right, op, ctx)
+        }
         NysaExpression::Add { left, right } => math::add(left, right, ctx),
+        NysaExpression::Multiply { left, right } => math::mul(left, right, ctx),
+        NysaExpression::Divide { left, right } => math::div(left, right, ctx),
         NysaExpression::Subtract { left, right } => math::sub(left, right, ctx),
-        NysaExpression::Equal { left, right } => op::bin_op(left, right, parse_quote!(==), ctx),
-        NysaExpression::NotEqual { left, right } => op::bin_op(left, right, parse_quote!(!=), ctx),
         NysaExpression::AssignSubtract { left, right } => {
             let expr = primitives::assign(left, right, Some(parse_quote!(-)), ctx)?;
             Ok(expr)
@@ -63,6 +79,9 @@ where
         NysaExpression::AssignAdd { left, right } => {
             let expr = primitives::assign(left, right, Some(parse_quote!(+)), ctx)?;
             Ok(expr)
+        }
+        NysaExpression::Or { left, right } => {
+            op::bin_op(&None, &None, left, right, parse_quote!(||), ctx)
         }
         NysaExpression::Increment { expr } => {
             let expr = parse(expr, ctx)?;
@@ -136,6 +155,12 @@ where
             dbg!(expr);
             todo!()
         }
+        NysaExpression::Statement(s) => parse_statement(s, false, ctx)
+            .map(|stmt| match stmt {
+                syn::Stmt::Expr(e) => Ok(e),
+                _ => Err(ParserError::InvalidExpression),
+            })
+            .unwrap(),
         NysaExpression::UnknownExpr => panic!("Unknown expression"),
     }
 }

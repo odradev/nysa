@@ -1,10 +1,12 @@
 use syn::{parse_quote, BinOp};
 
-use super::primitives;
 use crate::{
     model::ir::NysaExpression,
-    parser::context::{
-        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    parser::{
+        context::{
+            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        },
+        odra::expr::math,
     },
     ParserError,
 };
@@ -12,12 +14,15 @@ use crate::{
 pub(crate) fn bin_op<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
+    left_var: &Option<String>,
+    right_var: &Option<String>,
     left: &NysaExpression,
     right: &NysaExpression,
     op: BinOp,
-    t: &mut T,
+    ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let left = primitives::get_var_or_parse(left, t)?;
-    let right = primitives::get_var_or_parse(right, t)?;
+    let left = math::eval(left, ctx)?;
+    let right = math::eval(right, ctx)?;
+
     Ok(parse_quote!(#left #op #right))
 }

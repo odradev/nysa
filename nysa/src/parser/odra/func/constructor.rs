@@ -110,7 +110,7 @@ where
                     right: Box::new(v.initializer.clone().unwrap()),
                 },
             };
-            stmt::parse_statement(&stmt, ctx)
+            stmt::parse_statement(&stmt, true, ctx)
         })
         .collect::<Result<_, _>>()
 }

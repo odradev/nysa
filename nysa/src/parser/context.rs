@@ -285,3 +285,74 @@ impl FnContext for LocalContext<'_> {
         self.local_vars.iter().find(|v| v.name == name)
     }
 }
+
+#[cfg(test)]
+pub mod test {
+    use crate::model::ir::NysaExpression;
+
+    use super::{
+        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    };
+
+    pub struct EmptyContext;
+
+    impl StorageInfo for EmptyContext {
+        fn storage(&self) -> Vec<crate::model::ir::NysaVar> {
+            vec![]
+        }
+    }
+
+    impl TypeInfo for EmptyContext {
+        fn type_from_string(&self, name: &str) -> Option<crate::parser::context::ItemType> {
+            None
+        }
+
+        fn has_enums(&self) -> bool {
+            false
+        }
+    }
+
+    impl ContractInfo for EmptyContext {
+        fn as_contract_name(&self, name: &NysaExpression) -> Option<String> {
+            None
+        }
+
+        fn is_class(&self, name: &str) -> bool {
+            false
+        }
+    }
+
+    impl EventsRegister for EmptyContext {
+        fn register_event(&mut self, class: &str) {}
+
+        fn emitted_events(&self) -> Vec<&String> {
+            vec![]
+        }
+    }
+
+    impl ExternalCallsRegister for EmptyContext {
+        fn register_external_call(&mut self, class: &str) {}
+
+        fn get_external_calls(&self) -> Vec<&String> {
+            vec![]
+        }
+    }
+
+    impl FnContext for EmptyContext {
+        fn set_current_fn(&mut self, func: &crate::model::ir::FnImplementations) {}
+
+        fn clear_current_fn(&mut self) {}
+
+        fn current_fn(&self) -> &crate::model::ir::FnImplementations {
+            todo!()
+        }
+
+        fn register_local_var(&mut self, name: &str, ty: &crate::model::ir::NysaType) {
+            todo!()
+        }
+
+        fn get_local_var_by_name(&self, name: &str) -> Option<&crate::model::ir::NysaVar> {
+            todo!()
+        }
+    }
+}

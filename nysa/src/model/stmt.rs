@@ -42,6 +42,11 @@ pub enum NysaStmt {
         msg: Option<NysaExpression>,
     },
     Placeholder,
+    While {
+        assertion: NysaExpression,
+        block: Box<NysaStmt>,
+    },
+
     Unknown,
 }
 
@@ -72,7 +77,10 @@ impl From<&pt::Statement> for NysaStmt {
                     if_body: Box::new(if_body.as_ref().into()),
                 },
             },
-            pt::Statement::While(_, _, _) => Self::Unknown,
+            pt::Statement::While(_, assertion, block) => Self::While {
+                assertion: assertion.into(),
+                block: Box::new(block.as_ref().into()),
+            },
             pt::Statement::Expression(_, expr) => {
                 let expr: NysaExpression = expr.into();
                 if expr == NysaExpression::Placeholder {

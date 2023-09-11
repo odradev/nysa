@@ -3,7 +3,7 @@ use syn::parse_quote;
 
 use crate::ParserError;
 
-use super::misc::NysaType;
+use super::{misc::NysaType, op::Op, stmt::NysaStmt};
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NumSize {
@@ -21,7 +21,7 @@ pub enum NumSize {
     I256,
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum NysaExpression {
     Require {
         condition: Box<NysaExpression>,
@@ -47,22 +47,29 @@ pub enum NysaExpression {
         left: Box<NysaExpression>,
         right: Box<NysaExpression>,
     },
-    LessEqual {
+    Compare {
+        var_left: Option<String>,
         left: Box<NysaExpression>,
+        var_right: Option<String>,
         right: Box<NysaExpression>,
+        op: Op,
     },
-    MoreEqual {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
-    },
-    Less {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
-    },
-    More {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
-    },
+    // LessEqual {
+    //     left: Box<NysaExpression>,
+    //     right: Box<NysaExpression>,
+    // },
+    // MoreEqual {
+    //     left: Box<NysaExpression>,
+    //     right: Box<NysaExpression>,
+    // },
+    // Less {
+    //     left: Box<NysaExpression>,
+    //     right: Box<NysaExpression>,
+    // },
+    // More {
+    //     left: Box<NysaExpression>,
+    //     right: Box<NysaExpression>,
+    // },
     Add {
         left: Box<NysaExpression>,
         right: Box<NysaExpression>,
@@ -71,18 +78,26 @@ pub enum NysaExpression {
         left: Box<NysaExpression>,
         right: Box<NysaExpression>,
     },
+    Divide {
+        left: Box<NysaExpression>,
+        right: Box<NysaExpression>,
+    },
+    Multiply {
+        left: Box<NysaExpression>,
+        right: Box<NysaExpression>,
+    },
     Power {
         left: Box<NysaExpression>,
         right: Box<NysaExpression>,
     },
-    Equal {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
-    },
-    NotEqual {
-        left: Box<NysaExpression>,
-        right: Box<NysaExpression>,
-    },
+    // Equal {
+    //     left: Box<NysaExpression>,
+    //     right: Box<NysaExpression>,
+    // },
+    // NotEqual {
+    //     left: Box<NysaExpression>,
+    //     right: Box<NysaExpression>,
+    // },
     AssignSubtract {
         left: Box<NysaExpression>,
         right: Box<NysaExpression>,
@@ -138,6 +153,11 @@ pub enum NysaExpression {
         values: Vec<NysaExpression>,
     },
     Initializer(Box<NysaExpression>),
+    Statement(Box<NysaStmt>),
+    Or {
+        left: Box<NysaExpression>,
+        right: Box<NysaExpression>,
+    },
     UnknownExpr,
 }
 
@@ -347,22 +367,10 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
                 name: id.name.to_owned(),
             },
         },
-        pt::Expression::LessEqual(_, l, r) => NysaExpression::LessEqual {
-            left: Box::new(l.as_ref().into()),
-            right: Box::new(r.as_ref().into()),
-        },
-        pt::Expression::Less(_, l, r) => NysaExpression::Less {
-            left: Box::new(l.as_ref().into()),
-            right: Box::new(r.as_ref().into()),
-        },
-        pt::Expression::MoreEqual(_, l, r) => NysaExpression::MoreEqual {
-            left: Box::new(l.as_ref().into()),
-            right: Box::new(r.as_ref().into()),
-        },
-        pt::Expression::More(_, l, r) => NysaExpression::More {
-            left: Box::new(l.as_ref().into()),
-            right: Box::new(r.as_ref().into()),
-        },
+        pt::Expression::LessEqual(_, l, r) => to_compare_expr(l, r, Op::LessEq),
+        pt::Expression::Less(_, l, r) => to_compare_expr(l, r, Op::Less),
+        pt::Expression::MoreEqual(_, l, r) => to_compare_expr(l, r, Op::MoreEq),
+        pt::Expression::More(_, l, r) => to_compare_expr(l, r, Op::More),
         pt::Expression::NumberLiteral(_, num) => {
             let (sign, digs) = num.to_u32_digits();
 
@@ -422,14 +430,8 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
         pt::Expression::PreDecrement(_, expression) => NysaExpression::Decrement {
             expr: Box::new(expression.as_ref().into()),
         },
-        pt::Expression::Equal(_, l, r) => NysaExpression::Equal {
-            left: Box::new(l.as_ref().into()),
-            right: Box::new(r.as_ref().into()),
-        },
-        pt::Expression::NotEqual(_, l, r) => NysaExpression::NotEqual {
-            left: Box::new(l.as_ref().into()),
-            right: Box::new(r.as_ref().into()),
-        },
+        pt::Expression::Equal(_, l, r) => to_compare_expr(l, r, Op::Eq),
+        pt::Expression::NotEqual(_, l, r) => to_compare_expr(l, r, Op::NotEq),
         pt::Expression::AssignSubtract(_, l, r) => NysaExpression::AssignSubtract {
             left: Box::new(l.as_ref().into()),
             right: Box::new(r.as_ref().into()),
@@ -475,8 +477,14 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
         pt::Expression::Complement(_, _) => todo!(),
         pt::Expression::UnaryPlus(_, _) => todo!(),
         pt::Expression::UnaryMinus(_, _) => todo!(),
-        pt::Expression::Multiply(_, _, _) => todo!(),
-        pt::Expression::Divide(_, _, _) => todo!(),
+        pt::Expression::Multiply(_, left, right) => NysaExpression::Multiply {
+            left: Box::new(left.as_ref().into()),
+            right: Box::new(right.as_ref().into()),
+        },
+        pt::Expression::Divide(_, left, right) => NysaExpression::Divide {
+            left: Box::new(left.as_ref().into()),
+            right: Box::new(right.as_ref().into()),
+        },
         pt::Expression::Modulo(_, _, _) => todo!(),
         pt::Expression::ShiftLeft(_, _, _) => todo!(),
         pt::Expression::ShiftRight(_, _, _) => todo!(),
@@ -484,8 +492,26 @@ fn parse_expr(e: &pt::Expression) -> NysaExpression {
         pt::Expression::BitwiseXor(_, _, _) => todo!(),
         pt::Expression::BitwiseOr(_, _, _) => todo!(),
         pt::Expression::And(_, _, _) => todo!(),
-        pt::Expression::Or(_, _, _) => todo!(),
-        pt::Expression::Ternary(_, _, _, _) => todo!(),
+        pt::Expression::Or(_, left, right) => NysaExpression::Or {
+            left: Box::new(left.as_ref().into()),
+            right: Box::new(right.as_ref().into()),
+        },
+        pt::Expression::Ternary(_, condition, left, right) => {
+            let if_else = NysaStmt::IfElse {
+                assertion: condition.as_ref().into(),
+                if_body: Box::new(NysaStmt::Block {
+                    stmts: vec![NysaStmt::Expression {
+                        expr: left.as_ref().into(),
+                    }],
+                }),
+                else_body: Box::new(NysaStmt::Block {
+                    stmts: vec![NysaStmt::Expression {
+                        expr: right.as_ref().into(),
+                    }],
+                }),
+            };
+            NysaExpression::Statement(Box::new(if_else))
+        }
         pt::Expression::AssignOr(_, _, _) => todo!(),
         pt::Expression::AssignAnd(_, _, _) => todo!(),
         pt::Expression::AssignXor(_, _, _) => todo!(),
@@ -527,4 +553,35 @@ fn hex_string_to_u8_array(hex_string: &str) -> Option<Vec<u8>> {
     }
 
     Some(result)
+}
+
+fn to_compare_expr(l: &pt::Expression, r: &pt::Expression, op: Op) -> NysaExpression {
+    let left = l.into();
+    let right = r.into();
+
+    let mut var_left = None;
+    if let NysaExpression::Assign {
+        left: box NysaExpression::Variable { name },
+        ..
+    } = &left
+    {
+        var_left = Some(name.clone());
+    }
+
+    let mut var_right = None;
+    if let NysaExpression::Assign {
+        left: box NysaExpression::Variable { name },
+        ..
+    } = &right
+    {
+        var_right = Some(name.clone());
+    }
+
+    NysaExpression::Compare {
+        var_left,
+        left: Box::new(left),
+        var_right,
+        right: Box::new(right),
+        op,
+    }
 }

@@ -1,95 +1,105 @@
 use crate::parse;
-use std::{fs::File, io::Read};
+use std::{fs::File, io::Read, path::Path};
 
 use super::*;
 
 #[test]
 fn test_constructor() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/constructors/1.sol"));
-    assert_impl(result, "../resources/constructors/1.rs");
-
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/constructors/2.sol"));
-    assert_impl(result, "../resources/constructors/2.rs");
-
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/constructors/3.sol"));
-    assert_impl(result, "../resources/constructors/3.rs");
-
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/constructors/4.sol"));
-    assert_impl(result, "../resources/constructors/4.rs");
-
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/constructors/5.sol"));
-    assert_impl(result, "../resources/constructors/5.rs");
-
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/constructors/6.sol"));
-    assert_impl(result, "../resources/constructors/6.rs");
-
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/constructors/7.sol"));
-    assert_impl(result, "../resources/constructors/7.rs");
+    test_many(7, "constructors")
 }
 
 #[test]
 fn test_modifier() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/modifiers/1.sol"));
-    assert_impl(result, "../resources/modifiers/1.rs");
+    test_single("modifiers", "1");
 }
 
 #[test]
 fn test_default_value() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/misc/default_values.sol"));
-    assert_impl(result, "../resources/misc/default_values.rs");
+    test_single("misc", "default_values");
 }
 
 #[test]
 fn test_ext() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ext/1.sol"));
-    assert_impl(result, "../resources/ext/1.rs");
-
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ext/2.sol"));
-    assert_impl(result, "../resources/ext/2.rs");
-
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/ext/3.sol"));
-    assert_impl(result, "../resources/ext/3.rs");
+    test_many(3, "ext")
 }
 
 #[test]
 fn test_ownable() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/contracts/ownable.sol"));
-    assert_impl(result, "../resources/contracts/ownable.rs");
+    test_single("contracts", "ownable");
 }
 
 #[test]
-fn test_types() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/types/enum.sol"));
-    assert_impl(result, "../resources/types/enum.rs");
+fn test_array() {
+    test_single("types", "array");
+}
 
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/types/bytes.sol"));
-    assert_impl(result, "../resources/types/bytes.rs");
+#[test]
+fn test_enum() {
+    test_single("types", "enum");
+}
 
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/types/array.sol"));
-    assert_impl(result, "../resources/types/array.rs");
+#[test]
+fn test_bytes() {
+    test_single("types", "bytes");
 }
 
 #[test]
 #[ignore]
 fn test_plascoin() {
-    let result = parse::<OdraParser, _>(include_str!("../../../../resources/contracts/plascoin.sol"));
-    assert_impl(result, "../resources/contracts/plascoin.rs");
+    test_single("contracts", "plascoin");
 }
 
-fn assert_impl(result: TokenStream, file_path: &str) {
+#[test]
+fn test_if_else() {
+    test_single("conditionals", "ifelse");
+}
+
+#[test]
+fn test_lib_math() {
+    test_single("library", "math");
+}
+
+#[test]
+fn test_lib_safe_math() {
+    test_single("library", "safe_math");
+}
+
+fn test_many(count: usize, base_path: &str) {
+    for i in 1..=count {
+        let path = read_file(format!("../resources/{}/{}.sol", base_path, i));
+        let result = parse::<OdraParser, _>(path.as_str());
+        assert_impl(result, format!("../resources/{}/{}.rs", base_path, i));
+    }
+}
+
+fn test_single(base_path: &str, test_case: &str) {
+    let path = read_file(format!("../resources/{}/{}.sol", base_path, test_case));
+    let result = parse::<OdraParser, _>(path.as_str());
+    assert_impl(
+        result,
+        format!("../resources/{}/{}.rs", base_path, test_case),
+    );
+}
+
+fn assert_impl<P: AsRef<Path>>(result: TokenStream, file_path: P) {
     let parse = |str| {
         let file = syn::parse_file(str).unwrap();
         prettyplease::unparse(&file)
     };
 
-    let mut file = File::open(file_path).unwrap();
-    let mut content = String::new();
-    file.read_to_string(&mut content).unwrap();
+    let content = read_file(file_path);
     let content = content.replace("{{STACK_DEF}}", STACK_DEF);
     let content = content.replace("{{DEFAULT_MODULES}}", DEFAULT_MODULES);
     let content = content.replace("{{DEFAULT_IMPORTS}}", DEFAULT_IMPORTS);
 
     pretty_assertions::assert_eq!(parse(result.to_string().as_str()), parse(content.as_str()));
+}
+
+fn read_file<P: AsRef<Path>>(file_path: P) -> String {
+    let mut file = File::open(file_path).unwrap();
+    let mut content = String::new();
+    file.read_to_string(&mut content).unwrap();
+    content
 }
 
 const DEFAULT_MODULES: &str = r#"

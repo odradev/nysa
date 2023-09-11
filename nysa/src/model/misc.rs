@@ -40,7 +40,7 @@ impl From<&pt::ContractDefinition> for NysaContract {
     }
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub enum NysaType {
     Address,
     Bool,
