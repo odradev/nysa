@@ -64,6 +64,11 @@ fn test_lib_safe_math() {
     test_single("library", "safe_math");
 }
 
+#[test]
+fn test_bitwise_ops() {
+    test_single("op", "bitwise");
+}
+
 fn test_many(count: usize, base_path: &str) {
     for i in 1..=count {
         let path = read_file(format!("../resources/{}/{}.sol", base_path, i));

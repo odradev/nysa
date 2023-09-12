@@ -107,7 +107,7 @@ where
             let stmt = Stmt::Expression {
                 expr: Expression::Assign {
                     left: Box::new(left),
-                    right: Box::new(v.initializer.clone().unwrap()),
+                    right: Some(Box::new(v.initializer.clone().unwrap())),
                 },
             };
             stmt::parse_statement(&stmt, true, ctx)

@@ -2,34 +2,34 @@ use quote::ToTokens;
 use syn::parse_quote;
 
 use crate::{
-    model::ir::{Expression, NumSize, Op},
+    model::ir::{Expression, NumSize, LogicalOp},
     parser::context::test::EmptyContext,
 };
 
 #[test]
 fn assign_and_compare() {
     // sol: x = a + b <= 256
-    let expr = Expression::Compare {
+    let expr = Expression::LogicalOp {
         var_left: Some("x".to_string()),
         left: Box::new(Expression::Assign {
             left: Box::new(Expression::Variable {
                 name: "x".to_string(),
             }),
-            right: Box::new(Expression::Add {
+            right: Some(Box::new(Expression::Add {
                 left: Box::new(Expression::Variable {
                     name: "b".to_string(),
                 }),
                 right: Box::new(Expression::Variable {
                     name: "a".to_string(),
                 }),
-            }),
+            })),
         }),
         var_right: None,
         right: Box::new(Expression::NumberLiteral {
             ty: NumSize::U32,
             value: vec![0, 1, 0, 0],
         }),
-        op: Op::LessEq,
+        op: LogicalOp::LessEq,
     };
     let result = super::parse(&expr, &mut EmptyContext).unwrap();
     let expected: syn::Expr = parse_quote!(
@@ -46,8 +46,8 @@ fn assign_and_compare() {
 fn complex_stmt() {
     // sol: !(y == 0u8.into() || (z = (x * y) / y) == x)
     let expr = Expression::Not {
-        expr: Box::new(Expression::Or {
-            left: Box::new(Expression::Compare {
+        expr: Box::new(Expression::LogicalOp {
+            left: Box::new(Expression::LogicalOp {
                 var_left: None,
                 left: Box::new(Expression::Variable {
                     name: "y".to_string(),
@@ -57,23 +57,23 @@ fn complex_stmt() {
                     ty: NumSize::U32,
                     value: vec![0, 0, 0, 0],
                 }),
-                op: Op::Eq,
+                op: LogicalOp::Eq,
             }),
-            right: Box::new(Expression::Compare {
+            right: Box::new(Expression::LogicalOp {
                 var_left: Some("z".to_string()),
                 left: Box::new(Expression::Divide {
                     left: Box::new(Expression::Assign {
                         left: Box::new(Expression::Variable {
                             name: "z".to_string(),
                         }),
-                        right: Box::new(Expression::Multiply {
+                        right: Some(Box::new(Expression::Multiply {
                             left: Box::new(Expression::Variable {
                                 name: "x".to_string(),
                             }),
                             right: Box::new(Expression::Variable {
                                 name: "y".to_string(),
                             }),
-                        }),
+                        })),
                     }),
                     right: Box::new(Expression::Variable {
                         name: "y".to_string(),
@@ -83,8 +83,11 @@ fn complex_stmt() {
                 right: Box::new(Expression::Variable {
                     name: "x".to_string(),
                 }),
-                op: Op::Eq,
+                op: LogicalOp::Eq,
             }),
+            var_left: None,
+            var_right: None,
+            op: LogicalOp::Or,
         }),
     };
 

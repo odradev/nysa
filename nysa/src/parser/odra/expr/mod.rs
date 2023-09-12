@@ -46,12 +46,11 @@ where
                 .map(|_| quote!(self.));
             Ok(parse_quote!(#self_ty #ident))
         }
-        Expression::Assign { left, right } => primitives::assign(left, right, None, ctx),
-        Expression::AssignDefault { left } => primitives::assign_default(left, ctx),
+        Expression::Assign { left, right } => primitives::assign(left, right.as_deref(), None, ctx),
         Expression::StringLiteral(string) => {
             Ok(parse_quote!(odra::prelude::string::String::from(#string)))
         }
-        Expression::Compare {
+        Expression::LogicalOp {
             var_left,
             left,
             var_right,
@@ -59,29 +58,43 @@ where
             op,
         } => {
             let op = match op {
-                ir::Op::Less => parse_quote!(<),
-                ir::Op::LessEq => parse_quote!(<=),
-                ir::Op::More => parse_quote!(>),
-                ir::Op::MoreEq => parse_quote!(>=),
-                ir::Op::Eq => parse_quote!(==),
-                ir::Op::NotEq => parse_quote!(!=),
+                ir::LogicalOp::Less => parse_quote!(<),
+                ir::LogicalOp::LessEq => parse_quote!(<=),
+                ir::LogicalOp::More => parse_quote!(>),
+                ir::LogicalOp::MoreEq => parse_quote!(>=),
+                ir::LogicalOp::Eq => parse_quote!(==),
+                ir::LogicalOp::NotEq => parse_quote!(!=),
+                ir::LogicalOp::And => parse_quote!(&&),
+                ir::LogicalOp::Or => parse_quote!(||),
             };
-            op::bin_op(var_left, var_right, left, right, op, ctx)
+            op::bin_op(left, right, op, ctx)
         }
         Expression::Add { left, right } => math::add(left, right, ctx),
         Expression::Multiply { left, right } => math::mul(left, right, ctx),
         Expression::Divide { left, right } => math::div(left, right, ctx),
+        Expression::Modulo { left, right } => math::modulo(left, right, ctx),
         Expression::Subtract { left, right } => math::sub(left, right, ctx),
-        Expression::AssignSubtract { left, right } => {
-            let expr = primitives::assign(left, right, Some(parse_quote!(-)), ctx)?;
+        Expression::AssignAnd { left, right, op } => {
+            let op = match op {
+                ir::Op::Bitwise(bo) => match bo {
+                    ir::BitwiseOp::And => parse_quote!(&),
+                    ir::BitwiseOp::Or => parse_quote!(|),
+                    ir::BitwiseOp::ShiftLeft => parse_quote!(<<),
+                    ir::BitwiseOp::ShiftRight => parse_quote!(>>),
+                    ir::BitwiseOp::Xor => parse_quote!(^),
+                    ir::BitwiseOp::Not => parse_quote!(!),
+                },
+                ir::Op::Math(mo) => match mo {
+                    ir::MathOp::Add => parse_quote!(+),
+                    ir::MathOp::Sub => parse_quote!(-),
+                    ir::MathOp::Div => parse_quote!(/),
+                    ir::MathOp::Modulo => parse_quote!(%),
+                    ir::MathOp::Mul => parse_quote!(*),
+                }
+                _ => panic!("Invalid op")
+            };
+            let expr = primitives::assign(left, Some(right), Some(op), ctx)?;
             Ok(expr)
-        }
-        Expression::AssignAdd { left, right } => {
-            let expr = primitives::assign(left, right, Some(parse_quote!(+)), ctx)?;
-            Ok(expr)
-        }
-        Expression::Or { left, right } => {
-            op::bin_op(&None, &None, left, right, parse_quote!(||), ctx)
         }
         Expression::Increment { expr } => {
             let expr = parse(expr, ctx)?;
@@ -158,7 +171,18 @@ where
                 _ => Err(ParserError::InvalidExpression),
             })
             .unwrap(),
-        Expression::UnknownExpr => panic!("Unknown expression"),
+        Expression::BitwiseOp { left, right, op } => {
+            let op = match op {
+                ir::BitwiseOp::And => parse_quote!(&),
+                ir::BitwiseOp::Or => parse_quote!(|),
+                ir::BitwiseOp::ShiftLeft => parse_quote!(<<),
+                ir::BitwiseOp::ShiftRight => parse_quote!(>>),
+                ir::BitwiseOp::Xor => parse_quote!(^),
+                ir::BitwiseOp::Not => parse_quote!(!),
+            };
+            op::bin_op(left, right, op, ctx)
+        },
+        Expression::UnaryOp { expr, op } =>  op::unary_op(expr, op, ctx)
     }
 }
 

@@ -53,21 +53,25 @@ pub fn assign<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 >(
     left: &Expression,
-    right: &Expression,
+    right: Option<&Expression>,
     operator: Option<BinOp>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    match left {
-        Expression::Collection { name, key } => {
-            let keys = vec![*key.clone()];
-            update_collection(name, keys, right, operator, ctx)
+    if let Some(right) = right {
+        match left {
+            Expression::Collection { name, key } => {
+                let keys = vec![*key.clone()];
+                update_collection(name, keys, right, operator, ctx)
+            }
+            Expression::NestedCollection { name, keys } => {
+                let keys = vec![keys.0.clone(), keys.1.clone()];
+                update_collection(name, keys, right, operator, ctx)
+            }
+            Expression::Variable { name } => update_variable(name, right, operator, ctx),
+            _ => parse(left, ctx),
         }
-        Expression::NestedCollection { name, keys } => {
-            let keys = vec![keys.0.clone(), keys.1.clone()];
-            update_collection(name, keys, right, operator, ctx)
-        }
-        Expression::Variable { name } => update_variable(name, right, operator, ctx),
-        _ => parse(left, ctx),
+    } else {
+        assign_default(left, ctx)
     }
 }
 
