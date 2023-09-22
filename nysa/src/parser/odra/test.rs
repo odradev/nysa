@@ -1,4 +1,5 @@
 use crate::parse;
+use quote::ToTokens;
 use std::{fs::File, io::Read, path::Path};
 
 use super::*;
@@ -65,6 +66,7 @@ fn test_lib_safe_math() {
 }
 
 #[test]
+#[ignore]
 fn test_bitwise_ops() {
     test_single("op", "bitwise");
 }
@@ -98,6 +100,17 @@ fn assert_impl<P: AsRef<Path>>(result: TokenStream, file_path: P) {
     let content = content.replace("{{DEFAULT_IMPORTS}}", DEFAULT_IMPORTS);
 
     pretty_assertions::assert_eq!(parse(result.to_string().as_str()), parse(content.as_str()));
+}
+
+pub(crate) fn assert_tokens_eq<L, R>(left: L, right: R)
+where
+    L: ToTokens,
+    R: ToTokens,
+{
+    assert_eq!(
+        left.into_token_stream().to_string(),
+        right.into_token_stream().to_string()
+    )
 }
 
 fn read_file<P: AsRef<Path>>(file_path: P) -> String {

@@ -2,52 +2,47 @@ use solidity_parser::pt;
 
 use super::{expr::Expression, misc::Type};
 
+/// An individual statement representation.
+///
+/// This is an intermediate representation between a solidity statement and the ultimate rust
+/// representation.
+///
+/// A statement is intended to be parsed into syn::Stmt.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Stmt {
+    /// Return statement that does not return any value.
     ReturnVoid,
-    Return {
-        expr: Expression,
-    },
-    Expression {
-        expr: Expression,
-    },
-    VarDefinition {
-        declaration: String,
-        ty: Type,
-        init: Expression,
-    },
-    VarDeclaration {
-        declaration: String,
-        ty: Type,
-    },
-    If {
-        assertion: Expression,
-        if_body: Box<Stmt>,
-    },
-    IfElse {
-        assertion: Expression,
-        if_body: Box<Stmt>,
-        else_body: Box<Stmt>,
-    },
-    Block {
-        stmts: Vec<Stmt>,
-    },
-    Emit {
-        expr: Expression,
-    },
-    RevertWithError {
-        error: String,
-    },
-    Revert {
-        msg: Option<Expression>,
-    },
+    /// Return statement with the returning expression.
+    Return(Expression),
+    /// An [Expression]
+    Expression(Expression),
+    /// Variable definition with the name, type and the initializing expression.
+    VarDefinition(String, Type, Expression),
+    /// Variable declaration with the name, and the type.
+    VarDeclaration(String, Type),
+    /// If expression with the condition, and the conditional statement.
+    If(Expression, Box<Stmt>),
+    /// If expression with the condition expression, the conditional statement, the fallback statement.
+    IfElse(Expression, Box<Stmt>, Box<Stmt>),
+    /// A regular block of statements.
+    Block(Vec<Stmt>),
+    /// A block that the last statement returns a value.
+    ReturningBlock(Vec<Stmt>),
+    /// Emit event statement.
+    Emit(Expression),
+    /// Revert statement with a string message.
+    RevertWithError(String),
+    /// Revert statement with a complex error expression.
+    Revert(Option<Expression>),
+    /// _ statement.
     Placeholder,
-    While {
-        assertion: Expression,
-        block: Box<Stmt>,
-    },
-
+    /// While loop with the condition, and the conditional block.
+    While(Expression, Box<Stmt>),
+    /// Unknown statement.
     Unknown,
+    #[cfg(test)]
+    /// A statement that cannot be parsed. Used to fail fast in a test.
+    Fail,
 }
 
 impl From<&pt::Statement> for Stmt {
@@ -57,9 +52,7 @@ impl From<&pt::Statement> for Stmt {
                 loc,
                 unchecked,
                 statements,
-            } => Self::Block {
-                stmts: statements.iter().map(From::from).collect(),
-            },
+            } => Self::Block(statements.iter().map(From::from).collect()),
             pt::Statement::Assembly {
                 loc,
                 dialect,
@@ -67,26 +60,22 @@ impl From<&pt::Statement> for Stmt {
             } => todo!(),
             pt::Statement::Args(_, _) => todo!(),
             pt::Statement::If(_, assertion, if_body, else_body) => match else_body {
-                Some(else_body) => Self::IfElse {
-                    assertion: assertion.into(),
-                    if_body: Box::new(if_body.as_ref().into()),
-                    else_body: Box::new(else_body.as_ref().into()),
-                },
-                None => Self::If {
-                    assertion: assertion.into(),
-                    if_body: Box::new(if_body.as_ref().into()),
-                },
+                Some(else_body) => Self::IfElse(
+                    assertion.into(),
+                    Box::new(if_body.as_ref().into()),
+                    Box::new(else_body.as_ref().into()),
+                ),
+                None => Self::If(assertion.into(), Box::new(if_body.as_ref().into())),
             },
-            pt::Statement::While(_, assertion, block) => Self::While {
-                assertion: assertion.into(),
-                block: Box::new(block.as_ref().into()),
-            },
+            pt::Statement::While(_, assertion, block) => {
+                Self::While(assertion.into(), Box::new(block.as_ref().into()))
+            }
             pt::Statement::Expression(_, expr) => {
                 let expr: Expression = expr.into();
                 if expr == Expression::Placeholder {
                     Self::Placeholder
                 } else {
-                    Self::Expression { expr }
+                    Self::Expression(expr)
                 }
             }
             pt::Statement::VariableDefinition(_, declaration, init) => {
@@ -94,15 +83,8 @@ impl From<&pt::Statement> for Stmt {
                 let ty = Expression::from(&declaration.ty);
                 let ty = Type::try_from(&ty).unwrap_or(Type::Unknown);
                 match init {
-                    Some(expr) => Self::VarDefinition {
-                        declaration: name,
-                        ty,
-                        init: expr.into(),
-                    },
-                    None => Self::VarDeclaration {
-                        declaration: name,
-                        ty,
-                    },
+                    Some(expr) => Self::VarDefinition(name, ty, expr.into()),
+                    None => Self::VarDeclaration(name, ty),
                 }
             }
             pt::Statement::For(_, _, _, _, _) => Self::Unknown,
@@ -110,25 +92,21 @@ impl From<&pt::Statement> for Stmt {
             pt::Statement::Continue(_) => Self::Unknown,
             pt::Statement::Break(_) => Self::Unknown,
             pt::Statement::Return(_, r) => match r {
-                Some(expr) => Self::Return { expr: expr.into() },
+                Some(expr) => Self::Return(expr.into()),
                 None => Self::ReturnVoid,
             },
             pt::Statement::Revert(_, error_id, err) => {
                 if let Some(id) = error_id {
-                    Self::RevertWithError {
-                        error: id.name.to_owned(),
-                    }
+                    Self::RevertWithError(id.name.to_owned())
                 } else {
                     if err.is_empty() {
-                        Self::Revert { msg: None }
+                        Self::Revert(None)
                     } else {
-                        Self::Revert {
-                            msg: err.first().map(|e| e.into()),
-                        }
+                        Self::Revert(err.first().map(|e| e.into()))
                     }
                 }
             }
-            pt::Statement::Emit(_, expr) => Self::Emit { expr: expr.into() },
+            pt::Statement::Emit(_, expr) => Self::Emit(expr.into()),
             pt::Statement::Try(_, _, _, _) => Self::Unknown,
             pt::Statement::DocComment(_, _, _) => Self::Unknown,
         }

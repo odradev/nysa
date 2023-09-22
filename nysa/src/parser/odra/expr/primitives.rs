@@ -23,7 +23,7 @@ pub fn get_var_or_parse<
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     match expr {
-        Expression::Variable { name } => get_var(name, ctx),
+        Expression::Variable(name) => get_var(name, ctx),
         _ => parse(expr, ctx),
     }
 }
@@ -51,23 +51,19 @@ pub fn get_var_or_parse<
 /// * `ctx` - parser Context.
 pub fn assign<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    O: Into<BinOp>,
 >(
     left: &Expression,
     right: Option<&Expression>,
-    operator: Option<BinOp>,
+    operator: Option<O>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     if let Some(right) = right {
         match left {
-            Expression::Collection { name, key } => {
-                let keys = vec![*key.clone()];
+            Expression::Collection(name, keys) => {
                 update_collection(name, keys, right, operator, ctx)
             }
-            Expression::NestedCollection { name, keys } => {
-                let keys = vec![keys.0.clone(), keys.1.clone()];
-                update_collection(name, keys, right, operator, ctx)
-            }
-            Expression::Variable { name } => update_variable(name, right, operator, ctx),
+            Expression::Variable(name) => update_variable(name, right, operator, ctx),
             _ => parse(left, ctx),
         }
     } else {
@@ -85,17 +81,17 @@ pub fn assign_default<
         || ParserError::UnexpectedExpression(String::from("Expression::Variable"), left.clone());
 
     match left {
-        Expression::Variable { name } => {
+        Expression::Variable(name) => {
             let value_expr = parse_quote!(Default::default());
             set_var(&name, value_expr, ctx)
         }
-        Expression::Collection { name, key } => match ctx.type_from_string(name) {
-            Some(context::ItemType::Storage(Var {
+        Expression::Collection(name, keys) => match ctx.type_from_string(name) {
+            Some(ItemType::Storage(Var {
                 ty: Type::Array(ty),
                 ..
             })) => {
                 let default_value = parse_quote!(Default::default());
-                array::replace_value(name, key, default_value, ctx)
+                array::replace_value(name, &keys[0], default_value, ctx)
             }
             _ => Err(err()),
         },
@@ -291,43 +287,47 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
     }
 }
 
-fn update_collection<T>(
+fn update_collection<T, O>(
     name: &str,
-    keys: Vec<Expression>,
+    keys: &[Expression],
     right: &Expression,
-    operator: Option<BinOp>,
+    operator: Option<O>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    O: Into<BinOp>,
 {
     if operator.is_none() {
         let value = get_var_or_parse(right, ctx)?;
         parse_collection(name, &keys, Some(value), ctx)
     } else {
+        let op = operator.map(Into::<BinOp>::into);
         let value_expr = get_var_or_parse(right, ctx)?;
         let current_value_expr = parse_collection(name, &keys, None, ctx)?;
-        let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
+        let new_value: syn::Expr = parse_quote!(#current_value_expr #op #value_expr);
         parse_collection(name, &keys, Some(new_value), ctx)
     }
 }
 
-fn update_variable<T>(
+fn update_variable<T, O>(
     name: &str,
     right: &Expression,
-    operator: Option<BinOp>,
+    operator: Option<O>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    O: Into<BinOp>,
 {
     if operator.is_none() {
         let right = get_var_or_parse(right, ctx)?;
         set_var(&name, right, ctx)
     } else {
+        let op = operator.map(Into::<BinOp>::into);
         let current_value_expr = get_var(&name, ctx)?;
         let value_expr = get_var_or_parse(right, ctx)?;
-        let new_value: syn::Expr = parse_quote!(#current_value_expr #operator #value_expr);
+        let new_value: syn::Expr = parse_quote!(#current_value_expr #op #value_expr);
         set_var(&name, new_value, ctx)
     }
 }

@@ -1,36 +1,27 @@
-use quote::ToTokens;
 use syn::parse_quote;
 
+use crate::model::ir::MathOp;
+use crate::parser::odra::test::assert_tokens_eq;
 use crate::{
-    model::ir::{Expression, NumSize, LogicalOp},
+    model::ir::{Expression, LogicalOp, NumSize},
     parser::context::test::EmptyContext,
 };
 
 #[test]
 fn assign_and_compare() {
     // sol: x = a + b <= 256
-    let expr = Expression::LogicalOp {
-        var_left: Some("x".to_string()),
-        left: Box::new(Expression::Assign {
-            left: Box::new(Expression::Variable {
-                name: "x".to_string(),
-            }),
-            right: Some(Box::new(Expression::Add {
-                left: Box::new(Expression::Variable {
-                    name: "b".to_string(),
-                }),
-                right: Box::new(Expression::Variable {
-                    name: "a".to_string(),
-                }),
-            })),
-        }),
-        var_right: None,
-        right: Box::new(Expression::NumberLiteral {
-            ty: NumSize::U32,
-            value: vec![0, 1, 0, 0],
-        }),
-        op: LogicalOp::LessEq,
-    };
+    let expr = Expression::LogicalOp(
+        Box::new(Expression::Assign(
+            Box::new(Expression::Variable("x".to_string())),
+            Some(Box::new(Expression::MathOp(
+                Box::new(Expression::Variable("b".to_string())),
+                Box::new(Expression::Variable("a".to_string())),
+                MathOp::Add,
+            ))),
+        )),
+        Box::new(Expression::NumberLiteral(NumSize::U32, vec![0, 1, 0, 0])),
+        LogicalOp::LessEq,
+    );
     let result = super::parse(&expr, &mut EmptyContext).unwrap();
     let expected: syn::Expr = parse_quote!(
         {
@@ -39,59 +30,42 @@ fn assign_and_compare() {
         } <= 256u32.into()
     );
 
-    assert(result, expected);
+    assert_tokens_eq(result, expected);
 }
 
 #[test]
 fn complex_stmt() {
     // sol: !(y == 0u8.into() || (z = (x * y) / y) == x)
-    let expr = Expression::Not {
-        expr: Box::new(Expression::LogicalOp {
-            left: Box::new(Expression::LogicalOp {
-                var_left: None,
-                left: Box::new(Expression::Variable {
-                    name: "y".to_string(),
-                }),
-                var_right: None,
-                right: Box::new(Expression::NumberLiteral {
-                    ty: NumSize::U32,
-                    value: vec![0, 0, 0, 0],
-                }),
-                op: LogicalOp::Eq,
-            }),
-            right: Box::new(Expression::LogicalOp {
-                var_left: Some("z".to_string()),
-                left: Box::new(Expression::Divide {
-                    left: Box::new(Expression::Assign {
-                        left: Box::new(Expression::Variable {
-                            name: "z".to_string(),
-                        }),
-                        right: Some(Box::new(Expression::Multiply {
-                            left: Box::new(Expression::Variable {
-                                name: "x".to_string(),
-                            }),
-                            right: Box::new(Expression::Variable {
-                                name: "y".to_string(),
-                            }),
-                        })),
-                    }),
-                    right: Box::new(Expression::Variable {
-                        name: "y".to_string(),
-                    }),
-                }),
-                var_right: None,
-                right: Box::new(Expression::Variable {
-                    name: "x".to_string(),
-                }),
-                op: LogicalOp::Eq,
-            }),
-            var_left: None,
-            var_right: None,
-            op: LogicalOp::Or,
-        }),
-    };
+    let or_left = Expression::LogicalOp(
+        Box::new(Expression::Variable("y".to_string())),
+        Box::new(Expression::NumberLiteral(NumSize::U32, vec![0, 0, 0, 0])),
+        LogicalOp::Eq,
+    );
 
-    assert(
+    let or_right = Expression::LogicalOp(
+        Box::new(Expression::MathOp(
+            Box::new(Expression::Assign(
+                Box::new(Expression::Variable("z".to_string())),
+                Some(Box::new(Expression::MathOp(
+                    Box::new(Expression::Variable("x".to_string())),
+                    Box::new(Expression::Variable("y".to_string())),
+                    MathOp::Mul,
+                ))),
+            )),
+            Box::new(Expression::Variable("y".to_string())),
+            MathOp::Div,
+        )),
+        Box::new(Expression::Variable("x".to_string())),
+        LogicalOp::Eq,
+    );
+
+    let expr = Expression::Not(Box::new(Expression::LogicalOp(
+        Box::new(or_left),
+        Box::new(or_right),
+        LogicalOp::Or,
+    )));
+
+    assert_tokens_eq(
         super::parse(&expr, &mut EmptyContext).unwrap(),
         quote::quote!(
             !(y == 0u32.into()
@@ -102,15 +76,4 @@ fn complex_stmt() {
                     == x)
         ),
     );
-}
-
-fn assert<L, R>(left: L, right: R)
-where
-    L: ToTokens,
-    R: ToTokens,
-{
-    assert_eq!(
-        left.into_token_stream().to_string(),
-        right.into_token_stream().to_string()
-    )
 }

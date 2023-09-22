@@ -1,66 +1,17 @@
-use quote::ToTokens;
-use syn::parse_quote;
+use crate::{model::ir::Stmt, parser::context::test::EmptyContext, ParserError};
 
 use super::parse_statement;
-use crate::{
-    model::ir::{Expression, Stmt},
-    parser::context::test::EmptyContext,
-};
 
 #[test]
-fn revert_with_no_msg() {
-    let stmt = Stmt::Revert { msg: None };
-    let result = parse_statement(&stmt, true, &mut EmptyContext).unwrap();
-    let expected: syn::Stmt =
-        parse_quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "")););
-
-    assert(result, expected);
+#[should_panic]
+fn fail() {
+    let _ = parse_with_empty_context(Stmt::Unknown);
 }
 
-#[test]
-fn revert_with_msg() {
-    let error_msg = "An error occurred";
-    let stmt = Stmt::Revert {
-        msg: Some(Expression::StringLiteral(error_msg.to_string())),
-    };
-    let result = parse_statement(&stmt, true, &mut EmptyContext).unwrap();
-    let expected: syn::Stmt = parse_quote!(
-        odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "An error occurred"));
-    );
-
-    assert(result, expected)
+pub(super) fn unsafe_parse_with_empty_context(stmt: Stmt) -> syn::Stmt {
+    parse_with_empty_context(stmt).expect("Couldn't parse statement")
 }
 
-#[test]
-fn revert_with_error() {
-    let error_msg = "MyError";
-    let stmt = Stmt::RevertWithError {
-        error: error_msg.to_string(),
-    };
-    let result = parse_statement(&stmt, true, &mut EmptyContext).unwrap();
-    let expected: syn::Stmt = parse_quote!(odra::contract_env::revert(Error::MyError););
-
-    assert(result, expected)
-}
-
-#[test]
-fn invalid_revert_stmt() {
-    let error_msg = "An error occurred";
-    let stmt = Stmt::Revert {
-        msg: Some(Expression::Placeholder),
-    };
-    let result = parse_statement(&stmt, true, &mut EmptyContext);
-
-    assert!(result.is_err());
-}
-
-fn assert<L, R>(left: L, right: R)
-where
-    L: ToTokens,
-    R: ToTokens,
-{
-    assert_eq!(
-        left.into_token_stream().to_string(),
-        right.into_token_stream().to_string()
-    )
+pub(super) fn parse_with_empty_context(stmt: Stmt) -> Result<syn::Stmt, ParserError> {
+    parse_statement(&stmt, true, &mut EmptyContext)
 }

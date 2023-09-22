@@ -65,7 +65,7 @@ pub mod math {
                             x = (((y / x) + x) / 2);
                         }
                     } else if y != 0u8.into() {
-                        z = 1u8.into()
+                        z = 1u8.into();
                     }
                     return (z);
                 }

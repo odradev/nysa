@@ -40,6 +40,7 @@ lazy_static::lazy_static! {
     static ref DEFAULT_VARIABLES: Mutex<HashMap<Var, Expression>> = Mutex::new(HashMap::new());
 }
 
+/// Implementation of [Parser]. Generates code compatible with the Odra Framework.
 pub struct OdraParser;
 
 impl Parser for OdraParser {

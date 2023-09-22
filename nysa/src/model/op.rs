@@ -17,14 +17,14 @@ pub enum BitwiseOp {
     ShiftLeft,
     ShiftRight,
     Xor,
-    Not
+    Not,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum UnaryOp {
     Not,
     Plus,
-    Minus
+    Minus,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -34,6 +34,7 @@ pub enum MathOp {
     Mul,
     Div,
     Modulo,
+    Pow,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -41,5 +42,5 @@ pub enum Op {
     Bitwise(BitwiseOp),
     Unary(UnaryOp),
     Math(MathOp),
-    Logical(LogicalOp)
+    Logical(LogicalOp),
 }

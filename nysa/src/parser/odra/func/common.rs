@@ -1,5 +1,6 @@
 use syn::{parse_quote, FnArg};
 
+use crate::parser::odra::stmt::ext::ext_contract_stmt;
 use crate::{
     model::ir::{Expression, Param, Stmt, Type, Visibility},
     parser::{
@@ -89,12 +90,7 @@ pub(super) fn parse_external_contract_statements<T: ExternalCallsRegister + Cont
         .filter_map(|(name, param_name)| {
             if ctx.is_class(name) {
                 let ident = quote::format_ident!("{}", param_name);
-                Some(stmt::parse_ext_contract_stmt(
-                    name,
-                    ident.clone(),
-                    ident,
-                    ctx,
-                ))
+                Some(ext_contract_stmt(name, ident.clone(), ident, ctx))
             } else {
                 None
             }

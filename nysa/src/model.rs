@@ -17,7 +17,7 @@ pub mod ir {
     pub use super::func::*;
     pub use super::interface::InterfaceData;
     pub use super::misc::*;
-    pub use super::op::{BitwiseOp, LogicalOp, UnaryOp, MathOp, Op};
+    pub use super::op::{BitwiseOp, LogicalOp, MathOp, Op, UnaryOp};
     pub use super::package::Package;
     pub use super::stmt::Stmt;
 }

@@ -29,7 +29,7 @@ pub fn parse_odra_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, ParserE
             65..=128 => Ok(parse_quote!(odra::Variable<odra::types::U128>)),
             129..=256 => Ok(parse_quote!(odra::Variable<odra::types::U256>)),
             257..=512 => Ok(parse_quote!(odra::Variable<odra::types::U512>)),
-            _ => Err(ParserError::UnsupportedStateType(ty.clone())),
+            _ => Err(ParserError::UnsupportedType(ty.clone())),
         },
         Type::Custom(name) => t
             .type_from_string(name)
@@ -68,8 +68,8 @@ pub fn parse_plain_type_from_expr<T: TypeInfo>(
     let err = || ParserError::UnexpectedExpression(String::from("Expression::Type"), expr.clone());
 
     match expr {
-        Expression::Type { ty } => parse_plain_type_from_ty(ty, t),
-        Expression::Variable { name } => match t.type_from_string(name) {
+        Expression::Type(ty) => parse_plain_type_from_ty(ty, t),
+        Expression::Variable(name) => match t.type_from_string(name) {
             Some(context::ItemType::Enum(_)) => {
                 let ident = format_ident!("{}", name);
                 Ok(parse_quote!(#ident))

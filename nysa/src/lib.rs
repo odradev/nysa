@@ -1,9 +1,6 @@
 #![allow(unused_variables)]
 #![feature(box_patterns)]
 
-use model::ir::Package;
-use parser::Parser;
-
 #[cfg(feature = "builder")]
 pub mod builder;
 mod c3;
@@ -13,10 +10,11 @@ mod parser;
 mod utils;
 
 pub use error::ParserError;
-pub use parser::odra::OdraParser;
+use model::ir::Package;
+pub use parser::{odra::OdraParser, Parser};
 use proc_macro2::TokenStream;
 
-/// Parses solidity code into a C3 linearized, Parser compatible ast (eg. Odra)
+/// Parses solidity code into a [TokenStream], [Parser] compatible ast (eg. Odra)
 ///
 /// Example:
 ///

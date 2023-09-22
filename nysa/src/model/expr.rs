@@ -3,7 +3,11 @@ use syn::parse_quote;
 
 use crate::ParserError;
 
-use super::{misc::Type, op::{BitwiseOp, LogicalOp, MathOp, UnaryOp, Op}, stmt::Stmt};
+use super::{
+    misc::Type,
+    op::{BitwiseOp, LogicalOp, MathOp, Op, UnaryOp},
+    stmt::Stmt,
+};
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NumSize {
@@ -23,120 +27,37 @@ pub enum NumSize {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Expression {
-    Require {
-        condition: Box<Expression>,
-        error: Box<Expression>,
-    },
+    Require(Box<Expression>, Box<Expression>),
     Placeholder,
     ZeroAddress,
     Message(Message),
-    Collection {
-        name: String,
-        key: Box<Expression>,
-    },
-    NestedCollection {
-        name: String,
-        keys: Box<(Expression, Expression)>,
-    },
-    Variable {
-        name: String,
-    },
+    Collection(String, Vec<Expression>),
+    Variable(String),
     BoolLiteral(bool),
     StringLiteral(String),
-    Assign {
-        left: Box<Expression>,
-        right: Option<Box<Expression>>,
-    },
-    LogicalOp {
-        var_left: Option<String>,
-        left: Box<Expression>,
-        var_right: Option<String>,
-        right: Box<Expression>,
-        op: LogicalOp,
-    },
-    Add {
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
-    Subtract {
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
-    Divide {
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
-    Multiply {
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
-    Power {
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
-    Modulo {
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
-    AssignAnd {
-        left: Box<Expression>,
-        right: Box<Expression>,
-        op: Op
-    },
-    Increment {
-        expr: Box<Expression>,
-    },
-    Decrement {
-        expr: Box<Expression>,
-    },
-    MemberAccess {
-        expr: Box<Expression>,
-        name: String,
-    },
-    NumberLiteral {
-        ty: NumSize,
-        value: Vec<u8>,
-    },
-    Func {
-        name: Box<Expression>,
-        args: Vec<Expression>,
-    },
-    SuperCall {
-        name: String,
-        args: Vec<Expression>,
-    },
-    ExternalCall {
-        variable: String,
-        fn_name: String,
-        args: Vec<Expression>,
-    },
-    TypeInfo {
-        ty: Box<Expression>,
-        property: String,
-    },
-    Type {
-        ty: Type,
-    },
-    Not {
-        expr: Box<Expression>,
-    },
-    BytesLiteral {
-        bytes: Vec<u8>,
-    },
-    ArrayLiteral {
-        values: Vec<Expression>,
-    },
+    Assign(Box<Expression>, Option<Box<Expression>>),
+    LogicalOp(Box<Expression>, Box<Expression>, LogicalOp),
+    MathOp(Box<Expression>, Box<Expression>, MathOp),
+    AssignAnd(Box<Expression>, Box<Expression>, Op),
+    Increment(Box<Expression>),
+    Decrement(Box<Expression>),
+    MemberAccess(String, Box<Expression>),
+    NumberLiteral(NumSize, Vec<u8>),
+    Func(Box<Expression>, Vec<Expression>),
+    SuperCall(String, Vec<Expression>),
+    ExternalCall(String, String, Vec<Expression>),
+    TypeInfo(Box<Expression>, String),
+    Type(Type),
+    Not(Box<Expression>),
+    BytesLiteral(Vec<u8>),
+    ArrayLiteral(Vec<Expression>),
     Initializer(Box<Expression>),
     Statement(Box<Stmt>),
-    BitwiseOp {
-        left: Box<Expression>,
-        right: Box<Expression>,
-        op: BitwiseOp
-    },
-    UnaryOp {
-        expr: Box<Expression>,
-        op: UnaryOp
-    },
+    BitwiseOp(Box<Expression>, Box<Expression>, BitwiseOp),
+    UnaryOp(Box<Expression>, UnaryOp),
+    #[cfg(test)]
+    /// To fail fast in tests
+    Fail,
 }
 
 pub fn to_expr(solidity_expressions: Vec<pt::Expression>) -> Vec<Expression> {
@@ -151,9 +72,7 @@ impl From<&pt::Expression> for Expression {
 
 impl From<&str> for Expression {
     fn from(value: &str) -> Self {
-        Expression::Variable {
-            name: value.to_string(),
-        }
+        Expression::Variable(value.to_string())
     }
 }
 
@@ -162,7 +81,7 @@ impl TryInto<String> for Expression {
 
     fn try_into(self) -> Result<String, Self::Error> {
         match self {
-            Self::Variable { name } => Ok(name.clone()),
+            Self::Variable(name) => Ok(name.clone()),
             _ => Err(ParserError::InvalidExpression),
         }
     }
@@ -202,10 +121,7 @@ fn try_to_require(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expr
         if id.name.as_str() == "require" {
             let condition = args.get(0).expect("Should be revert condition").into();
             let error = args.get(1).expect("Should be the error message").into();
-            return Some(Expression::Require {
-                condition: Box::new(condition),
-                error: Box::new(error),
-            });
+            return Some(Expression::Require(Box::new(condition), Box::new(error)));
         }
     }
     None
@@ -214,10 +130,10 @@ fn try_to_require(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expr
 fn try_to_super_call(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expression> {
     if let pt::Expression::MemberAccess(_, box pt::Expression::Variable(var), fn_id) = name {
         if &var.name == "super" {
-            return Some(Expression::SuperCall {
-                name: fn_id.name.to_owned(),
-                args: args.iter().map(From::from).collect(),
-            });
+            return Some(Expression::SuperCall(
+                fn_id.name.to_owned(),
+                args.iter().map(From::from).collect(),
+            ));
         }
     }
     None
@@ -232,11 +148,11 @@ fn try_to_variable_name(name: &pt::Expression) -> Option<String> {
 
 fn try_to_ext_contract_call(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expression> {
     if let pt::Expression::MemberAccess(_, box pt::Expression::Variable(var), fn_id) = name {
-        return Some(Expression::ExternalCall {
-            variable: var.name.to_owned(),
-            fn_name: fn_id.name.to_owned(),
-            args: args.iter().map(From::from).collect(),
-        });
+        return Some(Expression::ExternalCall(
+            var.name.to_owned(),
+            fn_id.name.to_owned(),
+            args.iter().map(From::from).collect(),
+        ));
     }
     None
 }
@@ -247,9 +163,7 @@ fn parse_expr(e: &pt::Expression) -> Expression {
             // Eg uint[]
             if key.is_none() {
                 let expr = Expression::from(&**arr);
-                let ty = Expression::Type {
-                    ty: Type::Array(Box::new(Type::try_from(&expr).unwrap())),
-                };
+                let ty = Expression::Type(Type::Array(Box::new(Type::try_from(&expr).unwrap())));
                 return ty;
             }
 
@@ -264,22 +178,15 @@ fn parse_expr(e: &pt::Expression) -> Expression {
                     .map(|key_expr| key_expr.as_ref().into())
                     .expect("Unspecified key");
                 let name = try_to_variable_name(arr2).expect("Collection name expected");
-                Expression::NestedCollection {
-                    name,
-                    keys: Box::new((key_expr2, key_expr)),
-                }
+                Expression::Collection(name, vec![key_expr2, key_expr])
             } else {
                 let name = try_to_variable_name(arr).expect("Collection name expected");
-                Expression::Collection {
-                    name,
-                    key: Box::new(key_expr),
-                }
+                Expression::Collection(name, vec![key_expr])
             }
         }
-        pt::Expression::Assign(_, l, r) => Expression::Assign {
-            left: to_boxed_expr(l),
-            right: Some(to_boxed_expr(r)),
-        },
+        pt::Expression::Assign(_, l, r) => {
+            Expression::Assign(to_boxed_expr(l), Some(to_boxed_expr(r)))
+        }
         pt::Expression::StringLiteral(strings) => {
             let strings = strings
                 .iter()
@@ -288,10 +195,8 @@ fn parse_expr(e: &pt::Expression) -> Expression {
             Expression::StringLiteral(strings.join(","))
         }
         pt::Expression::FunctionCall(_, name, args) => {
-            let to_func = || Expression::Func {
-                name: Box::new(name.as_ref().into()),
-                args: args.iter().map(From::from).collect(),
-            };
+            let to_func =
+                || Expression::Func(to_boxed_expr(name), args.iter().map(From::from).collect());
 
             try_to_zero_address(name)
                 .or(try_to_super_call(name, args))
@@ -301,19 +206,14 @@ fn parse_expr(e: &pt::Expression) -> Expression {
         }
         pt::Expression::Variable(id) => match id.name.as_str() {
             "_" => Expression::Placeholder,
-            name => Expression::Variable {
-                name: name.to_string(),
-            },
+            name => Expression::Variable(name.to_string()),
         },
         pt::Expression::MemberAccess(_, expression, id) => match expression.as_ref() {
             pt::Expression::Variable(var) => {
                 if &var.name == "msg" && &id.name == "sender" {
                     Expression::Message(Message::Sender)
                 } else {
-                    Expression::MemberAccess {
-                        expr: to_boxed_expr(expression),
-                        name: id.name.to_owned(),
-                    }
+                    Expression::MemberAccess(id.name.to_owned(), to_boxed_expr(expression))
                 }
             }
             pt::Expression::FunctionCall(_, name, args) => {
@@ -322,25 +222,19 @@ fn parse_expr(e: &pt::Expression) -> Expression {
                     pt::Expression::Variable(v) => {
                         if &v.name == "type" {
                             let ty = args.first().unwrap();
-                            Some(Expression::TypeInfo {
-                                ty: Box::new(ty.into()),
-                                property: id.name.to_owned(),
-                            })
+                            Some(Expression::TypeInfo(to_boxed_expr(ty), id.name.to_owned()))
                         } else {
                             None
                         }
                     }
                     _ => None,
                 };
-                expr.unwrap_or(Expression::MemberAccess {
-                    expr: to_boxed_expr(expression),
-                    name: id.name.to_owned(),
-                })
+                expr.unwrap_or(Expression::MemberAccess(
+                    id.name.to_owned(),
+                    to_boxed_expr(expression),
+                ))
             }
-            _ => Expression::MemberAccess {
-                expr: to_boxed_expr(expression),
-                name: id.name.to_owned(),
-            },
+            _ => Expression::MemberAccess(id.name.to_owned(), to_boxed_expr(expression)),
         },
         pt::Expression::LessEqual(_, l, r) => to_logical_expr(l, r, LogicalOp::LessEq),
         pt::Expression::Less(_, l, r) => to_logical_expr(l, r, LogicalOp::Less),
@@ -351,43 +245,44 @@ fn parse_expr(e: &pt::Expression) -> Expression {
             let (_, u64_digits) = num.to_u64_digits();
             to_number_literal_expr(u32_digits, u64_digits)
         }
-        pt::Expression::Add(_, l, r) => Expression::Add {
-            left: to_boxed_expr(l),
-            right: to_boxed_expr(r),
-        },
-        pt::Expression::Subtract(_, l, r) => Expression::Subtract {
-            left: to_boxed_expr(l),
-            right: to_boxed_expr(r),
-        },
-        pt::Expression::PostIncrement(_, expression) => Expression::Increment {
-            expr: to_boxed_expr(expression),
-        },
-        pt::Expression::PostDecrement(_, expression) => Expression::Decrement {
-            expr: to_boxed_expr(expression),
-        },
-        pt::Expression::PreIncrement(_, expression) => Expression::Increment {
-            expr: to_boxed_expr(expression),
-        },
-        pt::Expression::PreDecrement(_, expression) => Expression::Decrement {
-            expr: to_boxed_expr(expression),
-        },
+        pt::Expression::Add(_, l, r) => {
+            Expression::MathOp(to_boxed_expr(l), to_boxed_expr(r), MathOp::Add)
+        }
+        pt::Expression::Subtract(_, l, r) => {
+            Expression::MathOp(to_boxed_expr(l), to_boxed_expr(r), MathOp::Sub)
+        }
+        pt::Expression::Multiply(_, l, r) => {
+            Expression::MathOp(to_boxed_expr(l), to_boxed_expr(r), MathOp::Mul)
+        }
+        pt::Expression::Divide(_, l, r) => {
+            Expression::MathOp(to_boxed_expr(l), to_boxed_expr(r), MathOp::Div)
+        }
+        pt::Expression::Modulo(_, l, r) => {
+            Expression::MathOp(to_boxed_expr(l), to_boxed_expr(r), MathOp::Modulo)
+        }
+        pt::Expression::Power(_, l, r) => {
+            Expression::MathOp(to_boxed_expr(l), to_boxed_expr(r), MathOp::Pow)
+        }
+        pt::Expression::PostIncrement(_, expression) => {
+            Expression::Increment(to_boxed_expr(expression))
+        }
+        pt::Expression::PostDecrement(_, expression) => {
+            Expression::Decrement(to_boxed_expr(expression))
+        }
+        pt::Expression::PreIncrement(_, expression) => {
+            Expression::Increment(to_boxed_expr(expression))
+        }
+        pt::Expression::PreDecrement(_, expression) => {
+            Expression::Decrement(to_boxed_expr(expression))
+        }
         pt::Expression::Equal(_, l, r) => to_logical_expr(l, r, LogicalOp::Eq),
         pt::Expression::NotEqual(_, l, r) => to_logical_expr(l, r, LogicalOp::NotEq),
         pt::Expression::AssignSubtract(_, l, r) => to_assign_op_expr(l, r, Op::Math(MathOp::Sub)),
-        pt::Expression::AssignAdd(_, l, r) => to_assign_op_expr(l, r,  Op::Math(MathOp::Add)),
-        pt::Expression::Type(_, ty) => Expression::Type { ty: From::from(ty) },
-        pt::Expression::Power(_, l, r) => Expression::Power {
-            left: to_boxed_expr(l),
-            right: to_boxed_expr(r),
-        },
+        pt::Expression::AssignAdd(_, l, r) => to_assign_op_expr(l, r, Op::Math(MathOp::Add)),
+        pt::Expression::Type(_, ty) => Expression::Type(From::from(ty)),
         pt::Expression::BoolLiteral(_, b) => Expression::BoolLiteral(*b),
-        pt::Expression::Not(_, expr) => Expression::Not {
-            expr: to_boxed_expr(expr),
-        },
-        pt::Expression::Delete(_, expr) => Expression::Assign {
-            left: to_boxed_expr(expr),
-            right: None
-        },
+        pt::Expression::Not(_, expr) => Expression::Not(to_boxed_expr(expr)),
+        pt::Expression::Delete(_, expr) => Expression::Assign(to_boxed_expr(expr), None),
         pt::Expression::HexNumberLiteral(_, hex_string) => {
             // Check if the input string starts with "0x" and remove it if present.
             let hex_string = if hex_string.starts_with("0x") {
@@ -397,31 +292,19 @@ fn parse_expr(e: &pt::Expression) -> Expression {
             };
             let bytes = hex_string_to_u8_array(hex_string).unwrap_or_default();
 
-            Expression::BytesLiteral { bytes }
+            Expression::BytesLiteral(bytes)
         }
         pt::Expression::HexLiteral(hex) => {
             let hex = hex.first().unwrap();
             let bytes = hex_string_to_u8_array(&hex.hex).unwrap_or_default();
-            Expression::BytesLiteral { bytes }
+            Expression::BytesLiteral(bytes)
         }
         pt::Expression::New(_, initializer) => {
             Expression::Initializer(Box::new(initializer.as_ref().into()))
         }
-        pt::Expression::Complement(_, e) => Expression::UnaryOp { expr: to_boxed_expr(e), op: UnaryOp::Not },
-        pt::Expression::UnaryPlus(_, e) => Expression::UnaryOp { expr: to_boxed_expr(e), op: UnaryOp::Plus },
-        pt::Expression::UnaryMinus(_, e) => Expression::UnaryOp { expr: to_boxed_expr(e), op: UnaryOp::Minus },
-        pt::Expression::Multiply(_, left, right) => Expression::Multiply {
-            left: to_boxed_expr(left),
-            right: to_boxed_expr(right),
-        },
-        pt::Expression::Divide(_, left, right) => Expression::Divide {
-            left: to_boxed_expr(left),
-            right: to_boxed_expr(right),
-        },
-        pt::Expression::Modulo(_, left, right) => Expression::Modulo {
-            left: to_boxed_expr(left),
-            right: to_boxed_expr(right),
-        },
+        pt::Expression::Complement(_, e) => Expression::UnaryOp(to_boxed_expr(e), UnaryOp::Not),
+        pt::Expression::UnaryPlus(_, e) => Expression::UnaryOp(to_boxed_expr(e), UnaryOp::Plus),
+        pt::Expression::UnaryMinus(_, e) => Expression::UnaryOp(to_boxed_expr(e), UnaryOp::Minus),
         pt::Expression::ShiftLeft(_, l, r) => to_bitwise_op_expr(l, r, BitwiseOp::ShiftLeft),
         pt::Expression::ShiftRight(_, l, r) => to_bitwise_op_expr(l, r, BitwiseOp::ShiftRight),
         pt::Expression::BitwiseAnd(_, l, r) => to_bitwise_op_expr(l, r, BitwiseOp::And),
@@ -430,32 +313,32 @@ fn parse_expr(e: &pt::Expression) -> Expression {
         pt::Expression::And(_, l, r) => to_logical_expr(l, r, LogicalOp::And),
         pt::Expression::Or(_, l, r) => to_logical_expr(l, r, LogicalOp::Or),
         pt::Expression::Ternary(_, condition, left, right) => {
-            let if_else = Stmt::IfElse {
-                assertion: condition.as_ref().into(),
-                if_body: Box::new(Stmt::Block {
-                    stmts: vec![Stmt::Expression {
-                        expr: left.as_ref().into(),
-                    }],
-                }),
-                else_body: Box::new(Stmt::Block {
-                    stmts: vec![Stmt::Expression {
-                        expr: right.as_ref().into(),
-                    }],
-                }),
-            };
+            let if_else = Stmt::IfElse(
+                condition.as_ref().into(),
+                Box::new(Stmt::ReturningBlock(vec![Stmt::Expression(
+                    left.as_ref().into(),
+                )])),
+                Box::new(Stmt::ReturningBlock(vec![Stmt::Expression(
+                    right.as_ref().into(),
+                )])),
+            );
             Expression::Statement(Box::new(if_else))
         }
         pt::Expression::AssignOr(_, l, r) => to_assign_op_expr(l, r, Op::Bitwise(BitwiseOp::Or)),
         pt::Expression::AssignAnd(_, l, r) => to_assign_op_expr(l, r, Op::Bitwise(BitwiseOp::And)),
         pt::Expression::AssignXor(_, l, r) => to_assign_op_expr(l, r, Op::Bitwise(BitwiseOp::Xor)),
-        pt::Expression::AssignShiftLeft(_, l, r) => to_assign_op_expr(l, r, Op::Bitwise(BitwiseOp::ShiftLeft)),
-        pt::Expression::AssignShiftRight(_, l, r) => to_assign_op_expr(l, r, Op::Bitwise(BitwiseOp::ShiftRight)),
+        pt::Expression::AssignShiftLeft(_, l, r) => {
+            to_assign_op_expr(l, r, Op::Bitwise(BitwiseOp::ShiftLeft))
+        }
+        pt::Expression::AssignShiftRight(_, l, r) => {
+            to_assign_op_expr(l, r, Op::Bitwise(BitwiseOp::ShiftRight))
+        }
         pt::Expression::AssignMultiply(_, l, r) => to_assign_op_expr(l, r, Op::Math(MathOp::Mul)),
         pt::Expression::AssignDivide(_, l, r) => to_assign_op_expr(l, r, Op::Math(MathOp::Div)),
         pt::Expression::AssignModulo(_, l, r) => to_assign_op_expr(l, r, Op::Math(MathOp::Modulo)),
         pt::Expression::ArrayLiteral(_, values) => {
             let values = values.iter().map(From::from).collect();
-            Expression::ArrayLiteral { values }
+            Expression::ArrayLiteral(values)
         }
         pt::Expression::ArraySlice(_, _, _, _) => todo!(),
         pt::Expression::FunctionCallBlock(_, _, _) => todo!(),
@@ -492,46 +375,15 @@ fn hex_string_to_u8_array(hex_string: &str) -> Option<Vec<u8>> {
 }
 
 fn to_assign_op_expr(l: &pt::Expression, r: &pt::Expression, op: Op) -> Expression {
-    let left = l.into();
-    let right = r.into();
-    Expression::AssignAnd { left: Box::new(left), right: Box::new(right), op }
+    Expression::AssignAnd(to_boxed_expr(l), to_boxed_expr(r), op)
 }
 
 fn to_bitwise_op_expr(l: &pt::Expression, r: &pt::Expression, op: BitwiseOp) -> Expression {
-    let left = l.into();
-    let right = r.into();
-    Expression::BitwiseOp { left: Box::new(left), right: Box::new(right), op }
+    Expression::BitwiseOp(to_boxed_expr(l), to_boxed_expr(r), op)
 }
 
 fn to_logical_expr(l: &pt::Expression, r: &pt::Expression, op: LogicalOp) -> Expression {
-    let left = l.into();
-    let right = r.into();
-
-    let mut var_left = None;
-    if let Expression::Assign {
-        left: box Expression::Variable { name },
-        ..
-    } = &left
-    {
-        var_left = Some(name.clone());
-    }
-
-    let mut var_right = None;
-    if let Expression::Assign {
-        left: box Expression::Variable { name },
-        ..
-    } = &right
-    {
-        var_right = Some(name.clone());
-    }
-
-    Expression::LogicalOp {
-        var_left,
-        left: Box::new(left),
-        var_right,
-        right: Box::new(right),
-        op,
-    }
+    Expression::LogicalOp(to_boxed_expr(l), to_boxed_expr(r), op)
 }
 
 fn to_boxed_expr(e: &pt::Expression) -> Box<Expression> {
@@ -541,10 +393,7 @@ fn to_boxed_expr(e: &pt::Expression) -> Box<Expression> {
 fn to_number_literal_expr(u32_digits: Vec<u32>, u64_digits: Vec<u64>) -> Expression {
     // u32::MAX or less
     if u32_digits.is_empty() {
-        return Expression::NumberLiteral {
-            ty: NumSize::U8,
-            value: vec![],
-        };
+        return Expression::NumberLiteral(NumSize::U8, vec![]);
     }
     if u32_digits.len() == 1 {
         let value = u32_digits[0];
@@ -554,23 +403,18 @@ fn to_number_literal_expr(u32_digits: Vec<u32>, u64_digits: Vec<u64>) -> Express
         } else if value <= u16::MAX.into() {
             ty = NumSize::U16;
         }
-        Expression::NumberLiteral {
-            ty,
-            value: u32_digits[0].to_le_bytes().to_vec(),
-        }
+        Expression::NumberLiteral(ty, u32_digits[0].to_le_bytes().to_vec())
     } else {
         // u32::MAX..u64::MAX
         if u64_digits.len() == 1 {
-            Expression::NumberLiteral {
-                ty: NumSize::U64,
-                value: u64_digits[0].to_le_bytes().to_vec(),
-            }
+            Expression::NumberLiteral(NumSize::U64, u64_digits[0].to_le_bytes().to_vec())
         } else {
-            let bytes = u64_digits.iter().map(|i| i.to_le_bytes()).flatten().collect();
-            Expression::NumberLiteral {
-                ty: NumSize::U256,
-                value: bytes,
-            }
+            let bytes = u64_digits
+                .iter()
+                .map(|i| i.to_le_bytes())
+                .flatten()
+                .collect();
+            Expression::NumberLiteral(NumSize::U256, bytes)
         }
     }
 }

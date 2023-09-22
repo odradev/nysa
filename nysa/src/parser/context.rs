@@ -16,7 +16,7 @@ pub trait TypeInfo {
     fn type_from_string(&self, name: &str) -> Option<ItemType>;
     fn type_from_expression(&self, name: &Expression) -> Option<ItemType> {
         match name {
-            Expression::Variable { name } => self.type_from_string(name),
+            Expression::Variable(name) => self.type_from_string(name),
             _ => None,
         }
     }
@@ -33,7 +33,7 @@ pub trait StorageInfo {
 }
 
 pub trait EventsRegister {
-    fn register_event(&mut self, class: &str);
+    fn register_event<T: ToString>(&mut self, class: &T);
     fn emitted_events(&self) -> Vec<&String>;
 }
 
@@ -46,7 +46,7 @@ pub trait FnContext {
     fn set_current_fn(&mut self, func: &FnImplementations);
     fn clear_current_fn(&mut self);
     fn current_fn(&self) -> &FnImplementations;
-    fn register_local_var(&mut self, name: &str, ty: &Type);
+    fn register_local_var<T: ToString>(&mut self, name: &T, ty: &Type);
     fn get_local_var_by_name(&self, name: &str) -> Option<&Var>;
 }
 
@@ -143,8 +143,8 @@ impl ExternalCallsRegister for ContractContext<'_> {
 }
 
 impl EventsRegister for ContractContext<'_> {
-    fn register_event(&mut self, class: &str) {
-        self.emitted_events.insert(class.to_owned());
+    fn register_event<T: ToString>(&mut self, class: &T) {
+        self.emitted_events.insert(class.to_string());
     }
 
     fn emitted_events(&self) -> Vec<&String> {
@@ -214,7 +214,7 @@ impl ExternalCallsRegister for LocalContext<'_> {
 }
 
 impl EventsRegister for LocalContext<'_> {
-    fn register_event(&mut self, class: &str) {
+    fn register_event<T: ToString>(&mut self, class: &T) {
         self.contract.register_event(class);
     }
 
@@ -272,9 +272,9 @@ impl FnContext for LocalContext<'_> {
             .expect("The current function should be set")
     }
 
-    fn register_local_var(&mut self, name: &str, ty: &Type) {
+    fn register_local_var<T: ToString>(&mut self, name: &T, ty: &Type) {
         let var = Var {
-            name: name.to_owned(),
+            name: name.to_string(),
             ty: ty.to_owned(),
             initializer: None,
         };
@@ -323,7 +323,7 @@ pub mod test {
     }
 
     impl EventsRegister for EmptyContext {
-        fn register_event(&mut self, class: &str) {}
+        fn register_event<T: ToString>(&mut self, class: &T) {}
 
         fn emitted_events(&self) -> Vec<&String> {
             vec![]
@@ -347,9 +347,7 @@ pub mod test {
             todo!()
         }
 
-        fn register_local_var(&mut self, name: &str, ty: &crate::model::ir::Type) {
-            todo!()
-        }
+        fn register_local_var<T: ToString>(&mut self, name: &T, ty: &crate::model::ir::Type) {}
 
         fn get_local_var_by_name(&self, name: &str) -> Option<&crate::model::ir::Var> {
             todo!()

@@ -2,14 +2,14 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
-use crate::model::ir::{self, Expression, Type, Var};
+use crate::model::ir::{Expression, Op, Stmt, Type, Var};
 use crate::parser::context::{
     ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType, StorageInfo, TypeInfo,
 };
 use crate::utils;
 use crate::ParserError;
 
-use super::stmt::parse_statement;
+use super::stmt;
 use super::ty;
 
 mod array;
@@ -26,163 +26,70 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     match expression {
-        Expression::Require { condition, error } => error::revert(Some(condition), error, ctx),
-        Expression::Placeholder => Err(ParserError::EmptyExpression),
+        Expression::Require(condition, error) => error::revert(Some(condition), error, ctx),
+        Expression::Placeholder => Err(ParserError::InvalidExpression),
         Expression::ZeroAddress => Ok(parse_quote!(None)),
         Expression::Message(msg) => msg.try_into(),
-        Expression::Collection { name, key } => {
-            let keys = vec![*key.clone()];
-            primitives::parse_collection(name, &keys, None, ctx)
+        Expression::Collection(name, keys) => primitives::parse_collection(name, keys, None, ctx),
+        Expression::Variable(name) => parse_variable(name, ctx),
+        Expression::Assign(left, right) => {
+            primitives::assign(left, right.as_deref(), None::<&Op>, ctx)
         }
-        Expression::NestedCollection { name, keys } => {
-            let keys = vec![keys.0.clone(), keys.1.clone()];
-            primitives::parse_collection(name, &keys, None, ctx)
-        }
-        Expression::Variable { name } => {
-            let ident = utils::to_snake_case_ident(name);
-            let self_ty = ctx
-                .type_from_string(name)
-                .filter(|i| matches!(i, ItemType::Storage(_)))
-                .map(|_| quote!(self.));
-            Ok(parse_quote!(#self_ty #ident))
-        }
-        Expression::Assign { left, right } => primitives::assign(left, right.as_deref(), None, ctx),
         Expression::StringLiteral(string) => {
             Ok(parse_quote!(odra::prelude::string::String::from(#string)))
         }
-        Expression::LogicalOp {
-            var_left,
-            left,
-            var_right,
-            right,
-            op,
-        } => {
-            let op = match op {
-                ir::LogicalOp::Less => parse_quote!(<),
-                ir::LogicalOp::LessEq => parse_quote!(<=),
-                ir::LogicalOp::More => parse_quote!(>),
-                ir::LogicalOp::MoreEq => parse_quote!(>=),
-                ir::LogicalOp::Eq => parse_quote!(==),
-                ir::LogicalOp::NotEq => parse_quote!(!=),
-                ir::LogicalOp::And => parse_quote!(&&),
-                ir::LogicalOp::Or => parse_quote!(||),
-            };
-            op::bin_op(left, right, op, ctx)
+        Expression::LogicalOp(left, right, op) => op::bin_op(left, right, op, ctx),
+        Expression::MathOp(left, right, op) => math::parse_op(left, right, op, ctx),
+        Expression::AssignAnd(left, right, op) => {
+            primitives::assign(left, Some(right), Some(op), ctx)
         }
-        Expression::Add { left, right } => math::add(left, right, ctx),
-        Expression::Multiply { left, right } => math::mul(left, right, ctx),
-        Expression::Divide { left, right } => math::div(left, right, ctx),
-        Expression::Modulo { left, right } => math::modulo(left, right, ctx),
-        Expression::Subtract { left, right } => math::sub(left, right, ctx),
-        Expression::AssignAnd { left, right, op } => {
-            let op = match op {
-                ir::Op::Bitwise(bo) => match bo {
-                    ir::BitwiseOp::And => parse_quote!(&),
-                    ir::BitwiseOp::Or => parse_quote!(|),
-                    ir::BitwiseOp::ShiftLeft => parse_quote!(<<),
-                    ir::BitwiseOp::ShiftRight => parse_quote!(>>),
-                    ir::BitwiseOp::Xor => parse_quote!(^),
-                    ir::BitwiseOp::Not => parse_quote!(!),
-                },
-                ir::Op::Math(mo) => match mo {
-                    ir::MathOp::Add => parse_quote!(+),
-                    ir::MathOp::Sub => parse_quote!(-),
-                    ir::MathOp::Div => parse_quote!(/),
-                    ir::MathOp::Modulo => parse_quote!(%),
-                    ir::MathOp::Mul => parse_quote!(*),
-                }
-                _ => panic!("Invalid op")
-            };
-            let expr = primitives::assign(left, Some(right), Some(op), ctx)?;
-            Ok(expr)
-        }
-        Expression::Increment { expr } => {
+        Expression::Increment(expr) => {
             let expr = parse(expr, ctx)?;
             Ok(parse_quote!(#expr += 1))
         }
-        Expression::Decrement { expr } => {
+        Expression::Decrement(expr) => {
             let expr = parse(expr, ctx)?;
             Ok(parse_quote!(#expr -= 1))
         }
-        Expression::MemberAccess { expr, name } => parse_member_access(name, expr, ctx),
-        Expression::NumberLiteral { ty, value } => num::to_typed_int_expr(ty, value),
-        Expression::Func { name, args } => parse_func(name, args, ctx),
-        Expression::SuperCall { name, args } => parse_super_call(name, args, ctx),
-        Expression::ExternalCall {
-            variable,
-            fn_name,
-            args,
-        } => parse_ext_call(variable, fn_name, args, ctx),
-        Expression::TypeInfo { ty, property } => {
-            let ty = parse(ty, ctx)?;
-            let property = match property.as_str() {
-                "max" => format_ident!("MAX"),
-                "min" => format_ident!("MIN"),
-                p => return Err(ParserError::UnknownProperty(p.to_string())),
-            };
-            Ok(parse_quote!(#ty::#property))
-        }
-        Expression::Type { ty } => {
+        Expression::MemberAccess(name, expr) => parse_member_access(name, expr, ctx),
+        Expression::NumberLiteral(ty, value) => num::to_typed_int_expr(ty, value),
+        Expression::Func(name, args) => parse_func(name, args, ctx),
+        Expression::SuperCall(name, args) => parse_super_call(name, args, ctx),
+        Expression::ExternalCall(var, fn_name, args) => parse_ext_call(var, fn_name, args, ctx),
+        Expression::TypeInfo(ty, property) => parse_type_info(ty, property, ctx),
+        Expression::Type(ty) => {
             let ty = ty::parse_plain_type_from_ty(ty, ctx)?;
             Ok(parse_quote!(#ty))
         }
-        Expression::Power { left, right } => {
-            let left = primitives::get_var_or_parse(left, ctx)?;
-            let right = primitives::get_var_or_parse(right, ctx)?;
-            Ok(parse_quote!(#left.pow(#right)))
-        }
         Expression::BoolLiteral(b) => Ok(parse_quote!(#b)),
-        Expression::Not { expr } => {
+        Expression::Not(expr) => {
             let expr = primitives::get_var_or_parse(expr, ctx)?;
             Ok(parse_quote!(!(#expr)))
         }
-        Expression::BytesLiteral { bytes } => {
-            let arr = bytes
-                .iter()
-                .map(|v| quote::quote!(#v))
-                .collect::<Punctuated<TokenStream, Token![,]>>();
-            let size = bytes.len();
-            Ok(parse_quote!([#arr]))
-        }
-        Expression::ArrayLiteral { values } => {
-            let arr = values
-                .iter()
-                .map(|expression| parse(expression, ctx))
-                .map(|e| match e {
-                    Ok(r) => Ok(quote!(#r)),
-                    Err(e) => Err(e),
-                })
-                .collect::<Result<Punctuated<TokenStream, Token![,]>, ParserError>>()?;
-            Ok(parse_quote!(odra::prelude::vec![#arr]))
-        }
-        Expression::Initializer(expr) => {
-            if let box Expression::Func { name, args } = expr {
-                if let box Expression::Type { ty: Type::Array(_) } = name {
-                    let args = parse_many(&args, ctx)?;
-                    return Ok(parse_quote!(odra::prelude::vec::Vec::with_capacity(#(#args),*)));
-                }
-            }
-            dbg!(expr);
-            todo!()
-        }
-        Expression::Statement(s) => parse_statement(s, false, ctx)
-            .map(|stmt| match stmt {
-                syn::Stmt::Expr(e) => Ok(e),
-                _ => Err(ParserError::InvalidExpression),
-            })
-            .unwrap(),
-        Expression::BitwiseOp { left, right, op } => {
-            let op = match op {
-                ir::BitwiseOp::And => parse_quote!(&),
-                ir::BitwiseOp::Or => parse_quote!(|),
-                ir::BitwiseOp::ShiftLeft => parse_quote!(<<),
-                ir::BitwiseOp::ShiftRight => parse_quote!(>>),
-                ir::BitwiseOp::Xor => parse_quote!(^),
-                ir::BitwiseOp::Not => parse_quote!(!),
-            };
-            op::bin_op(left, right, op, ctx)
-        },
-        Expression::UnaryOp { expr, op } =>  op::unary_op(expr, op, ctx)
+        Expression::BytesLiteral(bytes) => parse_bytes_lit(bytes),
+        Expression::ArrayLiteral(values) => parse_array_lit(values, ctx),
+        Expression::Initializer(expr) => parse_init(expr, ctx),
+        Expression::Statement(s) => parse_statement(s, ctx),
+        Expression::BitwiseOp(left, right, op) => op::bin_op(left, right, op, ctx),
+        Expression::UnaryOp(expr, op) => op::unary_op(expr, op, ctx),
+        #[cfg(test)]
+        Expression::Fail => Err(ParserError::InvalidExpression),
+    }
+}
+
+pub fn parse_expr<T>(
+    expr: &Expression,
+    is_semi: bool,
+    ctx: &mut T,
+) -> Result<syn::Stmt, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    let expr = parse(expr, ctx)?;
+    if !is_semi {
+        Ok(syn::Stmt::Expr(expr))
+    } else {
+        Ok(syn::Stmt::Semi(expr, Default::default()))
     }
 }
 
@@ -239,7 +146,7 @@ where
     let var_ident = utils::to_snake_case_ident(variable);
 
     // If in solidity code a reference is a contract may be a field,
-    // but in odra we store only an address, so a ref must be built
+    // but in Odra we store only an address, so a ref must be built
     // from the address.
     // If a ref was created from an address, the function may be called
     // straight away.
@@ -327,4 +234,76 @@ where
             Ok(parse_quote!(#base_expr.#member))
         }
     }
+}
+
+fn parse_variable<T: TypeInfo>(name: &str, ctx: &mut T) -> Result<syn::Expr, ParserError> {
+    let ident = utils::to_snake_case_ident(name);
+    let self_ty = ctx
+        .type_from_string(name)
+        .filter(|i| matches!(i, ItemType::Storage(_)))
+        .map(|_| quote!(self.));
+    Ok(parse_quote!(#self_ty #ident))
+}
+
+fn parse_array_lit<T>(values: &[Expression], ctx: &mut T) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    let arr = values
+        .iter()
+        .map(|e| parse(e, ctx))
+        .map(|e| match e {
+            Ok(r) => Ok(quote!(#r)),
+            Err(e) => Err(e),
+        })
+        .collect::<Result<Punctuated<TokenStream, Token![,]>, ParserError>>()?;
+    Ok(parse_quote!(odra::prelude::vec![#arr]))
+}
+
+fn parse_bytes_lit(bytes: &[u8]) -> Result<syn::Expr, ParserError> {
+    let arr = bytes
+        .iter()
+        .map(|v| quote::quote!(#v))
+        .collect::<Punctuated<TokenStream, Token![,]>>();
+    let size = bytes.len();
+    Ok(parse_quote!([#arr]))
+}
+
+fn parse_statement<T>(stmt: &Stmt, ctx: &mut T) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    stmt::parse_statement(stmt, false, ctx).map(|stmt| match stmt {
+        syn::Stmt::Expr(e) => Ok(e),
+        _ => Err(ParserError::InvalidExpression),
+    })?
+}
+
+fn parse_type_info<T>(
+    ty: &Expression,
+    property: &str,
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    let ty = parse(ty, ctx)?;
+    let property = match property {
+        "max" => format_ident!("MAX"),
+        "min" => format_ident!("MIN"),
+        p => return Err(ParserError::UnknownProperty(p.to_string())),
+    };
+    Ok(parse_quote!(#ty::#property))
+}
+
+fn parse_init<T>(expr: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    if let Expression::Func(box Expression::Type(Type::Array(_)), args) = expr {
+        let args = parse_many(&args, ctx)?;
+        return Ok(parse_quote!(odra::prelude::vec::Vec::with_capacity(#(#args),*)));
+    }
+    dbg!(expr);
+    todo!()
 }

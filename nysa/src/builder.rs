@@ -9,6 +9,13 @@ use quote::ToTokens;
 
 use crate::{parse, parser::Parser};
 
+/// Generates a rust code file at `dest_code_path` from a solidity source code located at `source_code_path`.
+///
+/// Panics if:
+///  * `source_code_path` does not exist
+///  * could not read the input file,
+///  * parsing solidity code files
+///  * could not create/write to the destination file.
 pub fn generate_file<P, T>(source_code_path: P, dest_code_path: P)
 where
     P: AsRef<Path>,
@@ -18,9 +25,10 @@ where
         return;
     }
 
-    let mut file = File::open(source_code_path).unwrap();
+    let mut file = File::open(source_code_path).expect("Invalid path to the solidity code.");
     let mut solidity_code = String::new();
-    file.read_to_string(&mut solidity_code).unwrap();
+    file.read_to_string(&mut solidity_code)
+        .expect("Could not read the solidity code.");
     let c3_ast = parse::<T, _>(solidity_code);
     let code = c3_ast.to_token_stream().to_string();
 

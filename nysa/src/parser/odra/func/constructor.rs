@@ -99,17 +99,13 @@ where
             let init_expr = v.initializer.clone().unwrap();
             let left = match &v.ty {
                 Type::Mapping(k, v) => Err(ParserError::MappingInit),
-                _ => Ok(Expression::Variable {
-                    name: v.name.clone(),
-                }),
+                _ => Ok(Expression::Variable(v.name.clone())),
             }?;
 
-            let stmt = Stmt::Expression {
-                expr: Expression::Assign {
-                    left: Box::new(left),
-                    right: Some(Box::new(v.initializer.clone().unwrap())),
-                },
-            };
+            let stmt = Stmt::Expression(Expression::Assign(
+                Box::new(left),
+                Some(Box::new(v.initializer.clone().unwrap())),
+            ));
             stmt::parse_statement(&stmt, true, ctx)
         })
         .collect::<Result<_, _>>()

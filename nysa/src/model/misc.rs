@@ -86,7 +86,7 @@ impl TryFrom<&Expression> for Type {
 
     fn try_from(value: &Expression) -> Result<Self, Self::Error> {
         match value {
-            Expression::Type { ty } => Ok(ty.clone()),
+            Expression::Type(ty) => Ok(ty.clone()),
             _ => Err(()),
         }
     }

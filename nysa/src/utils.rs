@@ -16,6 +16,10 @@ pub fn to_prefixed_snake_case_ident<T: AsRef<str>>(prefix: &str, name: T) -> pro
     format_ident!("{}{}", prefix, to_snake_case(name.as_ref()))
 }
 
+pub fn to_ident(input: &str) -> proc_macro2::Ident {
+    format_ident!("{}", input)
+}
+
 /// Converts a &str into snake-cased String preserving the heading `_`
 pub fn to_snake_case(input: &str) -> String {
     if input.starts_with('_') {
@@ -31,13 +35,6 @@ pub fn convert_to_array<const T: usize>(input: &[u8]) -> [u8; T] {
     let mut array: [u8; T] = [0; T];
     array.copy_from_slice(&input[..T]);
     array
-}
-
-#[macro_export]
-macro_rules! to_unit {
-    ($value:expr, $t:ty) => {
-        <$t>::from_le_bytes(crate::utils::convert_to_array($value))
-    };
 }
 
 pub fn map_collection<'a, T, R>(collection: Vec<T>) -> Vec<R>

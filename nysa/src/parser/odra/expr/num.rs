@@ -3,19 +3,25 @@ use crate::{
     parser::context::{
         ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
     },
-    to_unit, ParserError,
+    ParserError,
 };
 use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use super::primitives;
 
+macro_rules! to_uint {
+    ($value:expr, $t:ty) => {
+        <$t>::from_le_bytes(crate::utils::convert_to_array($value))
+    };
+}
+
 pub(crate) fn to_generic_int_expr(ty: &NumSize, value: &[u8]) -> Result<syn::Expr, ParserError> {
     match ty {
-        NumSize::U8 => Ok(to_generic_lit_expr(to_unit!(&value[0..1], u8))),
-        NumSize::U16 => Ok(to_generic_lit_expr(to_unit!(&value[0..2], u16))),
-        NumSize::U32 => Ok(to_generic_lit_expr(to_unit!(value, u32))),
-        NumSize::U64 => Ok(to_generic_lit_expr(to_unit!(value, u64))),
+        NumSize::U8 => Ok(to_generic_lit_expr(to_uint!(&value[0..1], u8))),
+        NumSize::U16 => Ok(to_generic_lit_expr(to_uint!(&value[0..2], u16))),
+        NumSize::U32 => Ok(to_generic_lit_expr(to_uint!(value, u32))),
+        NumSize::U64 => Ok(to_generic_lit_expr(to_uint!(value, u64))),
         NumSize::U256 => {
             let arr = value
                 .iter()
@@ -33,21 +39,21 @@ pub(crate) fn to_typed_int_expr(ty: &NumSize, value: &[u8]) -> Result<syn::Expr,
             let num = if value.is_empty() {
                 0
             } else {
-                to_unit!(&value[0..1], u8)
+                to_uint!(&value[0..1], u8)
             };
 
             Ok(parse_quote!(#num.into()))
         }
         NumSize::U16 => {
-            let num = to_unit!(&value[0..2], u16);
+            let num = to_uint!(&value[0..2], u16);
             Ok(parse_quote!(#num.into()))
         }
         NumSize::U32 => {
-            let num = to_unit!(value, u32);
+            let num = to_uint!(value, u32);
             Ok(parse_quote!(#num.into()))
         }
         NumSize::U64 => {
-            let num = to_unit!(value, u64);
+            let num = to_uint!(value, u64);
             Ok(parse_quote!(#num.into()))
         }
         NumSize::U256 => {
@@ -73,7 +79,7 @@ pub(crate) fn to_generic_lit_expr<N: num_traits::Num + ToString>(num: N) -> syn:
 
 pub(crate) fn try_to_generic_int_expr(expr: &Expression) -> Result<syn::Expr, ParserError> {
     match expr {
-        Expression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
+        Expression::NumberLiteral(ty, value) => to_generic_int_expr(ty, value),
         _ => Err(ParserError::InvalidExpression),
     }
 }
@@ -86,7 +92,7 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     match expr {
-        Expression::NumberLiteral { ty, value } => to_generic_int_expr(ty, value),
+        Expression::NumberLiteral(ty, value) => to_generic_int_expr(ty, value),
         _ => primitives::get_var_or_parse(expr, ctx),
     }
 }
