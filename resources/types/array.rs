@@ -3,7 +3,7 @@ pub mod events {}
 pub mod enums {}
 
 pub mod array {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
     {{DEFAULT_IMPORTS}}
     {{STACK_DEF}}
 
@@ -14,9 +14,9 @@ pub mod array {
     #[odra::module]
     pub struct Array {
         __stack: PathStack,
-        arr: odra::Variable<Vec<odra::types::U256>>,
-        arr_2: odra::Variable<Vec<odra::types::U256>>,
-        my_fixed_size_arr: odra::Variable<Vec<odra::types::U256>>,
+        arr: odra::Variable<Vec<nysa_types::U256>>,
+        arr_2: odra::Variable<Vec<nysa_types::U256>>,
+        my_fixed_size_arr: odra::Variable<Vec<nysa_types::U256>>,
     }
 
 
@@ -35,22 +35,24 @@ pub mod array {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Array => {
-                    let mut a = odra::prelude::vec::Vec::with_capacity(5u8.into());
-                    a[1] = 123u8.into();
+                    let mut a = odra::prelude::vec::Vec::with_capacity(
+                        nysa_types::U256::from_limbs_slice(&[5u64]),
+                    );
+                    a[1] = nysa_types::U256::from_limbs_slice(&[123u64]);
                 }
                 #[allow(unreachable_patterns)]
                 _ => self.super_examples(),
             }
         }
 
-        pub fn get(&self, i: odra::types::U256) -> odra::types::U256 {
+        pub fn get(&self, i: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_get(i);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_get(&self, i: odra::types::U256) -> odra::types::U256 {
+        fn super_get(&self, i: nysa_types::U256) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Array => {
@@ -61,14 +63,14 @@ pub mod array {
             }
         }
 
-        pub fn get_arr(&self) -> odra::prelude::vec::Vec<odra::types::U256> {
+        pub fn get_arr(&self) -> odra::prelude::vec::Vec<nysa_types::U256> {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_get_arr();
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_get_arr(&self) -> odra::prelude::vec::Vec<odra::types::U256> {
+        fn super_get_arr(&self) -> odra::prelude::vec::Vec<nysa_types::U256> {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Array => {
@@ -79,14 +81,14 @@ pub mod array {
             }
         }
 
-        pub fn get_length(&self) -> odra::types::U256 {
+        pub fn get_length(&self) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_get_length();
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_get_length(&self) -> odra::types::U256 {
+        fn super_get_length(&self) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Array => {
@@ -99,7 +101,11 @@ pub mod array {
 
         #[odra(init)]
         pub fn init(&mut self) {
-            self.arr_2.set(odra::prelude::vec![1u8.into(), 2u8.into(), 3u8.into()]);
+            self.arr_2.set(odra::prelude::vec![
+                nysa_types::U256::from_limbs_slice(&[1u64]),
+                nysa_types::U256::from_limbs_slice(&[2u64]),
+                nysa_types::U256::from_limbs_slice(&[3u64])
+            ]);
         }
 
         pub fn pop(&mut self) {
@@ -124,14 +130,14 @@ pub mod array {
             }
         }
 
-        pub fn push(&mut self, i: odra::types::U256) {
+        pub fn push(&mut self, i: nysa_types::U256) {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_push(i);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_push(&mut self, i: odra::types::U256) {
+        fn super_push(&mut self, i: nysa_types::U256) {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Array => {
@@ -146,14 +152,14 @@ pub mod array {
             }
         }
 
-        pub fn remove(&mut self, index: odra::types::U256) {
+        pub fn remove(&mut self, index: nysa_types::U256) {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_remove(index);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_remove(&mut self, index: odra::types::U256) {
+        fn super_remove(&mut self, index: nysa_types::U256) {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Array => {

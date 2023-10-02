@@ -1,3 +1,4 @@
+use nysa_types::{U256, U8};
 use odra::{prelude::string::String, test_env};
 
 use super::*;
@@ -6,8 +7,8 @@ use super::*;
 fn test() {
     let name = String::from("Plascoin");
     let symbol = String::from("PLS");
-    let decimals = 18;
-    let initial_supply = 1_000_000_000_000_000u64.into();
+    let decimals = U8::from(8);
+    let initial_supply = U256::from(1_000);
     let mut contract = OwnedTokenDeployer::init(name, symbol, decimals, initial_supply);
 
     contract.transfer_ownership(Some(test_env::get_account(1)));

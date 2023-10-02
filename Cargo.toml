@@ -2,6 +2,7 @@
 members = [
     "nysa",
     "nysa-macro",
+    "nysa-types",
     "solidity-parser"
 ]
 

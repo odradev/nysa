@@ -54,6 +54,15 @@ pub enum Type {
     Unknown,
 }
 
+impl Type {
+    pub fn as_unit(&self) -> Option<u16> {
+        if let Type::Uint(size) = self {
+            return Some(*size);
+        }
+        None
+    }
+}
+
 impl From<&pt::Type> for Type {
     fn from(value: &pt::Type) -> Self {
         match value {

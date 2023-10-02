@@ -19,6 +19,6 @@ pub fn variables_def<T: TypeInfo>(
 /// Transforms [NysaVar] into a c3 ast [VarDef].
 fn variable_def<T: TypeInfo>(v: &Var, t: &T) -> Result<VarDef, ParserError> {
     let ident = utils::to_snake_case_ident(&v.name);
-    let ty = ty::parse_odra_ty(&v.ty, t)?;
+    let ty = ty::parse_state_ty(&v.ty, t)?;
     Ok(VarDef { ident, ty })
 }

@@ -1,7 +1,7 @@
 use c3_lang_linearization::Class;
 use solidity_parser::pt;
 
-use crate::utils;
+use crate::{parser::context::TypeInfo, utils};
 
 use super::{
     expr::{to_expr, Expression},
@@ -29,6 +29,30 @@ impl Named for Function {
             Function::Function(f) => f.name.clone(),
             Function::Constructor(c) => c.name.clone(),
             Function::Modifier(m) => m.base_name.clone(),
+        }
+    }
+}
+
+impl Function {
+    pub fn ret_ty<T: TypeInfo>(&self, ctx: &T) -> Option<Type> {
+        dbg!(1);
+        match self {
+            Function::Function(f) => {
+                let ret = &f.ret;
+                if ret.len() == 1 {
+                    dbg!(2);
+
+                    let ty = ctx.type_from_expression(&ret[0].1);
+                    dbg!(&ret[0].1);
+                    let var = ty.map(|i| i.as_var().cloned()).flatten();
+                    var.map(|v| v.ty.clone())
+                } else {
+                    // TODO: should return a tuple
+                    None
+                }
+            }
+            Function::Constructor(_) => None,
+            Function::Modifier(_) => None,
         }
     }
 }

@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-odra = { git = "https://github.com/odradev/odra/", branch = "release/0.6.0", default-features = false }
+odra = { path = "../../../odra/core", default-features = false }
+nysa-types = { path = "../../nysa-types", features = ["odra"] }
 
 [build-dependencies]
 nysa = { path = "../../nysa", features = ["builder"] }

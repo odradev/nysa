@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-odra = { git = "https://github.com/odradev/odra/", branch = "release/0.6.0", default-features = false }
+odra = { path = "../../../../odra/core", default-features = false }
 # odra = { path = "../../../../odra/core", default-features = false }
 
 [features]

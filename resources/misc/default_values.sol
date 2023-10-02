@@ -5,7 +5,7 @@ contract MyContract {
     uint256 myNumber = 42; // Default value for a primitive
     int public minInt = type(int).min;
     bool public boo = true;
-    uint public constant MY_UINT = 123;
+    uint192 public constant MY_UINT = 123;
     uint public immutable MY_UINT2;
 
     constructor(uint _myUint) {

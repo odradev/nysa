@@ -9,7 +9,7 @@ use crate::{
 
 pub(crate) fn ext_contracts_def<T: TypeInfo>(
     package: &Package,
-    info: &T,
+    ctx: &T,
 ) -> Result<Vec<syn::ItemMod>, ParserError> {
     let interfaces = package.interfaces();
 
@@ -20,7 +20,7 @@ pub(crate) fn ext_contracts_def<T: TypeInfo>(
             let fns: Vec<syn::TraitItem> = i
                 .fns()
                 .iter()
-                .map(|f| func::interface::def(f, info))
+                .map(|f| func::interface::def(f, ctx))
                 .collect::<Result<Vec<_>, _>>()?;
 
             let mod_ident = utils::to_snake_case_ident(i.name());

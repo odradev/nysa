@@ -70,7 +70,6 @@ mod tests {
 
     #[test]
     fn invalid_revert_stmt() {
-        let error_msg = "An error occurred";
         let stmt = Stmt::Revert(Some(Expression::Placeholder));
         let result = parse_with_empty_context(stmt);
 

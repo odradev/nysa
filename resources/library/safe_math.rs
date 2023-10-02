@@ -1,6 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod safe_math {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
     {{DEFAULT_IMPORTS}}
     
@@ -17,7 +17,7 @@ pub mod safe_math {
     #[odra::module]
     impl SafeMath {
         const PATH: &'static [ClassName; 1usize] = &[ClassName::SafeMath];
-        fn add(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        fn add(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_add(x, y);
             self.__stack.drop_one_from_stack();
@@ -25,9 +25,9 @@ pub mod safe_math {
         }
         fn super_add(
             &self,
-            x: odra::types::U256,
-            y: odra::types::U256,
-        ) -> odra::types::U256 {
+            x: nysa_types::U256,
+            y: nysa_types::U256,
+        ) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::SafeMath => {
@@ -52,7 +52,7 @@ pub mod safe_math {
         }
         #[odra(init)]
         pub fn init(&mut self) {}
-        fn mul(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        fn mul(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_mul(x, y);
             self.__stack.drop_one_from_stack();
@@ -60,14 +60,14 @@ pub mod safe_math {
         }
         fn super_mul(
             &self,
-            x: odra::types::U256,
-            y: odra::types::U256,
-        ) -> odra::types::U256 {
+            x: nysa_types::U256,
+            y: nysa_types::U256,
+        ) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::SafeMath => {
                     let mut z = Default::default();
-                    if !(y == 0u8.into()
+                    if !(y == nysa_types::U256::from_limbs_slice(&[])
                         || ({
                             z = (x * y);
                             z
@@ -86,7 +86,7 @@ pub mod safe_math {
                 _ => self.super_mul(x, y),
             }
         }
-        fn sub(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        fn sub(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_sub(x, y);
             self.__stack.drop_one_from_stack();
@@ -94,9 +94,9 @@ pub mod safe_math {
         }
         fn super_sub(
             &self,
-            x: odra::types::U256,
-            y: odra::types::U256,
-        ) -> odra::types::U256 {
+            x: nysa_types::U256,
+            y: nysa_types::U256,
+        ) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::SafeMath => {

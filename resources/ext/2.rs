@@ -1,6 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod caller {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
     use super::callee::*;
     {{DEFAULT_IMPORTS}}
@@ -25,14 +25,14 @@ pub mod caller {
         pub fn init(&mut self) {
         }
 
-        pub fn set_x(&mut self, _callee: Option<odra::types::Address>, _x: odra::types::U256) {
+        pub fn set_x(&mut self, _callee: Option<odra::types::Address>, _x: nysa_types::U256) {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_set_x(_callee, _x);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_set_x(&mut self, _callee: Option<odra::types::Address>, _x: odra::types::U256) {
+        fn super_set_x(&mut self, _callee: Option<odra::types::Address>, _x: nysa_types::U256) {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Caller => {
@@ -44,14 +44,14 @@ pub mod caller {
             }
         }
 
-        pub fn set_x_from_address(&mut self, _addr: Option<odra::types::Address>, _x: odra::types::U256) {
+        pub fn set_x_from_address(&mut self, _addr: Option<odra::types::Address>, _x: nysa_types::U256) {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_set_x_from_address(_addr, _x);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_set_x_from_address(&mut self, _addr: Option<odra::types::Address>, _x: odra::types::U256) {
+        fn super_set_x_from_address(&mut self, _addr: Option<odra::types::Address>, _x: nysa_types::U256) {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Caller => {
@@ -66,7 +66,7 @@ pub mod caller {
 }
 
 pub mod callee {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
     {{DEFAULT_IMPORTS}}
 
@@ -80,7 +80,7 @@ pub mod callee {
     #[odra::module] 
     pub struct Callee { 
         __stack: PathStack,
-        x: odra::Variable<odra::types::U256>,
+        x: odra::Variable<nysa_types::U256>,
     } 
 
     #[odra::module] 
@@ -91,14 +91,14 @@ pub mod callee {
         pub fn init(&mut self) {
         }
 
-        pub fn set_x(&mut self, _x: odra::types::U256) -> odra::types::U256 {
+        pub fn set_x(&mut self, _x: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_set_x(_x);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_set_x(&mut self, _x: odra::types::U256) -> odra::types::U256 {
+        fn super_set_x(&mut self, _x: nysa_types::U256) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Callee => {

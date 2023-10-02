@@ -42,6 +42,8 @@ where
         attrs.push(parse_quote!(#[odra(payable)]));
     }
 
+    let args = common::context_args(&top_lvl_func.params, top_lvl_func.is_mutable, ctx)?;
+
     let implementations = definitions
         .iter()
         .map(|(class, def)| ClassFnImpl {
@@ -55,7 +57,7 @@ where
     Ok(FnDef::Complex(ComplexFnDef {
         attrs,
         name: top_lvl_func.name.as_str().into(),
-        args: common::args(&top_lvl_func.params, top_lvl_func.is_mutable, ctx)?,
+        args,
         ret: common::parse_ret_type(&top_lvl_func.ret, ctx)?,
         implementations,
     }))

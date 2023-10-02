@@ -1,13 +1,12 @@
-use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote};
-use syn::{parse_quote, punctuated::Punctuated, Token};
-
 use crate::model::ir::{Expression, Op, Stmt, Type, Var};
 use crate::parser::context::{
     ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType, StorageInfo, TypeInfo,
 };
 use crate::utils;
 use crate::ParserError;
+use proc_macro2::{Ident, TokenStream};
+use quote::{format_ident, quote};
+use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use super::stmt;
 use super::ty;
@@ -52,13 +51,13 @@ where
             Ok(parse_quote!(#expr -= 1))
         }
         Expression::MemberAccess(name, expr) => parse_member_access(name, expr, ctx),
-        Expression::NumberLiteral(ty, value) => num::to_typed_int_expr(ty, value),
+        Expression::NumberLiteral(limbs) => num::to_typed_int_expr(limbs, ctx),
         Expression::Func(name, args) => parse_func(name, args, ctx),
         Expression::SuperCall(name, args) => parse_super_call(name, args, ctx),
         Expression::ExternalCall(var, fn_name, args) => parse_ext_call(var, fn_name, args, ctx),
         Expression::TypeInfo(ty, property) => parse_type_info(ty, property, ctx),
         Expression::Type(ty) => {
-            let ty = ty::parse_plain_type_from_ty(ty, ctx)?;
+            let ty = ty::parse_type_from_ty(ty, ctx)?;
             Ok(parse_quote!(#ty))
         }
         Expression::BoolLiteral(b) => Ok(parse_quote!(#b)),

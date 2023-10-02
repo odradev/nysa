@@ -138,7 +138,7 @@ impl odra::types::contract_def::Node for PathStack {
     const COUNT: u32 = 0;
     const IS_LEAF: bool = false;
 }
-impl odra::OdraItem for PathStack {
+impl odra::types::OdraItem for PathStack {
     fn is_module() -> bool {
         false
     }

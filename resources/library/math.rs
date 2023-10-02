@@ -1,6 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod math {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
     {{DEFAULT_IMPORTS}}
     
@@ -19,7 +19,7 @@ pub mod math {
         const PATH: &'static [ClassName; 1usize] = &[ClassName::Math];
         #[odra(init)]
         pub fn init(&mut self) {}
-        fn min(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        fn min(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_min(x, y);
             self.__stack.drop_one_from_stack();
@@ -27,9 +27,9 @@ pub mod math {
         }
         fn super_min(
             &self,
-            x: odra::types::U256,
-            y: odra::types::U256,
-        ) -> odra::types::U256 {
+            x: nysa_types::U256,
+            y: nysa_types::U256,
+        ) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Math => {
@@ -46,26 +46,26 @@ pub mod math {
             }
         }
 
-        fn sqrt(&self, y: odra::types::U256) -> odra::types::U256 {
+        fn sqrt(&self, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_sqrt(y);
             self.__stack.drop_one_from_stack();
             result
         }
-        fn super_sqrt(&self, y: odra::types::U256) -> odra::types::U256 {
+        fn super_sqrt(&self, y: nysa_types::U256) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Math => {
                     let mut z = Default::default();
-                    if y > 3u8.into() {
+                    if y > nysa_types::U256::from_limbs_slice(&[3u64]) {
                         z = y;
-                        let mut x = ((y / 2) + 1);
+                        let mut x = ((y / nysa_types::U256::from_limbs_slice(&[2u64])) + nysa_types::U256::from_limbs_slice(&[1u64]));
                         while x < z {
                             z = x;
-                            x = (((y / x) + x) / 2);
+                            x = (((y / x) + x) / nysa_types::U256::from_limbs_slice(&[2u64]));
                         }
-                    } else if y != 0u8.into() {
-                        z = 1u8.into();
+                    } else if y != nysa_types::U256::from_limbs_slice(&[]) {
+                        z = nysa_types::U256::from_limbs_slice(&[1u64]);
                     }
                     return (z);
                 }

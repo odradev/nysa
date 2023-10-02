@@ -87,8 +87,7 @@ pub fn assign_default<
         }
         Expression::Collection(name, keys) => match ctx.type_from_string(name) {
             Some(ItemType::Storage(Var {
-                ty: Type::Array(ty),
-                ..
+                ty: Type::Array(_), ..
             })) => {
                 let default_value = parse_quote!(Default::default());
                 array::replace_value(name, &keys[0], default_value, ctx)
@@ -190,6 +189,7 @@ fn parse_local_collection<T>(
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
+    let _ = ty;
     let keys_len = keys_expr.len();
     if keys_len == 0 {
         return Err(ParserError::InvalidCollection);
@@ -320,7 +320,13 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
     O: Into<BinOp>,
 {
-    if operator.is_none() {
+    let ty = ctx
+        .type_from_string(name)
+        .map(|v| v.as_var().map(|v| v.ty.clone()))
+        .flatten();
+    let pushed = ctx.push_expected_type(ty);
+    let result = if operator.is_none() {
+        // ctx.set_expected_type()
         let right = get_var_or_parse(right, ctx)?;
         set_var(&name, right, ctx)
     } else {
@@ -329,5 +335,9 @@ where
         let value_expr = get_var_or_parse(right, ctx)?;
         let new_value: syn::Expr = parse_quote!(#current_value_expr #op #value_expr);
         set_var(&name, new_value, ctx)
+    };
+    if pushed {
+        ctx.drop_expected_type();
     }
+    result
 }

@@ -27,17 +27,11 @@ where
 {
     let impls = impls.as_constructors();
 
-    let (primary_constructor_class, primary_constructor) = impls
+    let (_, primary_constructor) = impls
         .iter()
         .find(|(class, _)| **class == data.c3_class())
         .or(impls.last())
         .ok_or(ParserError::ConstructorNotFound)?;
-
-    let stmts: Vec<syn::Stmt> = impls
-        .iter()
-        .map(|(_, c)| common::parse_statements(&c.stmts, ctx))
-        .flatten()
-        .collect();
 
     impls
         .iter()
@@ -46,7 +40,7 @@ where
             if c.is_payable {
                 attrs.push(parse_quote!(#[odra(payable)]));
             }
-
+            let args = common::context_args(&c.params, c.is_mutable, ctx)?;
             let mut stmts: Vec<syn::Stmt> = vec![];
             if !data.is_abstract(id) {
                 stmts.extend(parse_base_calls(c, &impls, ctx));
@@ -61,7 +55,7 @@ where
                 Ok(FnDef::Plain(PlainFnDef {
                     attrs,
                     name: name.clone(),
-                    args: common::args(&c.params, c.is_mutable, ctx)?,
+                    args,
                     ret: common::parse_ret_type(&c.ret, ctx)?,
                     implementation: ClassFnImpl {
                         class: None,
@@ -74,7 +68,7 @@ where
                 Ok(FnDef::Plain(PlainFnDef {
                     attrs,
                     name: name.clone(),
-                    args: common::args(&c.params, c.is_mutable, ctx)?,
+                    args,
                     ret: common::parse_ret_type(&c.ret, ctx)?,
                     implementation: ClassFnImpl {
                         class: None,
@@ -96,9 +90,8 @@ where
         .iter()
         .filter(|v| v.initializer.is_some())
         .map(|v| {
-            let init_expr = v.initializer.clone().unwrap();
             let left = match &v.ty {
-                Type::Mapping(k, v) => Err(ParserError::MappingInit),
+                Type::Mapping(_, _) => Err(ParserError::MappingInit),
                 _ => Ok(Expression::Variable(v.name.clone())),
             }?;
 
@@ -127,7 +120,7 @@ where
             .find(|base| base.class_name == class.to_string())
     };
 
-    constructors.iter().for_each(|(id, i)| {
+    constructors.iter().for_each(|(id, _)| {
         if let Some(base) = find_base_class(id) {
             let args = parse_base_args(base, ctx);
             let ident = parse_base_ident(base);

@@ -3,7 +3,7 @@ pub mod events {}
 pub mod enums {}
 
 pub mod a {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
     {{DEFAULT_IMPORTS}}
     {{STACK_DEF}}
 

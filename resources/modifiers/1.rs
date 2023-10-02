@@ -1,6 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod function_modifier {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
     {{DEFAULT_IMPORTS}}
     
@@ -15,7 +15,7 @@ pub mod function_modifier {
     pub struct FunctionModifier { 
         __stack: PathStack, 
         owner: odra::Variable<Option<odra::types::Address>>,
-        x: odra::Variable<u32>,
+        x: odra::Variable<nysa_types::U32>,
         locked: odra::Variable<bool>
     } 
 
@@ -45,14 +45,14 @@ pub mod function_modifier {
             }
         }
 
-        pub fn decrement(&mut self, i: u32)  {
+        pub fn decrement(&mut self, i: nysa_types::U32)  {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_decrement(i);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_decrement(&mut self, i: u32)  {
+        fn super_decrement(&mut self, i: nysa_types::U32)  {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::FunctionModifier => {
@@ -60,8 +60,8 @@ pub mod function_modifier {
 
                     self.x.set(self.x.get_or_default() - i);
 
-                    if i > 1u8.into() {
-                        self.decrement((i - 1));
+                    if i > nysa_types::U32::from_limbs_slice(&[1u64]) {
+                        self.decrement((i - nysa_types::U32::from_limbs_slice(&[1u64])));
                     }
 
                     self.modifier_after_no_reentrancy();
@@ -74,7 +74,7 @@ pub mod function_modifier {
         #[odra(init)]
         pub fn init(&mut self) {
             self.owner.set(Some(odra::contract_env::caller()));
-            self.x.set(10u8.into());
+            self.x.set(nysa_types::U32::from_limbs_slice(&[10u64]));
         }
 
         fn modifier_before_no_reentrancy(&mut self) {

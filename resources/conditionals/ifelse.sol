@@ -12,7 +12,7 @@ contract IfElse {
         }
     }
 
-    function ternary(uint _x) public pure returns (uint) {
+    function ternary(uint24 _x) public pure returns (uint32) {
         // if (_x < 10) {
         //     return 1;
         // }

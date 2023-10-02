@@ -28,7 +28,7 @@ fn event_def<T: TypeInfo>(ev: &Event, t: &T) -> Result<ClassDef, ParserError> {
         .iter()
         .map(|(field_name, ty)| {
             let ident = utils::to_snake_case_ident(field_name);
-            let ty = ty::parse_plain_type_from_expr(ty, t)?;
+            let ty = ty::parse_type_from_expr(ty, t)?;
             Ok(VarDef { ident, ty })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -38,7 +38,7 @@ fn event_def<T: TypeInfo>(ev: &Event, t: &T) -> Result<ClassDef, ParserError> {
         .iter()
         .map(|(field_name, ty)| {
             let ident = utils::to_snake_case_ident(field_name);
-            let ty = ty::parse_plain_type_from_expr(ty, t)?;
+            let ty = ty::parse_type_from_expr(ty, t)?;
             Ok(parse_quote!(#ident: #ty))
         })
         .collect::<Result<Vec<_>, _>>()?;

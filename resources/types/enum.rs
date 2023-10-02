@@ -12,7 +12,7 @@ pub mod enums {
     }
 }
 pub mod enum_test {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
     use super::enums::*;
     {{DEFAULT_IMPORTS}}
     {{STACK_DEF}}

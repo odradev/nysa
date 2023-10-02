@@ -1,6 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod bitwise_ops {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
     {{DEFAULT_IMPORTS}}
     
@@ -20,14 +20,14 @@ pub mod bitwise_ops {
     impl BitwiseOps { 
         const PATH: &'static [ClassName; 1usize] = &[ClassName::BitwiseOps];
 
-        pub fn and(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        pub fn and(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_and(x, y);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_and(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        fn super_and(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::BitwiseOps => {
@@ -40,9 +40,9 @@ pub mod bitwise_ops {
 
         pub fn get_last_n_bits(
             &self,
-            x: odra::types::U256,
-            n: odra::types::U256,
-        ) -> odra::types::U256 {
+            x: nysa_types::U256,
+            n: nysa_types::U256,
+        ) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_get_last_n_bits(x, n);
             self.__stack.drop_one_from_stack();
@@ -50,9 +50,9 @@ pub mod bitwise_ops {
         }
         fn super_get_last_n_bits(
             &self,
-            x: odra::types::U256,
-            n: odra::types::U256,
-        ) -> odra::types::U256 {
+            x: nysa_types::U256,
+            n: nysa_types::U256,
+        ) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::BitwiseOps => {
@@ -65,9 +65,9 @@ pub mod bitwise_ops {
         }
         pub fn get_last_n_bits_using_mod(
             &self,
-            x: odra::types::U256,
-            n: odra::types::U256,
-        ) -> odra::types::U256 {
+            x: nysa_types::U256,
+            n: nysa_types::U256,
+        ) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_get_last_n_bits_using_mod(x, n);
             self.__stack.drop_one_from_stack();
@@ -75,9 +75,9 @@ pub mod bitwise_ops {
         }
         fn super_get_last_n_bits_using_mod(
             &self,
-            x: odra::types::U256,
-            n: odra::types::U256,
-        ) -> odra::types::U256 {
+            x: nysa_types::U256,
+            n: nysa_types::U256,
+        ) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::BitwiseOps => {
@@ -109,14 +109,14 @@ pub mod bitwise_ops {
             }
         }
 
-        pub fn or(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        pub fn or(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_or(x, y);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_or(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        fn super_or(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::BitwiseOps => {
@@ -127,14 +127,14 @@ pub mod bitwise_ops {
             }
         }
 
-        pub fn shift_left(&self, x: odra::types::U256, bits: odra::types::U256) -> odra::types::U256 {
+        pub fn shift_left(&self, x: nysa_types::U256, bits: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_shift_left(x, bits);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_shift_left(&self, x: odra::types::U256, bits: odra::types::U256) -> odra::types::U256 {
+        fn super_shift_left(&self, x: nysa_types::U256, bits: nysa_types::U256) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::BitwiseOps => {
@@ -145,14 +145,14 @@ pub mod bitwise_ops {
             }
         }
 
-        pub fn shift_right(&self, x: odra::types::U256, bits: odra::types::U256) -> odra::types::U256 {
+        pub fn shift_right(&self, x: nysa_types::U256, bits: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_shift_right(x, bits);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_shift_right(&self, x: odra::types::U256, bits: odra::types::U256) -> odra::types::U256 {
+        fn super_shift_right(&self, x: nysa_types::U256, bits: nysa_types::U256) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::BitwiseOps => {
@@ -163,14 +163,14 @@ pub mod bitwise_ops {
             }
         }
 
-        pub fn xor(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        pub fn xor(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_xor(x, y);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_xor(&self, x: odra::types::U256, y: odra::types::U256) -> odra::types::U256 {
+        fn super_xor(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::BitwiseOps => {

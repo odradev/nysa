@@ -42,7 +42,7 @@ pub enum Expression {
     Increment(Box<Expression>),
     Decrement(Box<Expression>),
     MemberAccess(String, Box<Expression>),
-    NumberLiteral(NumSize, Vec<u8>),
+    NumberLiteral(Vec<u64>),
     Func(Box<Expression>, Vec<Expression>),
     SuperCall(String, Vec<Expression>),
     ExternalCall(String, String, Vec<Expression>),
@@ -241,9 +241,8 @@ fn parse_expr(e: &pt::Expression) -> Expression {
         pt::Expression::MoreEqual(_, l, r) => to_logical_expr(l, r, LogicalOp::MoreEq),
         pt::Expression::More(_, l, r) => to_logical_expr(l, r, LogicalOp::More),
         pt::Expression::NumberLiteral(_, num) => {
-            let (_, u32_digits) = num.to_u32_digits();
             let (_, u64_digits) = num.to_u64_digits();
-            to_number_literal_expr(u32_digits, u64_digits)
+            Expression::NumberLiteral(u64_digits)
         }
         pt::Expression::Add(_, l, r) => {
             Expression::MathOp(to_boxed_expr(l), to_boxed_expr(r), MathOp::Add)
@@ -390,31 +389,31 @@ fn to_boxed_expr(e: &pt::Expression) -> Box<Expression> {
     Box::new(e.into())
 }
 
-fn to_number_literal_expr(u32_digits: Vec<u32>, u64_digits: Vec<u64>) -> Expression {
-    // u32::MAX or less
-    if u32_digits.is_empty() {
-        return Expression::NumberLiteral(NumSize::U8, vec![]);
-    }
-    if u32_digits.len() == 1 {
-        let value = u32_digits[0];
-        let mut ty = NumSize::U32;
-        if value <= u8::MAX.into() {
-            ty = NumSize::U8;
-        } else if value <= u16::MAX.into() {
-            ty = NumSize::U16;
-        }
-        Expression::NumberLiteral(ty, u32_digits[0].to_le_bytes().to_vec())
-    } else {
-        // u32::MAX..u64::MAX
-        if u64_digits.len() == 1 {
-            Expression::NumberLiteral(NumSize::U64, u64_digits[0].to_le_bytes().to_vec())
-        } else {
-            let bytes = u64_digits
-                .iter()
-                .map(|i| i.to_le_bytes())
-                .flatten()
-                .collect();
-            Expression::NumberLiteral(NumSize::U256, bytes)
-        }
-    }
-}
+// fn to_number_literal_expr(u32_digits: Vec<u32>, u64_digits: Vec<u64>) -> Expression {
+//     // u32::MAX or less
+//     if u32_digits.is_empty() {
+//         return Expression::NumberLiteral(NumSize::U8, vec![]);
+//     }
+//     if u32_digits.len() == 1 {
+//         let value = u32_digits[0];
+//         let mut ty = NumSize::U32;
+//         if value <= u8::MAX.into() {
+//             ty = NumSize::U8;
+//         } else if value <= u16::MAX.into() {
+//             ty = NumSize::U16;
+//         }
+//         Expression::NumberLiteral(ty, u32_digits[0].to_le_bytes().to_vec())
+//     } else {
+//         // u32::MAX..u64::MAX
+//         if u64_digits.len() == 1 {
+//             Expression::NumberLiteral(NumSize::U64, u64_digits[0].to_le_bytes().to_vec())
+//         } else {
+//             let bytes = u64_digits
+//                 .iter()
+//                 .map(|i| i.to_le_bytes())
+//                 .flatten()
+//                 .collect();
+//             Expression::NumberLiteral(NumSize::U256, bytes)
+//         }
+//     }
+// }

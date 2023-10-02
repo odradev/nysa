@@ -1,3 +1,4 @@
+use nysa_types::U256;
 use odra::test_env;
 
 use super::*;
@@ -7,7 +8,7 @@ use odra::prelude::string::String;
 fn setup() -> PlascoinRef {
     let name = String::from("Plascoin");
     let symbol = String::from("PLS");
-    let cap = 1_000_000_000_000_000u64.into();
+    let cap = U256::from(1_000_000_000_000_000u64);
     let initial_owner = Some(test_env::get_account(1));
 
     PlascoinDeployer::init(name, symbol, cap, initial_owner)
@@ -17,7 +18,7 @@ fn setup() -> PlascoinRef {
 fn test_setup() {
     let contract = setup();
 
-    assert_eq!(contract.cap(), 1_000_000_000_000_000u64.into());
+    assert_eq!(contract.cap(), U256::from(1_000_000_000_000_000u64));
     assert_eq!(contract.name(), String::from("Plascoin"));
     assert_eq!(contract.symbol(), String::from("PLS"));
 }
@@ -55,7 +56,7 @@ fn test_mint() {
     let recipient = Some(test_env::get_account(2));
 
     test_env::set_caller(owner);
-    contract.mint(recipient, 1_000.into());
+    contract.mint(recipient, U256::from(1_000));
 
-    assert_eq!(contract.balance_of(recipient), 1_000.into());
+    assert_eq!(contract.balance_of(recipient), U256::from(1_000));
 }

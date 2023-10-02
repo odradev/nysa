@@ -1,6 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod e {
-    #![allow(unused_braces, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
     {{DEFAULT_IMPORTS}}
    

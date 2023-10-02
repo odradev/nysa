@@ -1,14 +1,14 @@
 use crate::{
-    model::ir::{Expression, NumSize},
-    parser::context::{
-        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    model::ir::Expression,
+    parser::{
+        context::{FnContext, TypeInfo},
+        odra::ty,
     },
     ParserError,
 };
 use proc_macro2::TokenStream;
+use quote::ToTokens;
 use syn::{parse_quote, punctuated::Punctuated, Token};
-
-use super::primitives;
 
 macro_rules! to_uint {
     ($value:expr, $t:ty) => {
@@ -16,55 +16,30 @@ macro_rules! to_uint {
     };
 }
 
-pub(crate) fn to_generic_int_expr(ty: &NumSize, value: &[u8]) -> Result<syn::Expr, ParserError> {
-    match ty {
-        NumSize::U8 => Ok(to_generic_lit_expr(to_uint!(&value[0..1], u8))),
-        NumSize::U16 => Ok(to_generic_lit_expr(to_uint!(&value[0..2], u16))),
-        NumSize::U32 => Ok(to_generic_lit_expr(to_uint!(value, u32))),
-        NumSize::U64 => Ok(to_generic_lit_expr(to_uint!(value, u64))),
-        NumSize::U256 => {
-            let arr = value
-                .iter()
-                .map(|v| quote::quote!(#v))
-                .collect::<Punctuated<TokenStream, Token![,]>>();
-            Ok(parse_quote!(odra::types::U256::from_big_endian(&[#arr])))
-        }
-        s => Err(ParserError::UnsupportedUnit(s.clone())),
-    }
+pub(crate) fn to_generic_int_expr(value: &[u64]) -> Result<syn::Expr, ParserError> {
+    let bytes = value
+        .iter()
+        .map(|v| v.to_le_bytes())
+        .flatten()
+        .collect::<Vec<_>>();
+    Ok(to_generic_lit_expr(to_uint!(&bytes[0..4], u32)))
 }
 
-pub(crate) fn to_typed_int_expr(ty: &NumSize, value: &[u8]) -> Result<syn::Expr, ParserError> {
-    match ty {
-        NumSize::U8 => {
-            let num = if value.is_empty() {
-                0
-            } else {
-                to_uint!(&value[0..1], u8)
-            };
-
-            Ok(parse_quote!(#num.into()))
-        }
-        NumSize::U16 => {
-            let num = to_uint!(&value[0..2], u16);
-            Ok(parse_quote!(#num.into()))
-        }
-        NumSize::U32 => {
-            let num = to_uint!(value, u32);
-            Ok(parse_quote!(#num.into()))
-        }
-        NumSize::U64 => {
-            let num = to_uint!(value, u64);
-            Ok(parse_quote!(#num.into()))
-        }
-        NumSize::U256 => {
-            let arr = value
-                .iter()
-                .map(|v| quote::quote!(#v))
-                .collect::<Punctuated<TokenStream, Token![,]>>();
-            Ok(parse_quote!(odra::types::U256::from_big_endian(&[#arr])))
-        }
-        s => Err(ParserError::UnsupportedUnit(s.clone())),
-    }
+pub(crate) fn to_typed_int_expr<T: TypeInfo + FnContext>(
+    value: &[u64],
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError> {
+    let ty = ctx.expected_type();
+    let arr = value
+        .iter()
+        .map(|v| quote::quote!(#v))
+        .collect::<Punctuated<TokenStream, Token![,]>>();
+    let ty = ty
+        .map(|t| ty::parse_type_from_ty(&t, ctx).ok())
+        .flatten()
+        .unwrap_or(parse_quote!(nysa_types::U256));
+    dbg!(ty.to_token_stream().to_string());
+    Ok(parse_quote!(#ty::from_limbs_slice(&[#arr])))
 }
 
 pub(crate) fn to_generic_lit_expr<N: num_traits::Num + ToString>(num: N) -> syn::Expr {
@@ -79,20 +54,7 @@ pub(crate) fn to_generic_lit_expr<N: num_traits::Num + ToString>(num: N) -> syn:
 
 pub(crate) fn try_to_generic_int_expr(expr: &Expression) -> Result<syn::Expr, ParserError> {
     match expr {
-        Expression::NumberLiteral(ty, value) => to_generic_int_expr(ty, value),
+        Expression::NumberLiteral(value) => to_generic_int_expr(value),
         _ => Err(ParserError::InvalidExpression),
-    }
-}
-
-pub(crate) fn to_generic_int_expr_or_parse<T>(
-    expr: &Expression,
-    ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
-where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
-{
-    match expr {
-        Expression::NumberLiteral(ty, value) => to_generic_int_expr(ty, value),
-        _ => primitives::get_var_or_parse(expr, ctx),
     }
 }

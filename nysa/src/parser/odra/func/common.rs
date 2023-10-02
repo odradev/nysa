@@ -23,20 +23,43 @@ pub(super) fn parse_parameter<T: TypeInfo>(
     param: &Param,
     info: &T,
 ) -> Result<syn::FnArg, ParserError> {
-    let ty = ty::parse_plain_type_from_ty(&param.ty, info)?;
+    let ty = ty::parse_type_from_ty(&param.ty, info)?;
     let name = utils::to_snake_case_ident(&param.name);
     Ok(parse_quote!( #name: #ty ))
+}
+
+pub(super) fn context_args<T: TypeInfo + FnContext>(
+    params: &[Param],
+    is_mutable: bool,
+    ctx: &mut T,
+) -> Result<Vec<FnArg>, ParserError> {
+    let mut args = params
+        .iter()
+        .map(|p| parse_parameter(p, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    params
+        .iter()
+        .for_each(|p| ctx.register_local_var(&p.name, &p.ty));
+
+    if is_mutable {
+        args.insert(0, parse_quote!(&mut self))
+    } else {
+        args.insert(0, parse_quote!(&self))
+    }
+    Ok(args)
 }
 
 pub(super) fn args<T: TypeInfo>(
     params: &[Param],
     is_mutable: bool,
-    info: &T,
+    ctx: &T,
 ) -> Result<Vec<FnArg>, ParserError> {
     let mut args = params
         .iter()
-        .map(|p| parse_parameter(p, info))
+        .map(|p| parse_parameter(p, ctx))
         .collect::<Result<Vec<_>, _>>()?;
+
     if is_mutable {
         args.insert(0, parse_quote!(&mut self))
     } else {
@@ -53,13 +76,13 @@ pub(super) fn parse_ret_type<T: TypeInfo>(
         0 => parse_quote!(),
         1 => {
             let (_, e) = returns.get(0).unwrap().clone();
-            let ty = ty::parse_plain_type_from_expr(&e, ctx)?;
+            let ty = ty::parse_type_from_expr(&e, ctx)?;
             parse_quote!(-> #ty)
         }
         _ => {
             let types = returns
                 .iter()
-                .map(|(_, e)| ty::parse_plain_type_from_expr(e, ctx))
+                .map(|(_, e)| ty::parse_type_from_expr(e, ctx))
                 .collect::<Result<syn::punctuated::Punctuated<syn::Type, syn::Token![,]>, _>>()?;
             parse_quote!(-> (#types))
         }

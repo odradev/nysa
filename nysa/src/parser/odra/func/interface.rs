@@ -4,10 +4,10 @@ use crate::{model::ir::Function, parser::context::TypeInfo, utils, ParserError};
 
 use super::common;
 
-pub fn def<T: TypeInfo>(f: &Function, info: &T) -> Result<syn::TraitItem, ParserError> {
+pub fn def<T: TypeInfo>(f: &Function, ctx: &T) -> Result<syn::TraitItem, ParserError> {
     if let Function::Function(function) = f {
-        let args = common::args(&function.params, function.is_mutable, info)?;
-        let ret = common::parse_ret_type(&function.ret, info)?;
+        let args = common::args(&function.params, function.is_mutable, ctx)?;
+        let ret = common::parse_ret_type(&function.ret, ctx)?;
         let ident = utils::to_snake_case_ident(&function.name);
 
         Ok(parse_quote!(fn #ident( #(#args),* ) #ret;))

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::model::ir::{Expression, FnImplementations, Type, Var};
+use crate::model::ir::{Expression, FnImplementations, Stmt, Type, Var};
 
 #[derive(Debug)]
 pub enum ItemType {
@@ -12,11 +12,28 @@ pub enum ItemType {
     Local(Var),
 }
 
+impl ItemType {
+    pub fn as_var(&self) -> Option<&Var> {
+        match self {
+            ItemType::Storage(v) => Some(v),
+            ItemType::Local(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
 pub trait TypeInfo {
     fn type_from_string(&self, name: &str) -> Option<ItemType>;
     fn type_from_expression(&self, name: &Expression) -> Option<ItemType> {
         match name {
             Expression::Variable(name) => self.type_from_string(name),
+            Expression::Statement(box Stmt::ReturningBlock(stmts)) => stmts
+                .last()
+                .map(|s| match s {
+                    Stmt::Expression(e) => self.type_from_expression(e),
+                    _ => None,
+                })
+                .flatten(),
             _ => None,
         }
     }
@@ -48,6 +65,14 @@ pub trait FnContext {
     fn current_fn(&self) -> &FnImplementations;
     fn register_local_var<T: ToString>(&mut self, name: &T, ty: &Type);
     fn get_local_var_by_name(&self, name: &str) -> Option<&Var>;
+    fn push_expected_type(&mut self, ty: Option<Type>) -> bool;
+    fn drop_expected_type(&mut self);
+    fn expected_type(&self) -> Option<&Type>;
+}
+
+pub trait ExpressionContext {
+    fn current_expr(&self) -> &Expression;
+    fn set_expr(&mut self, expr: &Expression);
 }
 
 #[allow(dead_code)]
@@ -85,8 +110,8 @@ impl GlobalContext {
         }
     }
 
-    pub fn is_class(&self, name: &String) -> bool {
-        self.classes.contains(name)
+    pub fn is_class(&self, name: &str) -> bool {
+        self.classes.contains(&name.to_string())
     }
 }
 
@@ -158,16 +183,6 @@ impl StorageInfo for ContractContext<'_> {
     }
 }
 
-impl ContractInfo for ContractContext<'_> {
-    fn as_contract_name(&self, name: &Expression) -> Option<String> {
-        self.global.as_contract_name(name)
-    }
-
-    fn is_class(&self, name: &str) -> bool {
-        self.global.is_class(&name.to_string())
-    }
-}
-
 impl TypeInfo for ContractContext<'_> {
     fn type_from_string(&self, name: &str) -> Option<ItemType> {
         let super_result = self.global.type_from_string(name);
@@ -191,6 +206,7 @@ pub struct LocalContext<'a> {
     contract: ContractContext<'a>,
     current_fn: Option<FnImplementations>,
     local_vars: Vec<Var>,
+    expected_types: Vec<Type>,
 }
 
 impl<'a> LocalContext<'a> {
@@ -199,43 +215,8 @@ impl<'a> LocalContext<'a> {
             contract: ctx,
             current_fn: None,
             local_vars: Default::default(),
+            expected_types: Default::default(),
         }
-    }
-}
-
-impl ExternalCallsRegister for LocalContext<'_> {
-    fn register_external_call(&mut self, class: &str) {
-        self.contract.register_external_call(class);
-    }
-
-    fn get_external_calls(&self) -> Vec<&String> {
-        self.contract.get_external_calls()
-    }
-}
-
-impl EventsRegister for LocalContext<'_> {
-    fn register_event<T: ToString>(&mut self, class: &T) {
-        self.contract.register_event(class);
-    }
-
-    fn emitted_events(&self) -> Vec<&String> {
-        self.contract.emitted_events()
-    }
-}
-
-impl StorageInfo for LocalContext<'_> {
-    fn storage(&self) -> Vec<Var> {
-        self.contract.storage()
-    }
-}
-
-impl ContractInfo for LocalContext<'_> {
-    fn as_contract_name(&self, name: &Expression) -> Option<String> {
-        self.contract.as_contract_name(name)
-    }
-
-    fn is_class(&self, name: &str) -> bool {
-        self.contract.is_class(name)
     }
 }
 
@@ -263,6 +244,7 @@ impl FnContext for LocalContext<'_> {
 
     fn clear_current_fn(&mut self) {
         self.current_fn = None;
+        self.local_vars.clear();
     }
 
     fn current_fn(&self) -> &FnImplementations {
@@ -284,8 +266,123 @@ impl FnContext for LocalContext<'_> {
     fn get_local_var_by_name(&self, name: &str) -> Option<&Var> {
         self.local_vars.iter().find(|v| v.name == name)
     }
+
+    fn push_expected_type(&mut self, ty: Option<Type>) -> bool {
+        dbg!("push", &ty);
+        let result = ty.is_some();
+        match ty {
+            Some(Type::Array(ty)) => self.expected_types.push(*ty),
+            Some(ty) => self.expected_types.push(ty),
+            _ => {}
+        };
+        result
+    }
+
+    fn drop_expected_type(&mut self) {
+        let _ = self.expected_types.pop();
+        dbg!("drop", &self.expected_types);
+    }
+
+    fn expected_type(&self) -> Option<&Type> {
+        self.expected_types.last()
+    }
 }
 
+macro_rules! delegate_external_calls_register {
+    ( <$lifetime:tt, $g:tt>, $ty:ty, $to:ident) => {
+        impl<$lifetime, $g: ExternalCallsRegister> ExternalCallsRegister for $ty {
+            delegate_external_calls_register!($to);
+        }
+    };
+    ($ty:ty, $to:ident) => {
+        impl ExternalCallsRegister for $ty {
+            delegate_external_calls_register!($to);
+        }
+    };
+    ($to:ident) => {
+        fn register_external_call(&mut self, class: &str) {
+            self.$to.register_external_call(class);
+        }
+
+        fn get_external_calls(&self) -> Vec<&String> {
+            self.$to.get_external_calls()
+        }
+    };
+}
+
+macro_rules! delegate_events_register {
+    ( <$lifetime:tt, $g:tt>, $ty:ty, $to:ident) => {
+        impl<$lifetime, $g: EventsRegister> EventsRegister for $ty {
+            delegate_events_register!($to);
+        }
+    };
+    ($ty:ty, $to:ident) => {
+        impl EventsRegister for $ty {
+            delegate_events_register!($to);
+        }
+    };
+    ($to:ident) => {
+        fn register_event<T: ToString>(&mut self, class: &T) {
+            self.$to.register_event(class);
+        }
+
+        fn emitted_events(&self) -> Vec<&String> {
+            self.$to.emitted_events()
+        }
+    };
+}
+
+macro_rules! delegate_storage_info {
+    ( <$lifetime:tt, $g:tt>, $ty:ty, $to:ident) => {
+        impl<$lifetime, $g: StorageInfo> StorageInfo for $ty {
+            delegate_storage_info!($to);
+        }
+    };
+    ( $ty:ty, $to:ident) => {
+        impl StorageInfo for $ty {
+            delegate_storage_info!($to);
+        }
+    };
+    ($to:ident) => {
+        fn storage(&self) -> Vec<Var> {
+            self.$to.storage()
+        }
+    };
+}
+
+macro_rules! delegate_contract_info {
+    ( <$lifetime:tt, $g:tt>, $ty:ty, $to:ident) => {
+        impl<$lifetime, $g: ContractInfo> ContractInfo for $ty {
+            fn as_contract_name(&self, name: &Expression) -> Option<String> {
+                self.$to.as_contract_name(name)
+            }
+
+            fn is_class(&self, name: &str) -> bool {
+                self.$to.is_class(name)
+            }
+        }
+    };
+    ($ty:ty, $to:ident) => {
+        impl ContractInfo for $ty {
+            fn as_contract_name(&self, name: &Expression) -> Option<String> {
+                self.$to.as_contract_name(name)
+            }
+
+            fn is_class(&self, name: &str) -> bool {
+                self.$to.is_class(name)
+            }
+        }
+    };
+}
+
+delegate_contract_info!(LocalContext<'_>, contract);
+delegate_storage_info!(LocalContext<'_>, contract);
+delegate_events_register!(LocalContext<'_>, contract);
+delegate_external_calls_register!(LocalContext<'_>, contract);
+
+delegate_contract_info!(ContractContext<'_>, global);
+
+#[allow(unused_variables)]
 #[cfg(test)]
 pub mod test {
     use crate::model::ir::Expression;
@@ -294,6 +391,7 @@ pub mod test {
         ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
     };
 
+    #[derive(Debug)]
     pub struct EmptyContext;
 
     impl StorageInfo for EmptyContext {
@@ -350,6 +448,18 @@ pub mod test {
         fn register_local_var<T: ToString>(&mut self, name: &T, ty: &crate::model::ir::Type) {}
 
         fn get_local_var_by_name(&self, name: &str) -> Option<&crate::model::ir::Var> {
+            todo!()
+        }
+
+        fn push_expected_type(&mut self, ty: Option<crate::model::ir::Type>) -> bool {
+            false
+        }
+
+        fn drop_expected_type(&mut self) {
+            todo!()
+        }
+
+        fn expected_type(&self) -> Option<&crate::model::ir::Type> {
             todo!()
         }
     }

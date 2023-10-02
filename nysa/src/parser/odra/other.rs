@@ -9,7 +9,9 @@ use crate::{
 /// Generating code from Solidity may result in some unusual naming conventions
 /// and syntax that linter does not like.
 pub(super) fn attrs() -> Vec<syn::Attribute> {
-    vec![parse_quote!(#![allow(unused_braces, non_snake_case, unused_imports)])]
+    vec![
+        parse_quote!(#![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]),
+    ]
 }
 
 /// Generates code that is not a direct derivative of Solidity code.
@@ -56,7 +58,7 @@ pub(super) fn path_stack_default_impl() -> Vec<syn::Item> {
             }
         },
         parse_quote! {
-            impl odra::OdraItem for PathStack {
+            impl odra::types::OdraItem for PathStack {
                 fn is_module() -> bool {
                     false
                 }

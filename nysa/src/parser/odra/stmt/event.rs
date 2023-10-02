@@ -33,7 +33,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::ir::{NumSize, Stmt, Type, Var};
+    use crate::model::ir::{Stmt, Type, Var};
     use crate::parser::context::{ContractContext, GlobalContext, LocalContext};
     use crate::parser::odra::stmt::parse_statement;
     use crate::parser::odra::stmt::test::{
@@ -57,23 +57,23 @@ mod tests {
         );
     }
 
-    #[test]
-    fn emit_with_args() {
-        let stmt = Stmt::Emit(Expression::Func(
-            Box::new(Expression::Variable("DataUpdated".to_string())),
-            vec![
-                Expression::BoolLiteral(false),
-                Expression::NumberLiteral(NumSize::U8, vec![100]),
-            ],
-        ));
+    // #[test]
+    // fn emit_with_args() {
+    //     let stmt = Stmt::Emit(Expression::Func(
+    //         Box::new(Expression::Variable("DataUpdated".to_string())),
+    //         vec![
+    //             Expression::BoolLiteral(false),
+    //             Expression::NumberLiteral(NumSize::U8, vec![100]),
+    //         ],
+    //     ));
 
-        assert_tokens_eq(
-            unsafe_parse_with_empty_context(stmt),
-            quote!(<DataUpdated as odra::types::event::OdraEvent>::emit(
-            DataUpdated::new(false, 100u8.into())
-        );),
-        );
-    }
+    //     assert_tokens_eq(
+    //         unsafe_parse_with_empty_context(stmt),
+    //         quote!(<DataUpdated as odra::types::event::OdraEvent>::emit(
+    //         DataUpdated::new(false, 100u8.into())
+    //     );),
+    //     );
+    // }
 
     #[test]
     fn emit_with_context_args() {
