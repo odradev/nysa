@@ -45,6 +45,11 @@ fn test_bytes() {
 }
 
 #[test]
+fn test_cast() {
+    test_single("types", "cast");
+}
+
+#[test]
 #[ignore]
 fn test_plascoin() {
     test_single("contracts", "plascoin");

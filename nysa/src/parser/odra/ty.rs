@@ -76,7 +76,7 @@ pub fn parse_state_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, Parser
             .ok_or(ParserError::InvalidType),
         Type::Bytes(i) => {
             let size = *i as usize;
-            Ok(parse_quote!(odra::Variable<[u8; #size]>))
+            Ok(parse_quote!(odra::Variable<nysa_types::FixedBytes<#size>>))
         }
         Type::Array(ty) => {
             let ty = parse_type_from_ty(ty, t)?;

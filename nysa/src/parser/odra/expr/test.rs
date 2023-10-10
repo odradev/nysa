@@ -1,91 +1,81 @@
-use syn::parse_quote;
+use quote::{quote, ToTokens};
+use solidity_parser::pt::{SourceUnitPart, Statement};
 
-use crate::model::ir::{Expression, LogicalOp};
-use crate::model::ir::{MathOp, Type};
-use crate::parser::context::{ContractContext, FnContext, GlobalContext, LocalContext};
+use crate::model::ir::Type;
+use crate::parser::context::{with_context, FnContext, LocalContext};
 use crate::parser::odra::test::assert_tokens_eq;
 
 #[test]
 fn assign_and_compare() {
-    let storage = vec![];
-    let ctx = GlobalContext::new(vec![], vec![], vec![], vec![], vec![]);
-    let ctx = ContractContext::new(&ctx, &storage);
-    let mut ctx = LocalContext::new(ctx);
-    ctx.register_local_var(&"x".to_string(), &Type::Uint(32));
-    ctx.register_local_var(&"a".to_string(), &Type::Uint(32));
-    ctx.register_local_var(&"b".to_string(), &Type::Uint(32));
+    with_context(|ctx| {
+        ctx.register_local_var(&"x".to_string(), &Type::Uint(32));
+        ctx.register_local_var(&"a".to_string(), &Type::Uint(32));
+        ctx.register_local_var(&"b".to_string(), &Type::Uint(32));
 
-    // sol: x = a + b <= 256
-    let expr = Expression::LogicalOp(
-        Box::new(Expression::Assign(
-            Box::new(Expression::Variable("x".to_string())),
-            Some(Box::new(Expression::MathOp(
-                Box::new(Expression::Variable("b".to_string())),
-                Box::new(Expression::Variable("a".to_string())),
-                MathOp::Add,
-            ))),
-        )),
-        Box::new(Expression::NumberLiteral(vec![0, 1, 0, 0])),
-        LogicalOp::LessEq,
-    );
-    let result = super::parse(&expr, &mut ctx).unwrap();
-    let expected: syn::Expr = parse_quote!(
-        {
-            x = (b + a);
-            x
-        } <= nysa_types::U32::from_limbs_slice(&[0u64, 1u64, 0u64, 0u64])
-    );
+        let solidity_expr = "(x = a + b) <= 256;";
+        let expected_rust_code = quote!(
+            {
+                x = (a + b);
+                x
+            } <= nysa_types::U32::from_limbs_slice(&[256u64])
+        );
 
-    assert_tokens_eq(result, expected);
+        assert_expression(solidity_expr, expected_rust_code, ctx);
+    });
 }
 
 #[test]
 fn complex_stmt() {
-    let storage = vec![];
-    let ctx = GlobalContext::new(vec![], vec![], vec![], vec![], vec![]);
-    let ctx = ContractContext::new(&ctx, &storage);
-    let mut ctx = LocalContext::new(ctx);
-    ctx.register_local_var(&"y".to_string(), &Type::Uint(32));
+    with_context(|ctx| {
+        ctx.register_local_var(&"y".to_string(), &Type::Uint(32));
 
-    // sol: !(y == 0u8.into() || (z = (x * y) / y) == x)
-    let or_left = Expression::LogicalOp(
-        Box::new(Expression::Variable("y".to_string())),
-        Box::new(Expression::NumberLiteral(vec![0u64])),
-        LogicalOp::Eq,
-    );
-
-    let or_right = Expression::LogicalOp(
-        Box::new(Expression::MathOp(
-            Box::new(Expression::Assign(
-                Box::new(Expression::Variable("z".to_string())),
-                Some(Box::new(Expression::MathOp(
-                    Box::new(Expression::Variable("x".to_string())),
-                    Box::new(Expression::Variable("y".to_string())),
-                    MathOp::Mul,
-                ))),
-            )),
-            Box::new(Expression::Variable("y".to_string())),
-            MathOp::Div,
-        )),
-        Box::new(Expression::Variable("x".to_string())),
-        LogicalOp::Eq,
-    );
-
-    let expr = Expression::Not(Box::new(Expression::LogicalOp(
-        Box::new(or_left),
-        Box::new(or_right),
-        LogicalOp::Or,
-    )));
-
-    assert_tokens_eq(
-        super::parse(&expr, &mut ctx).unwrap(),
-        quote::quote!(
-            !(y == nysa_types::U32::from_limbs_slice(&[0u64])
+        let solidity_expr = "!(y == 0 || (z = x * y) / y == x);";
+        let expected_rust_code = quote!(
+            !(y == nysa_types::U32::from_limbs_slice(&[])
                 || ({
                     z = (x * y);
                     z
                 } / y)
                     == x)
-        ),
-    );
+        );
+
+        assert_expression(solidity_expr, expected_rust_code, ctx);
+    })
+}
+
+fn assert_expression<T: AsRef<str>, R: ToTokens>(
+    solidity_expr: T,
+    expected: R,
+    ctx: &mut LocalContext,
+) {
+    // dummy function to successfully parse an expression.
+    let src = r#"
+    function foo() {
+        {{STMT}}
+    }
+    "#;
+    let src = src.replace("{{STMT}}", solidity_expr.as_ref());
+
+    // parse code
+    let (actual_parse_tree, _) = solidity_parser::parse(&src, 0).unwrap();
+    let ast = actual_parse_tree.0.first().unwrap();
+
+    // extract the expression from the AST
+    if let SourceUnitPart::FunctionDefinition(box f) = ast {
+        if let Some(Statement::Block {
+            loc,
+            unchecked,
+            statements,
+        }) = &f.body
+        {
+            if let Some(Statement::Expression(_, e)) = statements.first() {
+                dbg!(e);
+                let expr = e.into();
+                let expr = super::parse(&expr, ctx).unwrap();
+                assert_tokens_eq(expr, expected);
+                return;
+            }
+        }
+    }
+    panic!("Could not find an expression")
 }

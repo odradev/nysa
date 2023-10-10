@@ -10,7 +10,6 @@ mod parser;
 mod utils;
 
 pub use error::ParserError;
-use model::ir::Package;
 pub use parser::{odra::OdraParser, Parser};
 use proc_macro2::TokenStream;
 
@@ -35,7 +34,7 @@ pub fn parse<P: Parser, I: AsRef<str>>(input: I) -> TokenStream {
         utils::ast::parse(input.as_ref()).expect("The input should be a valid solidity code");
 
     let package =
-        Package::new(solidity_ast).expect("The ast should allow to create a valid Package");
+        parser::preprocess(&solidity_ast).expect("The ast should allow to create a valid Package");
 
     <P as Parser>::parse(package).unwrap()
 }

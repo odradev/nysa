@@ -14,10 +14,10 @@ pub mod a {
     #[odra::module]
     pub struct A {
         __stack: PathStack,
-        a: odra::Variable<[u8; 1usize]>,
-        b: odra::Variable<[u8; 2usize]>,
-        c: odra::Variable<[u8; 4usize]>,
-        d: odra::Variable<[u8; 4usize]>,
+        a: odra::Variable<nysa_types::FixedBytes<1usize>>,
+        b: odra::Variable<nysa_types::FixedBytes<2usize>>,
+        c: odra::Variable<nysa_types::FixedBytes<4usize>>,
+        d: odra::Variable<nysa_types::FixedBytes<4usize>>,
     }
     #[odra::module]
     impl A {
@@ -25,10 +25,10 @@ pub mod a {
 
         #[odra(init)]
         pub fn init(&mut self) {
-            self.a.set([181u8]);
-            self.b.set([2u8, 255u8]);
-            self.c.set([0u8, 17u8, 34u8, 255u8]);
-            self.d.set([255u8, 0u8, 255u8, 0u8]);
+            self.a.set(nysa_types::FixedBytes([181u8]));
+            self.b.set(nysa_types::FixedBytes([2u8, 255u8]));
+            self.c.set(nysa_types::FixedBytes([0u8, 17u8, 34u8, 255u8]));
+            self.d.set(nysa_types::FixedBytes([255u8, 0u8, 255u8, 0u8]));
         }
     }
 }

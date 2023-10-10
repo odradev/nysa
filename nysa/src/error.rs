@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::model::ir::{Expression, Function, NumSize, Type};
+use crate::model::ir::{Expression, Function, Type};
 
 /// Set of errors which may occur when parsing solidity code.
 #[derive(Error, Debug, PartialOrd, PartialEq)]
@@ -8,9 +8,6 @@ pub enum ParserError {
     /// Type is not supported by the parser.
     #[error("Unsupported type `{0:?}`.")]
     UnsupportedType(Type),
-    /// Numeric type is not supported by the parser.
-    #[error("Unsupported num size `{0:?}`.")]
-    UnsupportedUnit(NumSize),
     /// Expression is not supported by the parser.
     #[error("Unexpected expression, expected `{0}`, but found `{1:?}`.")]
     UnexpectedExpression(String, Expression),

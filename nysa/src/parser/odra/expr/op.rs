@@ -1,4 +1,3 @@
-use quote::ToTokens;
 use syn::{parse_quote, BinOp};
 
 use crate::{
@@ -25,9 +24,6 @@ pub(crate) fn bin_op<
     let right_expr = math::eval_in_context(right, left, ctx)?;
 
     let op: BinOp = op.into();
-
-    dbg!(left_expr.to_token_stream().to_string());
-    dbg!(right_expr.to_token_stream().to_string());
 
     Ok(parse_quote!(#left_expr #op #right_expr))
 }

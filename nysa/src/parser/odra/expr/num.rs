@@ -7,7 +7,6 @@ use crate::{
     ParserError,
 };
 use proc_macro2::TokenStream;
-use quote::ToTokens;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 macro_rules! to_uint {
@@ -38,7 +37,6 @@ pub(crate) fn to_typed_int_expr<T: TypeInfo + FnContext>(
         .map(|t| ty::parse_type_from_ty(&t, ctx).ok())
         .flatten()
         .unwrap_or(parse_quote!(nysa_types::U256));
-    dbg!(ty.to_token_stream().to_string());
     Ok(parse_quote!(#ty::from_limbs_slice(&[#arr])))
 }
 

@@ -268,7 +268,6 @@ impl FnContext for LocalContext<'_> {
     }
 
     fn push_expected_type(&mut self, ty: Option<Type>) -> bool {
-        dbg!("push", &ty);
         let result = ty.is_some();
         match ty {
             Some(Type::Array(ty)) => self.expected_types.push(*ty),
@@ -280,7 +279,6 @@ impl FnContext for LocalContext<'_> {
 
     fn drop_expected_type(&mut self) {
         let _ = self.expected_types.pop();
-        dbg!("drop", &self.expected_types);
     }
 
     fn expected_type(&self) -> Option<&Type> {
@@ -381,6 +379,16 @@ delegate_events_register!(LocalContext<'_>, contract);
 delegate_external_calls_register!(LocalContext<'_>, contract);
 
 delegate_contract_info!(ContractContext<'_>, global);
+
+#[cfg(test)]
+pub fn with_context<F: Fn(&mut LocalContext) -> ()>(f: F) {
+    let storage = vec![];
+    let ctx = GlobalContext::default();
+    let ctx = ContractContext::new(&ctx, &storage);
+    let mut ctx = LocalContext::new(ctx);
+
+    f(&mut ctx)
+}
 
 #[allow(unused_variables)]
 #[cfg(test)]

@@ -110,6 +110,14 @@ fn parse_func<T>(
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
+    dbg!(fn_name);
+    if let Expression::Type(ty) = fn_name {
+        // cast expression
+        let ty = ty::parse_type_from_ty(ty, ctx)?;
+        let arg = primitives::get_var_or_parse(args.first().unwrap(), ctx)?;
+        return Ok(parse_quote!(#ty::from(*#arg)));
+    }
+
     let args = parse_many(&args, ctx)?;
     // Context allows us to distinct an external contract initialization from a regular function call
     if let Some(class_name) = ctx.as_contract_name(fn_name) {
@@ -124,8 +132,12 @@ where
             Ok(parse_quote!(#ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr))))
         };
     }
+
     match parse(fn_name, ctx) {
-        Ok(name) => Ok(parse_quote!(self.#name(#(#args),*))),
+        Ok(name) => {
+            dbg!(&name);
+            Ok(parse_quote!(self.#name(#(#args),*)))
+        }
         Err(err) => Err(err),
     }
 }
@@ -265,7 +277,7 @@ fn parse_bytes_lit(bytes: &[u8]) -> Result<syn::Expr, ParserError> {
         .map(|v| quote::quote!(#v))
         .collect::<Punctuated<TokenStream, Token![,]>>();
     let size = bytes.len();
-    Ok(parse_quote!([#arr]))
+    Ok(parse_quote!(nysa_types::FixedBytes([#arr])))
 }
 
 fn parse_statement<T>(stmt: &Stmt, ctx: &mut T) -> Result<syn::Expr, ParserError>

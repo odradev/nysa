@@ -1,10 +1,3 @@
-use solidity_parser::pt::ContractDefinition;
-
-use crate::{
-    c3,
-    utils::{ast, map_collection, SolidityAST},
-};
-
 use super::{
     interface::InterfaceData,
     misc::{Enum, Error, Event},
@@ -20,37 +13,20 @@ pub struct Package {
 }
 
 impl Package {
-    pub fn new(ast: SolidityAST) -> Result<Self, &'static str> {
-        let contracts: Vec<&ContractDefinition> = ast::extract_contracts(&ast);
-        let c3 = c3::linearization(&contracts);
-
-        let contract_classes =
-            c3::find_top_level_contracts(&contracts, &c3).expect("At least one contract expected");
-
-        let interfaces = ast::extract_interfaces(&contracts)
-            .iter()
-            .map(|i| InterfaceData::new(i))
-            .collect::<Vec<_>>();
-
-        let events = map_collection(ast::extract_events(&ast));
-        let errors = map_collection(ast::extract_errors(&ast));
-        let enums = map_collection(ast::extract_enums(&ast));
-
-        let contracts = contract_classes
-            .iter()
-            .map(|class| {
-                ContractData::try_from((class, &contracts))
-                    .expect("The ast should allow to create a valid PackageDef")
-            })
-            .collect();
-
-        Ok(Package {
+    pub fn new(
+        contracts: Vec<ContractData>,
+        events: Vec<Event>,
+        errors: Vec<Error>,
+        enums: Vec<Enum>,
+        interfaces: Vec<InterfaceData>,
+    ) -> Self {
+        Self {
             contracts,
             events,
             errors,
             enums,
             interfaces,
-        })
+        }
     }
 
     pub fn events(&self) -> &[Event] {
