@@ -26,7 +26,6 @@ where
         ))??;
     let stmts = parse(stmts.iter().take(stmts.len() - 1), ctx)?;
 
-    dbg!(13);
     Ok(parse_quote!({
         #(#stmts)*
         #last_stmt

@@ -1,5 +1,6 @@
 mod int;
 mod ops;
+mod utils;
 pub use int::Unsigned;
 
 pub type U8 = Unsigned<8, 1>;

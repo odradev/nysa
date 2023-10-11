@@ -1,14 +1,17 @@
 use core::cmp::{Ord, Ordering, PartialOrd};
 
+use super::utils;
+
 #[derive(
     Debug, Default, Clone, Copy, Eq, PartialEq, Hash, derive_more::Deref, derive_more::DerefMut,
 )]
 pub struct Unsigned<const BITS: usize, const LIMBS: usize>(pub(crate) ruint::Uint<BITS, LIMBS>);
 
 impl<const BITS: usize, const LIMBS: usize> Unsigned<BITS, LIMBS> {
-    pub const MIN: Self = Self(ruint::Uint::<BITS, LIMBS>::ZERO);
-    pub const MAX: Self = Self(ruint::Uint::<BITS, LIMBS>::MAX);
-    pub const ZERO: Self = Self::from_limbs([0; LIMBS]);
+    pub const MIN: Self = utils::zero();
+    pub const MAX: Self = utils::max();
+    pub const ZERO: Self = utils::zero();
+    pub const ONE: Self = utils::one();
 
     pub const fn from_limbs(limbs: [u64; LIMBS]) -> Self {
         Self(ruint::Uint::<BITS, LIMBS>::from_limbs(limbs))

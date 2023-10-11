@@ -24,14 +24,14 @@ pub mod array {
     impl Array {
         const PATH: &'static [ClassName; 1usize] = &[ClassName::Array];
 
-        pub fn examples(&mut self) {
+        pub fn examples(&self) {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_examples();
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_examples(&mut self) {
+        fn super_examples(&self) {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Array => {
@@ -102,7 +102,7 @@ pub mod array {
         #[odra(init)]
         pub fn init(&mut self) {
             self.arr_2.set(odra::prelude::vec![
-                nysa_types::U256::from_limbs_slice(&[1u64]),
+                nysa_types::U256::ONE,
                 nysa_types::U256::from_limbs_slice(&[2u64]),
                 nysa_types::U256::from_limbs_slice(&[3u64])
             ]);

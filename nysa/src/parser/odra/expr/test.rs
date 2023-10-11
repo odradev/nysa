@@ -31,7 +31,7 @@ fn complex_stmt() {
 
         let solidity_expr = "!(y == 0 || (z = x * y) / y == x);";
         let expected_rust_code = quote!(
-            !(y == nysa_types::U32::from_limbs_slice(&[])
+            !(y == nysa_types::U32::ZERO
                 || ({
                     z = (x * y);
                     z
@@ -69,7 +69,6 @@ fn assert_expression<T: AsRef<str>, R: ToTokens>(
         }) = &f.body
         {
             if let Some(Statement::Expression(_, e)) = statements.first() {
-                dbg!(e);
                 let expr = e.into();
                 let expr = super::parse(&expr, ctx).unwrap();
                 assert_tokens_eq(expr, expected);

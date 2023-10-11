@@ -44,11 +44,11 @@ where
         }
         Expression::Increment(expr) => {
             let expr = parse(expr, ctx)?;
-            Ok(parse_quote!(#expr += 1))
+            Ok(parse_quote!(#expr += nysa_types::Unsigned::ONE))
         }
         Expression::Decrement(expr) => {
             let expr = parse(expr, ctx)?;
-            Ok(parse_quote!(#expr -= 1))
+            Ok(parse_quote!(#expr -= nysa_types::Unsigned::ONE))
         }
         Expression::MemberAccess(name, expr) => parse_member_access(name, expr, ctx),
         Expression::NumberLiteral(limbs) => num::to_typed_int_expr(limbs, ctx),
@@ -110,7 +110,6 @@ fn parse_func<T>(
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
-    dbg!(fn_name);
     if let Expression::Type(ty) = fn_name {
         // cast expression
         let ty = ty::parse_type_from_ty(ty, ctx)?;
@@ -134,10 +133,7 @@ where
     }
 
     match parse(fn_name, ctx) {
-        Ok(name) => {
-            dbg!(&name);
-            Ok(parse_quote!(self.#name(#(#args),*)))
-        }
+        Ok(name) => Ok(parse_quote!(self.#name(#(#args),*))),
         Err(err) => Err(err),
     }
 }

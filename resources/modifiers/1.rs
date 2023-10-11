@@ -60,8 +60,8 @@ pub mod function_modifier {
 
                     self.x.set(self.x.get_or_default() - i);
 
-                    if i > nysa_types::U32::from_limbs_slice(&[1u64]) {
-                        self.decrement((i - nysa_types::U32::from_limbs_slice(&[1u64])));
+                    if i > nysa_types::U32::ONE {
+                        self.decrement((i - nysa_types::U32::ONE));
                     }
 
                     self.modifier_after_no_reentrancy();

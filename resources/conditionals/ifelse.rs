@@ -28,9 +28,9 @@ pub mod if_else {
             match __class {
                 ClassName::IfElse => {
                     if x < nysa_types::U256::from_limbs_slice(&[10u64]) {
-                        return nysa_types::U256::from_limbs_slice(&[]);
+                        return nysa_types::U256::ZERO;
                     } else if x < nysa_types::U256::from_limbs_slice(&[20u64]) {
-                        return nysa_types::U256::from_limbs_slice(&[1u64]);
+                        return nysa_types::U256::ONE;
                     } else {
                         return nysa_types::U256::from_limbs_slice(&[2u64]);
                     }
@@ -52,7 +52,7 @@ pub mod if_else {
             match __class {
                 ClassName::IfElse => {
                     return if _x < nysa_types::U24::from_limbs_slice(&[10u64]) { 
-                        nysa_types::U32::from_limbs_slice(&[1u64]) 
+                        nysa_types::U32::ONE
                     } else { 
                         nysa_types::U32::from_limbs_slice(&[2u64]) 
                     };

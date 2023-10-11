@@ -62,7 +62,7 @@ pub mod simple_uniswap_v_3_pool {
                 ClassName::SimpleUniswapV3Pool => {
                     IUniswapV3PoolRef::at(&odra::UnwrapOrRevert::unwrap_or_revert(self.pool.get().unwrap_or(None)))
                         .deposit(
-                            nysa_types::U256::from_limbs_slice(&[]), 
+                            nysa_types::U256::ZERO, 
                             liquidity, 
                             amount_0_min, 
                             amount_1_min

@@ -15,7 +15,8 @@ pub mod my_contract {
     pub struct MyContract { 
         __stack: PathStack, 
         my_number: odra::Variable<nysa_types::U256>,
-        min_int: odra::Variable<i16>,
+        min_int: odra::Variable<nysa_types::I256>,
+        neg: odra::Variable<nysa_types::I32>,
         boo: odra::Variable<bool>,
         my_uint: odra::Variable<nysa_types::U192>,
         my_uint_2: odra::Variable<nysa_types::U256>,
@@ -46,7 +47,8 @@ pub mod my_contract {
         #[odra(init)]
         pub fn init(&mut self, _my_uint: nysa_types::U256) {
             self.my_number.set(nysa_types::U256::from_limbs_slice(&[42u64]));
-            self.min_int.set(i16::MIN);
+            self.min_int.set(nysa_types::I256::MIN);
+            self.neg.set(-nysa_types::I32::from_limbs_slice(&[9u64]));
             self.boo.set(true);
             self.my_uint.set(nysa_types::U192::from_limbs_slice(&[123u64]));
             self.my_uint_2.set(_my_uint);

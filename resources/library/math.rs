@@ -59,13 +59,13 @@ pub mod math {
                     let mut z = Default::default();
                     if y > nysa_types::U256::from_limbs_slice(&[3u64]) {
                         z = y;
-                        let mut x = ((y / nysa_types::U256::from_limbs_slice(&[2u64])) + nysa_types::U256::from_limbs_slice(&[1u64]));
+                        let mut x = ((y / nysa_types::U256::from_limbs_slice(&[2u64])) + nysa_types::U256::ONE);
                         while x < z {
                             z = x;
                             x = (((y / x) + x) / nysa_types::U256::from_limbs_slice(&[2u64]));
                         }
-                    } else if y != nysa_types::U256::from_limbs_slice(&[]) {
-                        z = nysa_types::U256::from_limbs_slice(&[1u64]);
+                    } else if y != nysa_types::U256::ZERO {
+                        z = nysa_types::U256::ONE;
                     }
                     return (z);
                 }

@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 contract MyContract {
     uint256 myNumber = 42; // Default value for a primitive
     int public minInt = type(int).min;
+    int32 public neg = -9;
     bool public boo = true;
     uint192 public constant MY_UINT = 123;
     uint public immutable MY_UINT2;

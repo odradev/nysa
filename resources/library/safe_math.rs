@@ -67,7 +67,7 @@ pub mod safe_math {
             match __class {
                 ClassName::SafeMath => {
                     let mut z = Default::default();
-                    if !(y == nysa_types::U256::from_limbs_slice(&[])
+                    if !(y == nysa_types::U256::ZERO
                         || ({
                             z = (x * y);
                             z

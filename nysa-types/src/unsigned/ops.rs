@@ -228,22 +228,134 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shr<usize> for &Unsigned<BITS, 
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shr<&usize> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
     type Output = Self;
 
     #[allow(clippy::inline_always)]
     #[inline(always)]
-    fn shr(self, rhs: &usize) -> Self {
-        Self(self.wrapping_shr(*rhs))
+    fn shr(self, rhs: &Unsigned<BITS, LIMBS>) -> Self {
+        Self(self.wrapping_shr(rhs.to()))
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shr<&usize> for &Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
     type Output = Unsigned<BITS, LIMBS>;
 
     #[allow(clippy::inline_always)]
     #[inline(always)]
-    fn shr(self, rhs: &usize) -> Self::Output {
-        Unsigned(self.wrapping_shr(*rhs))
+    fn shr(self, rhs: &Unsigned<BITS, LIMBS>) -> Self::Output {
+        Unsigned(self.wrapping_shr(rhs.to()))
     }
 }
+
+impl<const BITS: usize, const LIMBS: usize> ops::ShlAssign<Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shl_assign(&mut self, rhs: Unsigned<BITS, LIMBS>) {
+        **self = self.wrapping_shl(rhs.to());
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::ShlAssign<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shl_assign(&mut self, rhs: &Unsigned<BITS, LIMBS>) {
+        **self = self.wrapping_shl(rhs.to());
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::Shl<Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+    type Output = Self;
+
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shl(self, rhs: Unsigned<BITS, LIMBS>) -> Self {
+        Self(self.wrapping_shl(rhs.to()))
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::Shl<Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
+    type Output = Unsigned<BITS, LIMBS>;
+
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shl(self, rhs: Unsigned<BITS, LIMBS>) -> Self::Output {
+        Unsigned(self.wrapping_shl(rhs.to()))
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::Shl<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+    type Output = Self;
+
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shl(self, rhs: &Unsigned<BITS, LIMBS>) -> Self {
+        Self(self.wrapping_shl(rhs.to()))
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::Shl<&Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
+    type Output = Unsigned<BITS, LIMBS>;
+
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shl(self, rhs: &Unsigned<BITS, LIMBS>) -> Self::Output {
+        Unsigned(self.wrapping_shl(rhs.to()))
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::ShrAssign<Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shr_assign(&mut self, rhs: Unsigned<BITS, LIMBS>) {
+        **self = self.wrapping_shr(rhs.to());
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::ShrAssign<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shr_assign(&mut self, rhs: &Unsigned<BITS, LIMBS>) {
+        **self = self.wrapping_shr(rhs.to());
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::Shr<Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+    type Output = Self;
+
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shr(self, rhs: Unsigned<BITS, LIMBS>) -> Self {
+        Self(self.wrapping_shr(rhs.to()))
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> ops::Shr<Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
+    type Output = Unsigned<BITS, LIMBS>;
+
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn shr(self, rhs: Unsigned<BITS, LIMBS>) -> Self::Output {
+        Unsigned(self.wrapping_shr(rhs.to()))
+    }
+}
+
+// impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+//     type Output = Self;
+
+//     #[allow(clippy::inline_always)]
+//     #[inline(always)]
+//     fn shr(self, rhs: &Unsigned<BITS, LIMBS>) -> Self {
+//         Self(self.wrapping_shr(rhs.to()))
+//     }
+// }
+
+// impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
+//     type Output = Unsigned<BITS, LIMBS>;
+
+//     #[allow(clippy::inline_always)]
+//     #[inline(always)]
+//     fn shr(self, rhs: &Unsigned<BITS, LIMBS>) -> Self::Output {
+//         Unsigned(self.wrapping_shr(rhs.to()))
+//     }
+// }

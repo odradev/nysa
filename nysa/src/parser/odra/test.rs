@@ -71,7 +71,6 @@ fn test_lib_safe_math() {
 }
 
 #[test]
-#[ignore]
 fn test_bitwise_ops() {
     test_single("op", "bitwise");
 }

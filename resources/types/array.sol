@@ -42,7 +42,7 @@ contract Array {
         delete arr[index];
     }
 
-    function examples() external {
+    function examples() pure external {
         // create array in memory, only fixed size can be created
         uint[] memory a = new uint[](5);
         a[1] = 123;
