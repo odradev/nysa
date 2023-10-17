@@ -194,3 +194,10 @@ impl From<&&pt::EnumDefinition> for Enum {
         Self { name, variants }
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Struct {
+    pub namespace: Option<String>,
+    pub name: String,
+    pub fields: Vec<(String, Expression)>,
+}

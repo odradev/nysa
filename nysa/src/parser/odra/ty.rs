@@ -106,6 +106,10 @@ pub fn parse_state_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, Parser
                 context::ItemType::Event => todo!(),
                 context::ItemType::Storage(_) => todo!(),
                 context::ItemType::Local(_) => todo!(),
+                context::ItemType::Struct(_) => {
+                    let ident = format_ident!("{}", name);
+                    parse_quote!(odra::Variable<#ident>)
+                }
             })
             .ok_or(ParserError::InvalidType),
         Type::Bytes(i) => {
@@ -125,11 +129,11 @@ pub fn parse_type_from_expr<T: TypeInfo>(
     t: &T,
 ) -> Result<syn::Type, ParserError> {
     let err = || ParserError::UnexpectedExpression(String::from("Expression::Type"), expr.clone());
-
+    dbg!(&expr);
     match expr {
         Expression::Type(ty) => parse_type_from_ty(ty, t),
         Expression::Variable(name) => match t.type_from_string(name) {
-            Some(context::ItemType::Enum(_)) => {
+            Some(context::ItemType::Enum(_) | context::ItemType::Struct(_)) => {
                 let ident = format_ident!("{}", name);
                 Ok(parse_quote!(#ident))
             }
@@ -219,7 +223,10 @@ pub fn parse_type_from_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, Pa
             let value = parse_type_from_expr(value, t)?;
             Ok(parse_quote!(odra::Mapping<#key, #value>))
         }
-        Type::Bytes(_) => Err(ParserError::UnsupportedType(ty.clone())),
+        Type::Bytes(len) => {
+            let size = *len as usize;
+            Ok(parse_quote!(nysa_types::FixedBytes<#size>))
+        }
         Type::Custom(name) => t
             .type_from_string(name)
             .map(|ty| match ty {
@@ -232,6 +239,10 @@ pub fn parse_type_from_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, Pa
                 context::ItemType::Event => todo!(),
                 context::ItemType::Storage(_) => todo!(),
                 context::ItemType::Local(_) => todo!(),
+                context::ItemType::Struct(_) => {
+                    let ident = format_ident!("{}", name);
+                    parse_quote!(#ident)
+                }
             })
             .ok_or(ParserError::InvalidType),
         Type::Array(ty) => {

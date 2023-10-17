@@ -1,7 +1,7 @@
 use solidity_parser::{
     pt::{
         ContractDefinition, ContractPart, ContractTy, EnumDefinition, ErrorDefinition,
-        EventDefinition, FunctionDefinition, SourceUnitPart, VariableDefinition,
+        EventDefinition, FunctionDefinition, SourceUnitPart, StructDefinition, VariableDefinition,
     },
     Diagnostic,
 };
@@ -74,6 +74,20 @@ pub(crate) fn extract_enums(ast: &[SourceUnitPart]) -> Vec<&EnumDefinition> {
             Some(events)
         }
         SourceUnitPart::EnumDefinition(ev) => Some(vec![ev.as_ref()]),
+        _ => None,
+    })
+}
+
+pub(crate) fn extract_structs(ast: &[SourceUnitPart]) -> Vec<(Option<String>, &StructDefinition)> {
+    filter_source_unit_part(ast, |unit| match unit {
+        SourceUnitPart::ContractDefinition(contract) => {
+            let events = filter_source_part(contract, |part| match part {
+                ContractPart::StructDefinition(ev) => Some((Some(contract.name.name.to_owned()), ev.as_ref())),
+                _ => None,
+            });
+            Some(events)
+        }
+        SourceUnitPart::StructDefinition(ev) => Some(vec![(None, ev.as_ref())]),
         _ => None,
     })
 }

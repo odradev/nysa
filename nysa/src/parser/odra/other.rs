@@ -41,6 +41,9 @@ pub(super) fn imports_code<T: ExternalCallsRegister + TypeInfo>(ctx: &T) -> Vec<
                 use super::events::*;
             ),
             parse_quote!(
+                use super::structs::*;
+            ),
+            parse_quote!(
                 use odra::prelude::vec::Vec;
             ),
         ])

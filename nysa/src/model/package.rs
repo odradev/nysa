@@ -1,6 +1,6 @@
 use super::{
     interface::InterfaceData,
-    misc::{Enum, Error, Event},
+    misc::{Enum, Error, Event, Struct},
     ContractData,
 };
 
@@ -10,6 +10,7 @@ pub struct Package {
     errors: Vec<Error>,
     enums: Vec<Enum>,
     interfaces: Vec<InterfaceData>,
+    structs: Vec<Struct>,
 }
 
 impl Package {
@@ -19,6 +20,7 @@ impl Package {
         errors: Vec<Error>,
         enums: Vec<Enum>,
         interfaces: Vec<InterfaceData>,
+        structs: Vec<Struct>,
     ) -> Self {
         Self {
             contracts,
@@ -26,6 +28,7 @@ impl Package {
             errors,
             enums,
             interfaces,
+            structs,
         }
     }
 
@@ -47,5 +50,9 @@ impl Package {
 
     pub fn enums(&self) -> &[Enum] {
         self.enums.as_ref()
+    }
+
+    pub fn structs(&self) -> &[Struct] {
+        self.structs.as_ref()
     }
 }

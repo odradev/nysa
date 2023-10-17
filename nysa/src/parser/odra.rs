@@ -19,7 +19,7 @@ use super::{
     Parser,
 };
 
-mod enums;
+mod custom;
 mod errors;
 mod event;
 mod expr;
@@ -51,11 +51,13 @@ impl Parser for OdraParser {
             package.enums().as_string_vec(),
             package.errors().as_string_vec(),
             package.contracts().as_string_vec(),
+            package.structs().as_string_vec(),
         );
 
         let events = event::events_def(&package, &ctx)?;
         let errors = errors::errors_def(&package);
-        let enums = enums::enums_def(&package);
+        let enums = custom::enums_def(&package);
+        let structs = custom::struct_def(&package, &ctx)?;
         let ext = ext::ext_contracts_def(&package, &ctx)?;
 
         let packages = parse_packages(&package, &ctx)?;
@@ -84,6 +86,10 @@ impl Parser for OdraParser {
 
             pub mod enums {
                 #(#enums)*
+            }
+
+            pub mod structs {
+                #(#structs)*
             }
 
             #(#ext)*

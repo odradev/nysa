@@ -3,7 +3,7 @@ use solidity_parser::pt::ContractDefinition;
 
 use crate::{
     c3,
-    model::{ir::InterfaceData, ContractData},
+    model::{ir::{InterfaceData, Struct, Expression}, ContractData},
     utils::{ast, map_collection, SolidityAST},
 };
 use crate::{model::ir::Package, ParserError};
@@ -32,6 +32,18 @@ pub(crate) fn preprocess(solidity_ast: &SolidityAST) -> Result<Package, ParserEr
     let events = map_collection(ast::extract_events(solidity_ast));
     let errors = map_collection(ast::extract_errors(solidity_ast));
     let enums = map_collection(ast::extract_enums(solidity_ast));
+    let structs = ast::extract_structs(solidity_ast)
+        .into_iter()
+        .map(|(namespace, def)| {
+            let name = def.name.name.to_owned();
+            let fields = def
+                .fields
+                .iter()
+                .map(|v| (v.name.name.to_owned(), Expression::from(&v.ty)))
+                .collect();
+            Struct { name, fields, namespace }
+        })
+        .collect();
 
     let contracts = contract_classes
         .iter()
@@ -41,5 +53,7 @@ pub(crate) fn preprocess(solidity_ast: &SolidityAST) -> Result<Package, ParserEr
         })
         .collect();
 
-    Ok(Package::new(contracts, events, errors, enums, interfaces))
+    Ok(Package::new(
+        contracts, events, errors, enums, interfaces, structs,
+    ))
 }

@@ -10,7 +10,7 @@ mod stmt;
 pub use contract::ContractData;
 use itertools::Itertools;
 
-use self::misc::{Contract, Enum, Error, Event};
+use self::misc::{Contract, Enum, Error, Event, Struct};
 
 pub mod ir {
     pub use super::expr::{to_expr, Expression};
@@ -48,4 +48,4 @@ macro_rules! impl_named {
     };
 }
 
-impl_named!(Enum, Error, Event, Contract);
+impl_named!(Enum, Error, Event, Contract, Struct);

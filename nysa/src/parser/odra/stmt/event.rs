@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn emit_with_context_args() {
-        let global_ctx = GlobalContext::new(vec![], vec![], vec![], vec![], vec![]);
+        let global_ctx = GlobalContext::new(vec![], vec![], vec![], vec![], vec![], vec![]);
         let storage = vec![Var {
             name: "my_var".to_string(),
             ty: Type::Bool,

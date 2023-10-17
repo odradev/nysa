@@ -7,6 +7,7 @@ pub enum ItemType {
     Contract(String),
     Interface(String),
     Enum(String),
+    Struct(String),
     Event,
     Storage(Var),
     Local(Var),
@@ -83,6 +84,7 @@ pub struct GlobalContext {
     enums: Vec<String>,
     errors: Vec<String>,
     classes: Vec<String>,
+    structs: Vec<String>,
 }
 
 impl GlobalContext {
@@ -92,6 +94,7 @@ impl GlobalContext {
         enums: Vec<String>,
         errors: Vec<String>,
         classes: Vec<String>,
+        structs: Vec<String>,
     ) -> Self {
         Self {
             events,
@@ -99,6 +102,7 @@ impl GlobalContext {
             enums,
             errors,
             classes,
+            structs,
         }
     }
 
@@ -129,6 +133,9 @@ impl TypeInfo for GlobalContext {
         }
         if self.enums.contains(name) {
             return Some(ItemType::Enum(name.clone()));
+        }
+        if self.structs.contains(name) {
+            return Some(ItemType::Struct(name.clone()));
         }
         None
     }
