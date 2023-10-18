@@ -4,7 +4,7 @@ use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
     model::{
-        ir::{BaseImpl, FnImplementations, Func},
+        ir::{BaseImpl, FnImplementations, Func, Type},
         ContractData,
     },
     parser::{
@@ -67,19 +67,29 @@ fn parse_body<T>(def: &Func, names: &[String], ctx: &mut T) -> syn::Block
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
-    // parse solidity function body
-    let stmts: Vec<syn::Stmt> = common::parse_statements(&def.stmts, ctx);
-
-    let ext = common::parse_external_contract_statements(&def.params, ctx);
+    def.ret.iter()
+        .filter_map(|(name, ty)| match name {
+            Some(n) => Some((n, ty)),
+            None => None,
+        })
+        .filter_map(|(name, e)| match Type::try_from(e) {
+            Ok(ty) => Some((name, ty)),
+            Err(_) => None,
+        })
+        .for_each(|(name, ty)| {
+            dbg!(name);
+            dbg!(&ty);
+            ctx.register_local_var(name, &ty);
+        });
 
     let ret_names = def
         .ret
         .iter()
-        .filter_map(|(name, _)| match name {
+        .filter_map(|(name, ty)| match name {
             Some(n) => Some(n),
             None => None,
         })
-        .map(|n| utils::to_snake_case_ident(n))
+        .map(utils::to_snake_case_ident)
         .map(|i| quote::quote!(let mut #i = Default::default();))
         .collect::<Vec<_>>();
 
@@ -95,6 +105,11 @@ where
         .collect::<Punctuated<TokenStream, Token![,]>>();
 
     let ret = (!ret.is_empty()).then(|| quote::quote!(return (#ret);));
+
+    // parse solidity function body
+    let stmts: Vec<syn::Stmt> = common::parse_statements(&def.stmts, ctx);
+
+    let ext = common::parse_external_contract_statements(&def.params, ctx);
 
     // handle constructor of modifiers calls;
     // Eg `constructor(string memory _name) Named(_name) {}`

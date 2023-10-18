@@ -1,4 +1,4 @@
-use solidity_parser::pt;
+use solidity_parser::pt::{self, Statement};
 
 use super::{expr::Expression, misc::Type};
 
@@ -59,13 +59,26 @@ impl From<&pt::Statement> for Stmt {
                 statements,
             } => todo!(),
             pt::Statement::Args(_, _) => todo!(),
-            pt::Statement::If(_, assertion, if_body, else_body) => match else_body {
-                Some(else_body) => Self::IfElse(
-                    assertion.into(),
-                    Box::new(if_body.as_ref().into()),
-                    Box::new(else_body.as_ref().into()),
-                ),
-                None => Self::If(assertion.into(), Box::new(if_body.as_ref().into())),
+            pt::Statement::If(_, assertion, if_body, else_body) => {
+                let if_body =  if matches!(**if_body, Statement::Block { .. }) {
+                    Box::new(if_body.as_ref().into())
+                } else {
+                    Box::new(Stmt::Block(vec![if_body.as_ref().into()]))
+                };
+                let else_body = else_body.as_ref().map(|stmt| if matches!(**stmt, Statement::Block { .. }) {
+                    Box::new(stmt.as_ref().into())
+                } else {
+                    Box::new(Stmt::Block(vec![stmt.as_ref().into()]))
+                });
+
+                match else_body {
+                    Some(else_body) => Self::IfElse(
+                        assertion.into(),
+                        if_body,
+                        else_body,
+                    ),
+                    None => Self::If(assertion.into(), if_body),
+                }
             },
             pt::Statement::While(_, assertion, block) => {
                 Self::While(assertion.into(), Box::new(block.as_ref().into()))

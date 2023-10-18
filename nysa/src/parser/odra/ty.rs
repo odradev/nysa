@@ -129,7 +129,6 @@ pub fn parse_type_from_expr<T: TypeInfo>(
     t: &T,
 ) -> Result<syn::Type, ParserError> {
     let err = || ParserError::UnexpectedExpression(String::from("Expression::Type"), expr.clone());
-    dbg!(&expr);
     match expr {
         Expression::Type(ty) => parse_type_from_ty(ty, t),
         Expression::Variable(name) => match t.type_from_string(name) {
