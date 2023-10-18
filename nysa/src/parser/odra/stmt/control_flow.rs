@@ -17,6 +17,8 @@ where
 {
     let assertion = expr::parse(assertion, ctx)?;
     let if_body = super::parse_statement(body, true, ctx)?;
+    let a = quote::quote!(if #assertion #if_body);
+    dbg!(a.to_string());
     let result: syn::Stmt = parse_quote!(if #assertion #if_body);
     Ok(result)
 }

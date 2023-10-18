@@ -17,9 +17,8 @@ pub mod math {
     #[odra::module]
     impl Math {
         const PATH: &'static [ClassName; 1usize] = &[ClassName::Math];
-        #[odra(init)]
-        pub fn init(&mut self) {}
-        fn min(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
+        
+        pub fn min(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_min(x, y);
             self.__stack.drop_one_from_stack();
@@ -46,7 +45,7 @@ pub mod math {
             }
         }
 
-        fn sqrt(&self, y: nysa_types::U256) -> nysa_types::U256 {
+        pub fn sqrt(&self, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_sqrt(y);
             self.__stack.drop_one_from_stack();
@@ -75,3 +74,4 @@ pub mod math {
         }
     }
 }
+

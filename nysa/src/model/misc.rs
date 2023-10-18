@@ -9,6 +9,7 @@ pub struct Contract {
     pub name: String,
     base_impl: Vec<BaseImpl>,
     is_abstract: bool,
+    is_library: bool,
 }
 
 impl Contract {
@@ -18,6 +19,10 @@ impl Contract {
 
     pub fn is_abstract(&self) -> bool {
         self.is_abstract
+    }
+
+    pub fn is_library(&self) -> bool {
+        self.is_library
     }
 }
 
@@ -36,6 +41,7 @@ impl From<&pt::ContractDefinition> for Contract {
             name: value.name.name.to_owned(),
             base_impl,
             is_abstract: matches!(value.ty, pt::ContractTy::Abstract(_)),
+            is_library: matches!(value.ty, pt::ContractTy::Library(_)),
         }
     }
 }

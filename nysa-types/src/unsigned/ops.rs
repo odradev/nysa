@@ -228,7 +228,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shr<usize> for &Unsigned<BITS, 
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>>
+    for Unsigned<BITS, LIMBS>
+{
     type Output = Self;
 
     #[allow(clippy::inline_always)]
@@ -238,7 +240,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>> for
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>>
+    for &Unsigned<BITS, LIMBS>
+{
     type Output = Unsigned<BITS, LIMBS>;
 
     #[allow(clippy::inline_always)]
@@ -248,7 +252,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shr<&Unsigned<BITS, LIMBS>> for
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::ShlAssign<Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::ShlAssign<Unsigned<BITS, LIMBS>>
+    for Unsigned<BITS, LIMBS>
+{
     #[allow(clippy::inline_always)]
     #[inline(always)]
     fn shl_assign(&mut self, rhs: Unsigned<BITS, LIMBS>) {
@@ -256,7 +262,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::ShlAssign<Unsigned<BITS, LIMBS>
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::ShlAssign<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::ShlAssign<&Unsigned<BITS, LIMBS>>
+    for Unsigned<BITS, LIMBS>
+{
     #[allow(clippy::inline_always)]
     #[inline(always)]
     fn shl_assign(&mut self, rhs: &Unsigned<BITS, LIMBS>) {
@@ -264,7 +272,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::ShlAssign<&Unsigned<BITS, LIMBS
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shl<Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shl<Unsigned<BITS, LIMBS>>
+    for Unsigned<BITS, LIMBS>
+{
     type Output = Self;
 
     #[allow(clippy::inline_always)]
@@ -274,7 +284,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shl<Unsigned<BITS, LIMBS>> for 
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shl<Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shl<Unsigned<BITS, LIMBS>>
+    for &Unsigned<BITS, LIMBS>
+{
     type Output = Unsigned<BITS, LIMBS>;
 
     #[allow(clippy::inline_always)]
@@ -284,7 +296,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shl<Unsigned<BITS, LIMBS>> for 
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shl<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shl<&Unsigned<BITS, LIMBS>>
+    for Unsigned<BITS, LIMBS>
+{
     type Output = Self;
 
     #[allow(clippy::inline_always)]
@@ -294,7 +308,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shl<&Unsigned<BITS, LIMBS>> for
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shl<&Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shl<&Unsigned<BITS, LIMBS>>
+    for &Unsigned<BITS, LIMBS>
+{
     type Output = Unsigned<BITS, LIMBS>;
 
     #[allow(clippy::inline_always)]
@@ -304,7 +320,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shl<&Unsigned<BITS, LIMBS>> for
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::ShrAssign<Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::ShrAssign<Unsigned<BITS, LIMBS>>
+    for Unsigned<BITS, LIMBS>
+{
     #[allow(clippy::inline_always)]
     #[inline(always)]
     fn shr_assign(&mut self, rhs: Unsigned<BITS, LIMBS>) {
@@ -312,7 +330,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::ShrAssign<Unsigned<BITS, LIMBS>
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::ShrAssign<&Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::ShrAssign<&Unsigned<BITS, LIMBS>>
+    for Unsigned<BITS, LIMBS>
+{
     #[allow(clippy::inline_always)]
     #[inline(always)]
     fn shr_assign(&mut self, rhs: &Unsigned<BITS, LIMBS>) {
@@ -320,7 +340,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::ShrAssign<&Unsigned<BITS, LIMBS
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shr<Unsigned<BITS, LIMBS>> for Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shr<Unsigned<BITS, LIMBS>>
+    for Unsigned<BITS, LIMBS>
+{
     type Output = Self;
 
     #[allow(clippy::inline_always)]
@@ -330,7 +352,9 @@ impl<const BITS: usize, const LIMBS: usize> ops::Shr<Unsigned<BITS, LIMBS>> for 
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> ops::Shr<Unsigned<BITS, LIMBS>> for &Unsigned<BITS, LIMBS> {
+impl<const BITS: usize, const LIMBS: usize> ops::Shr<Unsigned<BITS, LIMBS>>
+    for &Unsigned<BITS, LIMBS>
+{
     type Output = Unsigned<BITS, LIMBS>;
 
     #[allow(clippy::inline_always)]

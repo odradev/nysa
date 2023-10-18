@@ -71,6 +71,11 @@ fn test_lib_safe_math() {
 }
 
 #[test]
+fn test_lib_mapping() {
+    test_single("library", "mapping");
+}
+
+#[test]
 fn test_bitwise_ops() {
     test_single("op", "bitwise");
 }
@@ -133,6 +138,7 @@ pub mod enums {}
 const DEFAULT_IMPORTS: &str = r#"
 use super::errors::*;
 use super::events::*;
+use super::structs::*;
 "#;
 
 const STACK_DEF: &str = r#"
