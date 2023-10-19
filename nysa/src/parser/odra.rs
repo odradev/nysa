@@ -48,6 +48,7 @@ impl Parser for OdraParser {
         let ctx = GlobalContext::new(
             package.events().as_string_vec(),
             package.interfaces().as_string_vec(),
+            package.libraries().as_string_vec(),
             package.enums().as_string_vec(),
             package.errors().as_string_vec(),
             package.contracts().as_string_vec(),
@@ -105,7 +106,11 @@ fn parse_packages(package: &Package, ctx: &GlobalContext) -> Result<Vec<PackageD
         .iter()
         .map(|data| {
             let class_name = data.c3_class_name_def();
-            let storage = data.vars();
+            let storage = data
+                .vars()
+                .into_iter()
+                .filter(|v| !v.is_immutable)
+                .collect::<Vec<_>>();
 
             let mut ctx = LocalContext::new(ContractContext::new(ctx, &storage));
 
@@ -129,6 +134,7 @@ fn parse_packages(package: &Package, ctx: &GlobalContext) -> Result<Vec<PackageD
 /// Builds a c3 contract class definition
 fn contract_def(data: &ContractData, ctx: &mut LocalContext) -> Result<ClassDef, ParserError> {
     let variables = var::variables_def(data, ctx)?;
+    let constants = var::const_def(data, ctx)?;
     let functions = func::functions_def(data, ctx)?;
 
     let events = ctx
@@ -148,6 +154,7 @@ fn contract_def(data: &ContractData, ctx: &mut LocalContext) -> Result<ClassDef,
         path: data.c3_path(),
         variables,
         functions,
+        other_items: constants,
     })
 }
 

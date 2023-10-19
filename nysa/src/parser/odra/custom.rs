@@ -2,7 +2,11 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
-use crate::{model::ir::Package, utils, parser::{odra::ty, context::TypeInfo}, ParserError};
+use crate::{
+    model::ir::Package,
+    parser::{context::TypeInfo, odra::ty},
+    utils, ParserError,
+};
 
 pub(crate) fn enums_def(package: &Package) -> Vec<syn::Item> {
     let enums = package.enums();
@@ -30,7 +34,10 @@ pub(crate) fn enums_def(package: &Package) -> Vec<syn::Item> {
         .collect()
 }
 
-pub(crate) fn struct_def<T: TypeInfo>(package: &Package, t: &T) -> Result<Vec<syn::Item>, ParserError> {
+pub(crate) fn struct_def<T: TypeInfo>(
+    package: &Package,
+    t: &T,
+) -> Result<Vec<syn::Item>, ParserError> {
     let structs = package.structs();
 
     structs
@@ -47,7 +54,7 @@ pub(crate) fn struct_def<T: TypeInfo>(package: &Package, t: &T) -> Result<Vec<sy
                     Ok(quote!(#ident: #ty))
                 })
                 .collect::<Result<Punctuated<TokenStream, Token![,]>, _>>();
-            
+
             match fields {
                 Ok(fields) => {
                     let struct_def: syn::Item = parse_quote!(
@@ -58,10 +65,9 @@ pub(crate) fn struct_def<T: TypeInfo>(package: &Package, t: &T) -> Result<Vec<sy
                         Some(ns) => parse_quote!(pub mod #ns { #struct_def }),
                         None => struct_def,
                     })
-                },
+                }
                 Err(err) => Err(err),
             }
-            
         })
         .collect()
 }

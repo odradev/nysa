@@ -50,8 +50,7 @@ pub mod safe_math {
                 _ => self.super_add(x, y),
             }
         }
-        #[odra(init)]
-        pub fn init(&mut self) {}
+
         fn mul(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_mul(x, y);

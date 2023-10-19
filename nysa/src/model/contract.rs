@@ -203,12 +203,8 @@ impl ContractData {
             .unwrap_or_default()
     }
 
-    pub fn is_library(&self, class: &Class) -> bool {
-        self.all_contracts
-            .iter()
-            .find(|c| c.name() == class.to_string())
-            .map(|c| c.is_library())
-            .unwrap_or_default()
+    pub fn is_library(&self) -> bool {
+        self.contract.is_library()
     }
 }
 

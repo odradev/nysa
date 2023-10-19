@@ -1,4 +1,4 @@
-use solidity_parser::pt;
+use solidity_parser::pt::{self, VariableAttribute};
 
 use crate::model::expr::to_expr;
 
@@ -112,6 +112,7 @@ pub struct Var {
     pub name: String,
     pub ty: Type,
     pub initializer: Option<Expression>,
+    pub is_immutable: bool,
 }
 
 impl From<&&pt::VariableDefinition> for Var {
@@ -129,6 +130,10 @@ impl From<&&pt::VariableDefinition> for Var {
                 t => panic!("Not a type. {:?}", t),
             },
             initializer: value.initializer.as_ref().map(Expression::from),
+            is_immutable: value
+                .attrs
+                .iter()
+                .any(|attr| matches!(attr, VariableAttribute::Constant(_))),
         }
     }
 }

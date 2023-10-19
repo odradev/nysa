@@ -67,7 +67,8 @@ fn parse_body<T>(def: &Func, names: &[String], ctx: &mut T) -> syn::Block
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
-    def.ret.iter()
+    def.ret
+        .iter()
         .filter_map(|(name, ty)| match name {
             Some(n) => Some((n, ty)),
             None => None,
@@ -77,8 +78,6 @@ where
             Err(_) => None,
         })
         .for_each(|(name, ty)| {
-            dbg!(name);
-            dbg!(&ty);
             ctx.register_local_var(name, &ty);
         });
 

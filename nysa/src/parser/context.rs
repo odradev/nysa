@@ -5,6 +5,7 @@ use crate::model::ir::{Expression, FnImplementations, Stmt, Type, Var};
 #[derive(Debug)]
 pub enum ItemType {
     Contract(String),
+    Library(String),
     Interface(String),
     Enum(String),
     Struct(String),
@@ -81,6 +82,7 @@ pub trait ExpressionContext {
 pub struct GlobalContext {
     events: Vec<String>,
     interfaces: Vec<String>,
+    libraries: Vec<String>,
     enums: Vec<String>,
     errors: Vec<String>,
     classes: Vec<String>,
@@ -91,6 +93,7 @@ impl GlobalContext {
     pub fn new(
         events: Vec<String>,
         interfaces: Vec<String>,
+        libraries: Vec<String>,
         enums: Vec<String>,
         errors: Vec<String>,
         classes: Vec<String>,
@@ -99,6 +102,7 @@ impl GlobalContext {
         Self {
             events,
             interfaces,
+            libraries,
             enums,
             errors,
             classes,
@@ -122,6 +126,9 @@ impl GlobalContext {
 impl TypeInfo for GlobalContext {
     fn type_from_string(&self, name: &str) -> Option<ItemType> {
         let name = &name.to_owned();
+        if self.libraries.contains(name) {
+            return Some(ItemType::Library(name.clone()));
+        }
         if self.classes.contains(name) {
             return Some(ItemType::Contract(name.clone()));
         }
@@ -266,6 +273,7 @@ impl FnContext for LocalContext<'_> {
             name: name.to_string(),
             ty: ty.to_owned(),
             initializer: None,
+            is_immutable: false,
         };
         self.local_vars.push(var);
     }

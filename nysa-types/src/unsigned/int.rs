@@ -12,6 +12,7 @@ impl<const BITS: usize, const LIMBS: usize> Unsigned<BITS, LIMBS> {
     pub const MAX: Self = utils::max();
     pub const ZERO: Self = utils::zero();
     pub const ONE: Self = utils::one();
+    pub const LIMBS: usize = ruint::Uint::<BITS, LIMBS>::LIMBS;
 
     pub const fn from_limbs(limbs: [u64; LIMBS]) -> Self {
         Self(ruint::Uint::<BITS, LIMBS>::from_limbs(limbs))

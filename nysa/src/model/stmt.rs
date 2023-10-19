@@ -38,6 +38,8 @@ pub enum Stmt {
     Placeholder,
     /// While loop with the condition, and the conditional block.
     While(Expression, Box<Stmt>),
+    /// Line or block comment.
+    DocComment(String),
     /// Unknown statement.
     Unknown,
     #[cfg(test)]
@@ -60,26 +62,26 @@ impl From<&pt::Statement> for Stmt {
             } => todo!(),
             pt::Statement::Args(_, _) => todo!(),
             pt::Statement::If(_, assertion, if_body, else_body) => {
-                let if_body =  if matches!(**if_body, Statement::Block { .. }) {
+                let if_body = if matches!(**if_body, Statement::Block { .. }) {
                     Box::new(if_body.as_ref().into())
                 } else {
                     Box::new(Stmt::Block(vec![if_body.as_ref().into()]))
                 };
-                let else_body = else_body.as_ref().map(|stmt| if matches!(**stmt, Statement::Block { .. }) {
-                    Box::new(stmt.as_ref().into())
-                } else {
-                    Box::new(Stmt::Block(vec![stmt.as_ref().into()]))
+                let else_body = else_body.as_ref().map(|stmt| {
+                    if matches!(**stmt, Statement::Block { .. }) {
+                        Box::new(stmt.as_ref().into())
+                    } else if matches!(**stmt, Statement::If { .. }) {
+                        Box::new(stmt.as_ref().into())
+                    } else {
+                        Box::new(Stmt::Block(vec![stmt.as_ref().into()]))
+                    }
                 });
 
                 match else_body {
-                    Some(else_body) => Self::IfElse(
-                        assertion.into(),
-                        if_body,
-                        else_body,
-                    ),
+                    Some(else_body) => Self::IfElse(assertion.into(), if_body, else_body),
                     None => Self::If(assertion.into(), if_body),
                 }
-            },
+            }
             pt::Statement::While(_, assertion, block) => {
                 Self::While(assertion.into(), Box::new(block.as_ref().into()))
             }
@@ -121,7 +123,7 @@ impl From<&pt::Statement> for Stmt {
             }
             pt::Statement::Emit(_, expr) => Self::Emit(expr.into()),
             pt::Statement::Try(_, _, _, _) => Self::Unknown,
-            pt::Statement::DocComment(_, _, _) => Self::Unknown,
+            pt::Statement::DocComment(_, _, comment) => Self::DocComment(comment.to_owned()),
         }
     }
 }

@@ -44,6 +44,10 @@ impl Package {
         self.contracts.as_ref()
     }
 
+    pub fn libraries(&self) -> Vec<&ContractData> {
+        self.contracts.iter().filter(|c| c.is_library()).collect()
+    }
+
     pub fn interfaces(&self) -> &[InterfaceData] {
         self.interfaces.as_ref()
     }

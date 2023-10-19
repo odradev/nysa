@@ -336,9 +336,14 @@ fn parse_expr(e: &pt::Expression) -> Expression {
 
 fn hex_string_to_u8_array(hex_string: &str) -> Option<Vec<u8>> {
     // Check if the input string has an even number of characters (2 characters per byte).
-    if hex_string.len() % 2 != 0 {
-        return None;
-    }
+    let hex_string = if hex_string.len() % 2 != 0 {
+        ['0']
+            .into_iter()
+            .chain(hex_string.chars())
+            .collect::<String>()
+    } else {
+        hex_string.to_owned()
+    };
 
     // Use the chunks iterator to split the string into 2-character chunks.
     let hex_bytes = hex_string.as_bytes();

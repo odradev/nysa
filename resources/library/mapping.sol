@@ -24,13 +24,13 @@ library Position {
         uint256 feeGrowthInside1LastX128;
     }
 
-    // function get(mapping(bytes32 => Info) storage self, address owner, int24 tickLower, int24 tickUpper)
-    //     internal
-    //     view
-    //     returns (Position.Info storage position)
-    // {
-    //     position = self[keccak256(abi.encodePacked(owner, tickLower, tickUpper))];
-    // }
+    function get(mapping(bytes32 => Info) storage self, address owner, int24 tickLower, int24 tickUpper)
+        internal
+        view
+        returns (Info storage position)
+    {
+        position = self[keccak256(abi.encodePacked(owner, tickLower, tickUpper))];
+    }
 
     function update(
         Info storage self,
@@ -42,7 +42,7 @@ library Position {
 
         uint128 liquidityNext;
         if (liquidityDelta == 0) {
-            // if (_self.liquidity == 0) revert CannotUpdateEmptyPosition(); // disallow pokes for 0 liquidity positions
+            if (_self.liquidity == 0) revert CannotUpdateEmptyPosition(); // disallow pokes for 0 liquidity positions
             liquidityNext = _self.liquidity;
         } else {
             liquidityNext = liquidityDelta < 0
@@ -65,54 +65,54 @@ library Position {
     }
 }
 
-// library Pool {
-//     using Position for mapping(bytes32 => Position.Info);
-//     using Position for Position.Info;
+library Pool {
+    using Position for mapping(bytes32 => Position.Info);
+    using Position for Position.Info;
 
-//     function getSwapFee(uint24 feesStorage) internal pure returns (uint16) {
-//         return uint16(feesStorage >> 12);
-//     }
+    function getSwapFee(uint24 feesStorage) internal pure returns (uint16) {
+        return uint16(feesStorage >> 12);
+    }
 
-//     function getWithdrawFee(uint24 feesStorage) internal pure returns (uint16) {
-//         return uint16(feesStorage & 0xFFF);
-//     }
+    function getWithdrawFee(uint24 feesStorage) internal pure returns (uint16) {
+        return uint16(feesStorage & 0xFFF);
+    }
 
-//     struct ModifyPositionParams {
-//         address owner;
-//         int24 tickLower;
-//         int24 tickUpper;
-//         int128 liquidityDelta;
-//         int24 tickSpacing;
-//     }
+    struct ModifyPositionParams {
+        address owner;
+        int24 tickLower;
+        int24 tickUpper;
+        int128 liquidityDelta;
+        int24 tickSpacing;
+    }
 
-//     struct ModifyPositionState {
-//         bool flippedLower;
-//         uint128 liquidityGrossAfterLower;
-//         bool flippedUpper;
-//         uint128 liquidityGrossAfterUpper;
-//         uint256 feeGrowthInside0X128;
-//         uint256 feeGrowthInside1X128;
-//     }
+    struct ModifyPositionState {
+        bool flippedLower;
+        uint128 liquidityGrossAfterLower;
+        bool flippedUpper;
+        uint128 liquidityGrossAfterUpper;
+        uint256 feeGrowthInside0X128;
+        uint256 feeGrowthInside1X128;
+    }
 
-//     struct State {
-//         uint256 feeGrowthGlobal0X128;
-//         uint256 feeGrowthGlobal1X128;
-//         uint128 liquidity;
-//         mapping(int16 => uint256) tickBitmap;
-//         mapping(bytes32 => Position.Info) positions;
-//     }
+    struct State {
+        uint256 feeGrowthGlobal0X128;
+        uint256 feeGrowthGlobal1X128;
+        uint128 liquidity;
+        mapping(int16 => uint256) tickBitmap;
+        mapping(bytes32 => Position.Info) positions;
+    }
 
-//     function modifyPosition(State storage self, ModifyPositionParams memory params) internal
-//     {
+    function modifyPosition(State storage self, ModifyPositionParams memory params) internal
+    {
 
-//         uint256 feesOwed0;
-//         uint256 feesOwed1;
-//         {
-//             ModifyPositionState memory state;
+        uint256 feesOwed0;
+        uint256 feesOwed1;
+        {
+            ModifyPositionState memory state;
 
-//             (feesOwed0, feesOwed1) = self.positions.get(params.owner, params.tickLower, params.tickUpper).update(
-//                 params.liquidityDelta, state.feeGrowthInside0X128, state.feeGrowthInside1X128
-//             );
-//         }
-//     }
-// }
+            (feesOwed0, feesOwed1) = self.positions
+                .get(params.owner, params.tickLower, params.tickUpper)
+                .update(params.liquidityDelta, state.feeGrowthInside0X128, state.feeGrowthInside1X128);
+        }
+    }
+}

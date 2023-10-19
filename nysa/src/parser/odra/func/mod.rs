@@ -27,10 +27,12 @@ where
             ctx.set_current_fn(i);
             if i.is_modifier() {
                 modifier::def(i, ctx).map(|(a, b)| vec![a, b])
-            } else if i.is_constructor() {
+            } else if i.is_constructor() && !data.is_library() {
                 constructor::def(i, data, ctx)
-            } else {
+            } else if !(i.is_constructor() || i.is_modifier()) {
                 function::def(i, data, &names, ctx).map(|f| vec![f])
+            } else {
+                Ok(vec![])
             }
         })
         .collect::<Result<Vec<_>, ParserError>>()

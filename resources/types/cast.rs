@@ -1,7 +1,7 @@
 pub mod errors {}
 pub mod events {}
 pub mod enums {}
-
+pub mod structs {}
 pub mod erc_20 {
     #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
     {{DEFAULT_IMPORTS}}

@@ -1,7 +1,14 @@
-use crate::{model::ir::{Stmt, Type}, parser::{context::{test::EmptyContext, LocalContext, with_context, FnContext}, odra::test::assert_tokens_eq}, ParserError};
+use crate::parser::odra::stmt::parse_statement;
+use crate::{
+    model::ir::{Stmt, Type},
+    parser::{
+        context::{test::EmptyContext, with_context, FnContext, LocalContext},
+        odra::test::assert_tokens_eq,
+    },
+    ParserError,
+};
 use quote::ToTokens;
 use solidity_parser::pt::{SourceUnitPart, Statement};
-use crate::parser::odra::stmt::parse_statement;
 
 #[test]
 #[should_panic]
@@ -17,7 +24,6 @@ pub(super) fn parse_with_empty_context(stmt: Stmt) -> Result<syn::Stmt, ParserEr
     parse_statement(&stmt, true, &mut EmptyContext)
 }
 
-
 #[test]
 fn test_no_block_if() {
     with_context(|ctx| {
@@ -25,22 +31,15 @@ fn test_no_block_if() {
         ctx.register_local_var(&"y".to_string(), &Type::Uint(32));
 
         let solidity_expr = "if (x != 0) x = y;";
-        let expected_rust_code = quote::quote!(
-            if x != nysa_types::U32::ZERO {
-                x = y;
-            }
-        );
+        let expected_rust_code = quote::quote!(if x != nysa_types::U32::ZERO {
+            x = y;
+        });
 
         assert_stmt(solidity_expr, expected_rust_code, ctx);
     })
 }
 
-
-fn assert_stmt<T: AsRef<str>, R: ToTokens>(
-    solidity_expr: T,
-    expected: R,
-    ctx: &mut LocalContext,
-) {
+fn assert_stmt<T: AsRef<str>, R: ToTokens>(solidity_expr: T, expected: R, ctx: &mut LocalContext) {
     // dummy function to successfully parse an expression.
     let src = r#"
     function foo() {

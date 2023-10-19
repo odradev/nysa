@@ -82,7 +82,9 @@ pub(crate) fn extract_structs(ast: &[SourceUnitPart]) -> Vec<(Option<String>, &S
     filter_source_unit_part(ast, |unit| match unit {
         SourceUnitPart::ContractDefinition(contract) => {
             let events = filter_source_part(contract, |part| match part {
-                ContractPart::StructDefinition(ev) => Some((Some(contract.name.name.to_owned()), ev.as_ref())),
+                ContractPart::StructDefinition(ev) => {
+                    Some((Some(contract.name.name.to_owned()), ev.as_ref()))
+                }
                 _ => None,
             });
             Some(events)

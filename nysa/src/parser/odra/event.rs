@@ -58,6 +58,7 @@ fn event_def<T: TypeInfo>(ev: &Event, t: &T) -> Result<ClassDef, ParserError> {
         class,
         path: vec![],
         variables,
+        other_items: vec![],
         functions: vec![FnDef::Plain(PlainFnDef {
             attrs: vec![],
             name: "new".into(),

@@ -7,6 +7,9 @@ contract MyContract {
     int32 public neg = -9;
     bool public boo = true;
     uint192 public constant MY_UINT = 123;
+    string public constant NAME = "my name";
+    bool public constant FLAG = false;
+    bytes2 public constant BYTE_ARRAY = hex'abcd';
     uint public immutable MY_UINT2;
 
     constructor(uint _myUint) {

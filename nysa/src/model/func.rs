@@ -35,7 +35,6 @@ impl Named for Function {
 
 impl Function {
     pub fn ret_ty<T: TypeInfo>(&self, ctx: &T) -> Option<Type> {
-        dbg!(1);
         match self {
             Function::Function(f) => {
                 let ret = &f.ret;

@@ -151,7 +151,6 @@ where
     let fn_ident = utils::to_snake_case_ident(fn_name);
     let args = parse_many(&args, ctx)?;
     let var_ident = utils::to_snake_case_ident(variable);
-
     // If in solidity code a reference is a contract may be a field,
     // but in Odra we store only an address, so a ref must be built
     // from the address.
@@ -172,6 +171,10 @@ where
         }
         Some(ItemType::Contract(class_name)) | Some(ItemType::Interface(class_name)) => {
             ext_call(variable, &class_name, fn_ident, args, ctx)
+        }
+        Some(ItemType::Library(class_name)) => {
+            lib_call(variable, fn_ident, args)
+            // ext_call(variable, &class_name, fn_ident, args, ctx)
         }
         Some(ItemType::Storage(Var {
             ty: Type::Array(ty),
@@ -203,6 +206,15 @@ where
     Ok(parse_quote!(
         #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr)).#fn_ident(#(#args),*)
     ))
+}
+
+fn lib_call(
+    lib_name: &str,
+    fn_ident: Ident,
+    args: Vec<syn::Expr>,
+) -> Result<syn::Expr, ParserError> {
+    let ident = format_ident!("{}", lib_name);
+    Ok(parse_quote!(#ident::#fn_ident(#(#args),*)))
 }
 
 fn parse_super_call<T>(
@@ -267,7 +279,7 @@ where
     Ok(parse_quote!(odra::prelude::vec![#arr]))
 }
 
-fn parse_bytes_lit(bytes: &[u8]) -> Result<syn::Expr, ParserError> {
+pub fn parse_bytes_lit(bytes: &[u8]) -> Result<syn::Expr, ParserError> {
     let arr = bytes
         .iter()
         .map(|v| quote::quote!(#v))

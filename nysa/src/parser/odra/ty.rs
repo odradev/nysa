@@ -103,13 +103,14 @@ pub fn parse_state_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, Parser
                     let ident = format_ident!("{}", name);
                     parse_quote!(odra::Variable<#ident>)
                 }
-                context::ItemType::Event => todo!(),
-                context::ItemType::Storage(_) => todo!(),
-                context::ItemType::Local(_) => todo!(),
                 context::ItemType::Struct(_) => {
                     let ident = format_ident!("{}", name);
                     parse_quote!(odra::Variable<#ident>)
                 }
+                context::ItemType::Event => todo!(),
+                context::ItemType::Storage(_) => todo!(),
+                context::ItemType::Local(_) => todo!(),
+                context::ItemType::Library(_) => todo!(),
             })
             .ok_or(ParserError::InvalidType),
         Type::Bytes(i) => {
@@ -235,13 +236,14 @@ pub fn parse_type_from_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, Pa
                     let ident = format_ident!("{}", name);
                     parse_quote!(#ident)
                 }
-                context::ItemType::Event => todo!(),
-                context::ItemType::Storage(_) => todo!(),
-                context::ItemType::Local(_) => todo!(),
                 context::ItemType::Struct(_) => {
                     let ident = format_ident!("{}", name);
                     parse_quote!(#ident)
                 }
+                context::ItemType::Event => todo!(),
+                context::ItemType::Storage(_) => todo!(),
+                context::ItemType::Local(_) => todo!(),
+                context::ItemType::Library(_) => todo!(),
             })
             .ok_or(ParserError::InvalidType),
         Type::Array(ty) => {

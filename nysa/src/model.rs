@@ -36,6 +36,12 @@ impl<T: Named> AsStringVec for &[T] {
     }
 }
 
+impl<T: Named> AsStringVec for Vec<&T> {
+    fn as_string_vec(&self) -> Vec<String> {
+        self.iter().map(|i| i.name()).collect_vec()
+    }
+}
+
 macro_rules! impl_named {
     ($($t:ty),+) => {
         $(

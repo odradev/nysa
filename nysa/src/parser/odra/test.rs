@@ -133,6 +133,7 @@ const DEFAULT_MODULES: &str = r#"
 pub mod errors {}
 pub mod events {}
 pub mod enums {}
+pub mod structs {}
 "#;
 
 const DEFAULT_IMPORTS: &str = r#"
