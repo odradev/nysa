@@ -19,7 +19,6 @@ pub mod array {
         my_fixed_size_arr: odra::Variable<Vec<nysa_types::U256>>,
     }
 
-
     #[odra::module]
     impl Array {
         const PATH: &'static [ClassName; 1usize] = &[ClassName::Array];

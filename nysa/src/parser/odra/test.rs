@@ -50,6 +50,11 @@ fn test_cast() {
 }
 
 #[test]
+fn test_list() {
+    test_single("types", "list");
+}
+
+#[test]
 #[ignore]
 fn test_plascoin() {
     test_single("contracts", "plascoin");

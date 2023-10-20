@@ -1,4 +1,4 @@
-use solidity_parser::pt;
+use solidity_parser::pt::{self, Parameter};
 use syn::parse_quote;
 
 use crate::ParserError;
@@ -39,9 +39,17 @@ pub enum Expression {
     Statement(Box<Stmt>),
     BitwiseOp(Box<Expression>, Box<Expression>, BitwiseOp),
     UnaryOp(Box<Expression>, UnaryOp),
+    Tuple(Vec<TupleItem>),
     #[cfg(test)]
     /// To fail fast in tests
     Fail,
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub enum TupleItem {
+    Expr(Expression),
+    Declaration(Expression, String),
+    Wildcard,
 }
 
 pub fn to_expr(solidity_expressions: Vec<pt::Expression>) -> Vec<Expression> {
@@ -330,8 +338,25 @@ fn parse_expr(e: &pt::Expression) -> Expression {
         pt::Expression::This(_) => todo!(),
         pt::Expression::RationalNumberLiteral(_, _) => todo!(),
         pt::Expression::AddressLiteral(_, _) => todo!(),
-        pt::Expression::List(_, _) => todo!(),
+        pt::Expression::List(_, params) => {
+            let params = params.iter().map(|(_, p)| p).collect::<Vec<_>>();
+            to_tuple(params)
+        }
     }
+}
+
+fn to_tuple(parameters: Vec<&Option<pt::Parameter>>) -> Expression {
+    let item = parameters
+        .iter()
+        .map(|p| match p {
+            Some(Parameter {
+                ty, name: Some(id), ..
+            }) => TupleItem::Declaration(Expression::from(ty), id.name.to_owned()),
+            Some(Parameter { ty, name: None, .. }) => TupleItem::Expr(Expression::from(ty)),
+            _ => TupleItem::Wildcard,
+        })
+        .collect::<Vec<_>>();
+    Expression::Tuple(item)
 }
 
 fn hex_string_to_u8_array(hex_string: &str) -> Option<Vec<u8>> {

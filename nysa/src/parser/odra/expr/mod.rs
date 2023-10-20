@@ -1,4 +1,4 @@
-use crate::model::ir::{Expression, Op, Stmt, Type, Var};
+use crate::model::ir::{Expression, Op, Stmt, TupleItem, Type, Var};
 use crate::parser::context::{
     ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType, StorageInfo, TypeInfo,
 };
@@ -71,6 +71,7 @@ where
         Expression::Statement(s) => parse_statement(s, ctx),
         Expression::BitwiseOp(left, right, op) => op::bin_op(left, right, op, ctx),
         Expression::UnaryOp(expr, op) => op::unary_op(expr, op, ctx),
+        Expression::Tuple(items) => parse_tuple(items, ctx),
         #[cfg(test)]
         Expression::Fail => Err(ParserError::InvalidExpression),
     }
@@ -325,4 +326,20 @@ where
     }
     dbg!(expr);
     todo!()
+}
+
+/// Parses [TupleItem] into an expression `(e1, e2, .., eN)`
+fn parse_tuple<T>(items: &[TupleItem], ctx: &mut T) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    let items = items
+        .iter()
+        .map(|i| match i {
+            TupleItem::Expr(i) => parse(i, ctx),
+            _ => Err(ParserError::InvalidExpression),
+        })
+        .collect::<Result<Vec<syn::Expr>, ParserError>>()?;
+
+    Ok(parse_quote!( ( #(#items),* ) ))
 }

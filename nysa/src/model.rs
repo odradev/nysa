@@ -13,7 +13,7 @@ use itertools::Itertools;
 use self::misc::{Contract, Enum, Error, Event, Struct};
 
 pub mod ir {
-    pub use super::expr::{to_expr, Expression};
+    pub use super::expr::{to_expr, Expression, TupleItem};
     pub use super::func::*;
     pub use super::interface::InterfaceData;
     pub use super::misc::*;

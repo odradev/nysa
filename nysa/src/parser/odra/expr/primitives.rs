@@ -3,7 +3,7 @@ use syn::{parse_quote, BinOp};
 
 use super::{num, parse};
 use crate::{
-    model::ir::{Expression, Type, Var},
+    model::ir::{Expression, TupleItem, Type, Var},
     parser::{
         context::{
             self, ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType,
@@ -11,10 +11,10 @@ use crate::{
         },
         odra::expr::array,
     },
-    utils::to_snake_case_ident,
+    utils::{self, to_snake_case_ident},
     ParserError,
 };
-use quote::quote;
+use quote::{format_ident, quote};
 
 pub fn get_var_or_parse<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
@@ -51,7 +51,7 @@ pub fn get_var_or_parse<
 /// * `ctx` - parser Context.
 pub fn assign<
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
-    O: Into<BinOp>,
+    O: Into<BinOp> + Clone,
 >(
     left: &Expression,
     right: Option<&Expression>,
@@ -64,6 +64,7 @@ pub fn assign<
                 update_collection(name, keys, right, operator, ctx)
             }
             Expression::Variable(name) => update_variable(name, right, operator, ctx),
+            Expression::Tuple(left_items) => update_tuple(left_items, right, operator, ctx),
             _ => parse(left, ctx),
         }
     } else {
@@ -241,9 +242,9 @@ fn parse_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
-    match num::try_to_generic_int_expr(key) {
-        Ok(e) => Ok(e),
-        Err(_) => get_var_or_parse(key, ctx),
+    match key {
+        Expression::NumberLiteral(v) => num::to_typed_int_expr(v, ctx),
+        _ => get_var_or_parse(key, ctx),
     }
 }
 
@@ -340,4 +341,110 @@ where
         ctx.drop_expected_type();
     }
     result
+}
+
+fn update_tuple<T, O>(
+    left: &[TupleItem],
+    right: &Expression,
+    operator: Option<O>,
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    O: Into<BinOp> + Clone,
+{
+    // a tuple that defines local variables
+    // sol: (uint a, uint b) = (1, 1);
+    if left
+        .iter()
+        .all(|i| matches!(i, TupleItem::Declaration(_, _)))
+    {
+        let items = left
+            .iter()
+            .filter_map(|i| match i {
+                TupleItem::Declaration(ty, name) => Some((ty, name)),
+                _ => None,
+            })
+            .map(|(e, n)| {
+                let name = utils::to_snake_case_ident(n);
+                let ty = TryFrom::try_from(e).unwrap();
+                ctx.register_local_var(n, &ty);
+                quote!(mut #name)
+            })
+            .collect::<syn::punctuated::Punctuated<TokenStream, syn::Token![,]>>();
+        let values = super::parse(right, ctx)?;
+
+        return Ok(parse_quote!(let (#items) = #values));
+    } else {
+        // a tuple that defines update a tuple - may be multiple local/state variables or mix of both.
+
+        if let Expression::Tuple(values) = right {
+            // The lvalue is a tuple
+            // sol: (a, b) = (1, 1);
+            // rs: {
+            //   a = 1;
+            //   b = 2;
+            // }
+            // However the syntax (a, b) = (1, 1) is correct in rust, if a variable is a state variable
+            // Odra uses `set()` function not the `=` operator
+            let items: Vec<syn::Stmt> = parse_tuple_statements(left, values, operator, ctx)?;
+            return Ok(parse_quote!( { #(#items)* } ));
+        } else {
+            // The lvalue is an expression that returns a tuple.
+            // sol: (a, b) = func_call();
+            // rs: {
+            //   let (_0, _1) = func_call();
+            //   a = _0;
+            //   b = _1;
+            // }
+            // Due to the same reason as above a more verbose syntax is required.
+            let names = (0..left.len())
+                .map(|idx| format_ident!("_{}", idx))
+                .collect::<syn::punctuated::Punctuated<Ident, syn::Token![,]>>();
+            let values = super::parse(right, ctx)?;
+
+            let tmp_items = (0..left.len())
+                .map(|idx| TupleItem::Expr(Expression::Variable(format!("_{}", idx))))
+                .collect::<Vec<_>>();
+
+            let assignment: Vec<syn::Stmt> =
+                parse_tuple_statements(left, &tmp_items, operator, ctx)?;
+
+            return Ok(parse_quote!({
+                let (#names) = #values;
+                #(#assignment)*
+            }));
+        }
+    }
+}
+
+fn parse_tuple_statements<T, O>(
+    left: &[TupleItem],
+    right: &[TupleItem],
+    operator: Option<O>,
+    ctx: &mut T,
+) -> Result<Vec<syn::Stmt>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    O: Into<BinOp> + Clone,
+{
+    left.iter()
+        .zip(right.iter())
+        .map(|(l, r)| {
+            if let TupleItem::Expr(r) = r {
+                match l {
+                    TupleItem::Expr(l) => {
+                        assign(l, Some(r), operator.clone(), ctx).map(|e| parse_quote!(#e;))
+                    }
+                    TupleItem::Wildcard => {
+                        let value = super::parse(r, ctx)?;
+                        Ok(parse_quote!(let _ =  #value;))
+                    }
+                    TupleItem::Declaration(_, _) => Err(ParserError::InvalidExpression),
+                }
+            } else {
+                Err(ParserError::InvalidExpression)
+            }
+        })
+        .collect::<Result<Vec<syn::Stmt>, ParserError>>()
 }
