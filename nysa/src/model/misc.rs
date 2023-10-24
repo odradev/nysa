@@ -13,6 +13,20 @@ pub struct Contract {
 }
 
 impl Contract {
+    pub fn new(
+        name: String,
+        base_impl: Vec<BaseImpl>,
+        is_abstract: bool,
+        is_library: bool,
+    ) -> Self {
+        Self {
+            name,
+            base_impl,
+            is_abstract,
+            is_library,
+        }
+    }
+
     pub fn base_impl(&self) -> &[BaseImpl] {
         &self.base_impl
     }

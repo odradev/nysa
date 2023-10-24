@@ -16,12 +16,56 @@ use super::{
     Named,
 };
 
+#[derive(Debug, Clone)]
 pub struct ContractData {
     contract: Contract,
     all_contracts: Vec<Contract>,
     fn_map: HashMap<String, Vec<(Class, Function)>>,
     var_map: HashMap<Class, Vec<Var>>,
     c3: C3,
+}
+
+#[cfg(test)]
+impl ContractData {
+    pub fn empty<R: AsRef<str>>(name: R) -> Self {
+        let mut c3 = C3::new();
+        c3.add_class_str(name.as_ref(), name.as_ref());
+        Self {
+            contract: Contract::new(name.as_ref().to_string(), vec![], false, false),
+            all_contracts: vec![Contract::new(
+                name.as_ref().to_string(),
+                vec![],
+                false,
+                false,
+            )],
+            fn_map: Default::default(),
+            var_map: Default::default(),
+            c3,
+        }
+    }
+
+    pub fn with_storage<R: AsRef<str>>(name: R, var_map: HashMap<Class, Vec<Var>>) -> Self {
+        let mut c3 = C3::new();
+        c3.add_class_str(name.as_ref(), name.as_ref());
+        var_map.iter().for_each(|(class, v)| {
+            c3.register_vars(
+                class.clone(),
+                v.iter().map(|v| Class::from(v.name.clone())).collect(),
+            )
+        });
+        Self {
+            contract: Contract::new(name.as_ref().to_string(), vec![], false, false),
+            all_contracts: vec![Contract::new(
+                name.as_ref().to_string(),
+                vec![],
+                false,
+                false,
+            )],
+            fn_map: Default::default(),
+            var_map,
+            c3,
+        }
+    }
 }
 
 impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {

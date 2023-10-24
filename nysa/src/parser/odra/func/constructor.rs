@@ -1,8 +1,5 @@
 use crate::{
-    model::{
-        ir::{BaseImpl, Constructor, Expression, FnImplementations, Stmt, Type},
-        ContractData,
-    },
+    model::ir::{BaseImpl, Constructor, Expression, FnImplementations, Stmt, Type},
     parser::{
         context::{
             ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
@@ -17,11 +14,7 @@ use syn::{parse_quote, Ident};
 
 use super::common;
 
-pub(super) fn def<T>(
-    impls: &FnImplementations,
-    data: &ContractData,
-    ctx: &mut T,
-) -> Result<Vec<FnDef>, ParserError>
+pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
@@ -29,7 +22,7 @@ where
 
     let (_, primary_constructor) = impls
         .iter()
-        .find(|(class, _)| **class == data.c3_class())
+        .find(|(class, _)| **class == ctx.current_contract().c3_class())
         .or(impls.last())
         .ok_or(ParserError::ConstructorNotFound)?;
 
@@ -42,7 +35,7 @@ where
             }
             let args = common::context_args(&c.params, c.is_mutable, ctx)?;
             let mut stmts: Vec<syn::Stmt> = vec![];
-            if !data.is_abstract(id) {
+            if !ctx.current_contract().is_abstract(id) {
                 stmts.extend(parse_base_calls(c, &impls, ctx));
             }
             stmts.extend(init_storage_fields(ctx)?);

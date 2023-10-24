@@ -4,33 +4,29 @@ use quote::format_ident;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
-    model::{
-        ir::{Expression, Type, Var},
-        ContractData,
+    model::ir::{Expression, Type, Var},
+    parser::{
+        context::{ContractInfo, TypeInfo},
+        odra::expr,
     },
-    parser::{context::TypeInfo, odra::expr},
     utils, ParserError,
 };
 
 use super::ty;
 
 /// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
-pub fn variables_def<T: TypeInfo>(
-    data: &ContractData,
-    t: &mut T,
-) -> Result<Vec<VarDef>, ParserError> {
-    data.vars()
+pub fn variables_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<VarDef>, ParserError> {
+    t.current_contract()
+        .vars()
         .iter()
         .filter(|v| !v.is_immutable)
         .map(|v| variable_def(v, t))
         .collect()
 }
 
-pub fn const_def<T: TypeInfo>(
-    data: &ContractData,
-    t: &mut T,
-) -> Result<Vec<syn::Item>, ParserError> {
-    data.vars()
+pub fn const_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<syn::Item>, ParserError> {
+    t.current_contract()
+        .vars()
         .iter()
         .filter(|v| v.is_immutable)
         .map(|v| {

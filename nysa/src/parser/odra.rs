@@ -1,7 +1,7 @@
 use crate::{
     model::{
         ir::{Expression, Package, Var},
-        AsStringVec, ContractData,
+        AsStringVec,
     },
     utils, ParserError,
 };
@@ -15,7 +15,7 @@ use std::{
 use syn::parse_quote;
 
 use super::{
-    context::{ContractContext, EventsRegister, GlobalContext, LocalContext},
+    context::{ContractContext, ContractInfo, EventsRegister, GlobalContext, LocalContext},
     Parser,
 };
 
@@ -112,9 +112,9 @@ fn parse_packages(package: &Package, ctx: &GlobalContext) -> Result<Vec<PackageD
                 .filter(|v| !v.is_immutable)
                 .collect::<Vec<_>>();
 
-            let mut ctx = LocalContext::new(ContractContext::new(ctx, &storage));
+            let mut ctx = LocalContext::new(ContractContext::new(ctx, data.clone()));
 
-            let classes = vec![contract_def(&data, &mut ctx)?];
+            let classes = vec![contract_def(&mut ctx)?];
 
             let mut other_code = vec![];
             other_code.extend(other::imports_code(&ctx));
@@ -132,10 +132,10 @@ fn parse_packages(package: &Package, ctx: &GlobalContext) -> Result<Vec<PackageD
 }
 
 /// Builds a c3 contract class definition
-fn contract_def(data: &ContractData, ctx: &mut LocalContext) -> Result<ClassDef, ParserError> {
-    let variables = var::variables_def(data, ctx)?;
-    let constants = var::const_def(data, ctx)?;
-    let functions = func::functions_def(data, ctx)?;
+fn contract_def(ctx: &mut LocalContext) -> Result<ClassDef, ParserError> {
+    let variables = var::variables_def(ctx)?;
+    let constants = var::const_def(ctx)?;
+    let functions = func::functions_def(ctx)?;
 
     let events = ctx
         .emitted_events()
@@ -150,8 +150,8 @@ fn contract_def(data: &ContractData, ctx: &mut LocalContext) -> Result<ClassDef,
     Ok(ClassDef {
         struct_attrs,
         impl_attrs: vec![parse_quote!(#[odra::module])],
-        class: data.c3_class(),
-        path: data.c3_path(),
+        class: ctx.current_contract().c3_class(),
+        path: ctx.current_contract().c3_path(),
         variables,
         functions,
         other_items: constants,

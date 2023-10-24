@@ -1,5 +1,5 @@
 use crate::{
-    model::ContractData,
+    model::ir::FnImplementations,
     parser::context::{
         ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
     },
@@ -14,26 +14,52 @@ pub(super) mod interface;
 mod modifier;
 
 /// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
-pub fn functions_def<'a, T>(data: &ContractData, ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
+pub fn functions_def<'a, T>(ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
-    let names = data.functions_str();
+    match ctx.current_contract().is_library() {
+        true => parse_library_functions(ctx),
+        false => parse_contract_functions(ctx),
+    }
+}
 
-    let result = data
+fn parse_contract_functions<'a, T>(ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    in_fn_context(ctx, |i, ctx| {
+        if i.is_modifier() {
+            modifier::def(i, ctx).map(|(a, b)| vec![a, b])
+        } else if i.is_constructor() && !ctx.current_contract().is_library() {
+            constructor::def(i, ctx)
+        } else if !(i.is_constructor() || i.is_modifier()) {
+            function::def(i, ctx).map(|f| vec![f])
+        } else {
+            Ok(vec![])
+        }
+    })
+}
+
+fn parse_library_functions<'a, T>(ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    in_fn_context(ctx, |_, _| Ok(vec![]))
+}
+
+fn in_fn_context<T, F>(ctx: &mut T, f: F) -> Result<Vec<FnDef>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    F: Fn(&FnImplementations, &mut T) -> Result<Vec<FnDef>, ParserError>,
+{
+    let result = ctx
+        .current_contract()
         .fn_implementations()
         .iter()
         .map(|i| {
             ctx.set_current_fn(i);
-            if i.is_modifier() {
-                modifier::def(i, ctx).map(|(a, b)| vec![a, b])
-            } else if i.is_constructor() && !data.is_library() {
-                constructor::def(i, data, ctx)
-            } else if !(i.is_constructor() || i.is_modifier()) {
-                function::def(i, data, &names, ctx).map(|f| vec![f])
-            } else {
-                Ok(vec![])
-            }
+            f(i, ctx)
         })
         .collect::<Result<Vec<_>, ParserError>>()
         .map(|v: Vec<Vec<FnDef>>| v.into_iter().flatten().collect());

@@ -3,10 +3,7 @@ use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
-    model::{
-        ir::{BaseImpl, FnImplementations, Func, Type},
-        ContractData,
-    },
+    model::ir::{BaseImpl, FnImplementations, Func, Type},
     parser::{
         context::{
             ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
@@ -19,12 +16,7 @@ use crate::{
 use super::common;
 
 /// Transforms [Var] into a c3 ast [FnDef].
-pub(super) fn def<T>(
-    impls: &FnImplementations,
-    data: &ContractData,
-    names: &[String],
-    ctx: &mut T,
-) -> Result<FnDef, ParserError>
+pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<FnDef, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
@@ -32,7 +24,7 @@ where
 
     let (_, top_lvl_func) = definitions
         .iter()
-        .find(|(class, _)| **class == data.c3_class())
+        .find(|(class, _)| **class == ctx.current_contract().c3_class())
         .or(definitions.last())
         .expect("At least one implementation expected")
         .clone();
@@ -49,7 +41,7 @@ where
         .map(|(class, def)| ClassFnImpl {
             class: Some(class.to_owned().clone()),
             fun: def.name.clone().into(),
-            implementation: parse_body(def, names, ctx),
+            implementation: parse_body(def, ctx),
             visibility: common::parse_visibility(&def.vis),
         })
         .collect();
@@ -63,10 +55,12 @@ where
     }))
 }
 
-fn parse_body<T>(def: &Func, names: &[String], ctx: &mut T) -> syn::Block
+fn parse_body<T>(def: &Func, ctx: &mut T) -> syn::Block
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
+    let names = ctx.current_contract().functions_str();
+
     def.ret
         .iter()
         .filter_map(|(name, ty)| match name {

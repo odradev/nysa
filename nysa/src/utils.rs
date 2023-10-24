@@ -30,6 +30,13 @@ pub fn to_snake_case(input: &str) -> String {
     }
 }
 
+/// Converts a vec to to an array. The vec length must match the array length.
+pub fn convert_to_array<const T: usize>(input: &[u8]) -> [u8; T] {
+    let mut array: [u8; T] = [0; T];
+    array.copy_from_slice(&input[..T]);
+    array
+}
+
 pub fn map_collection<'a, T, R>(collection: Vec<T>) -> Vec<R>
 where
     R: for<'b> From<&'b T>,

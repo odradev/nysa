@@ -72,33 +72,6 @@ pub fn assign<
     }
 }
 
-pub fn assign_default<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
->(
-    left: &Expression,
-    ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
-    let err =
-        || ParserError::UnexpectedExpression(String::from("Expression::Variable"), left.clone());
-
-    match left {
-        Expression::Variable(name) => {
-            let value_expr = parse_quote!(Default::default());
-            set_var(&name, value_expr, ctx)
-        }
-        Expression::Collection(name, keys) => match ctx.type_from_string(name) {
-            Some(ItemType::Storage(Var {
-                ty: Type::Array(_), ..
-            })) => {
-                let default_value = parse_quote!(Default::default());
-                array::replace_value(name, &keys[0], default_value, ctx)
-            }
-            _ => Err(err()),
-        },
-        _ => Err(err()),
-    }
-}
-
 /// Parses a single set value interaction.
 ///
 /// In solidity referring to a contract storage value and a local variable is the same.
@@ -180,6 +153,33 @@ where
     }
 }
 
+fn assign_default<
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+>(
+    left: &Expression,
+    ctx: &mut T,
+) -> Result<syn::Expr, ParserError> {
+    let err =
+        || ParserError::UnexpectedExpression(String::from("Expression::Variable"), left.clone());
+
+    match left {
+        Expression::Variable(name) => {
+            let value_expr = parse_quote!(Default::default());
+            set_var(&name, value_expr, ctx)
+        }
+        Expression::Collection(name, keys) => match ctx.type_from_string(name) {
+            Some(ItemType::Storage(Var {
+                ty: Type::Array(_), ..
+            })) => {
+                let default_value = parse_quote!(Default::default());
+                array::replace_value(name, &keys[0], default_value, ctx)
+            }
+            _ => Err(err()),
+        },
+        _ => Err(err()),
+    }
+}
+
 fn parse_local_collection<T>(
     var_ident: Ident,
     keys_expr: &[Expression],
@@ -199,11 +199,11 @@ where
     let mut token_stream = quote!(#var_ident);
 
     for i in 0..(keys_len - 1) {
-        let key = parse_key(&keys_expr[i], ctx)?;
+        let key = parse_local_key(&keys_expr[i], ctx)?;
         token_stream.extend(quote!([#key]));
     }
     let key = keys_expr.last().unwrap();
-    let key = parse_key(key, ctx)?;
+    let key = parse_local_key(key, ctx)?;
     let assign = value_expr.map(|e| quote!(= #e));
     Ok(parse_quote!(#token_stream[#key] #assign))
 }
@@ -225,12 +225,12 @@ where
     let mut token_stream = quote!(self.#var_ident);
 
     for i in 0..(keys_expr.len() - 1) {
-        let key = parse_key(&keys_expr[i], ctx)?;
+        let key = parse_storage_key(&keys_expr[i], ctx)?;
         token_stream.extend(quote!(.get_instance(&#key)));
     }
 
     let key = keys_expr.last().unwrap();
-    let key = parse_key(key, ctx)?;
+    let key = parse_storage_key(key, ctx)?;
     if let Some(value) = value_expr {
         Ok(parse_quote!(#token_stream.set(&#key, #value)))
     } else {
@@ -238,13 +238,23 @@ where
     }
 }
 
-fn parse_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+fn parse_storage_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     match key {
         Expression::NumberLiteral(v) => num::to_typed_int_expr(v, ctx),
         _ => get_var_or_parse(key, ctx),
+    }
+}
+
+fn parse_local_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    match num::try_to_generic_int_expr(key) {
+        Ok(e) => Ok(e),
+        Err(_) => get_var_or_parse(key, ctx),
     }
 }
 

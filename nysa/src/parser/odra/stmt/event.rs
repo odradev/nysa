@@ -34,12 +34,14 @@ where
 mod tests {
     use super::*;
     use crate::model::ir::{Stmt, Type, Var};
+    use crate::model::ContractData;
     use crate::parser::context::{ContractContext, GlobalContext, LocalContext};
     use crate::parser::odra::stmt::parse_statement;
     use crate::parser::odra::stmt::test::{
         parse_with_empty_context, unsafe_parse_with_empty_context,
     };
     use crate::parser::odra::test::assert_tokens_eq;
+    use c3_lang_linearization::Class;
     use quote::quote;
 
     #[test]
@@ -63,7 +65,7 @@ mod tests {
     //         Box::new(Expression::Variable("DataUpdated".to_string())),
     //         vec![
     //             Expression::BoolLiteral(false),
-    //             Expression::NumberLiteral(NumSize::U8, vec![100]),
+    //             Expression::NumberLiteral(vec![100]),
     //         ],
     //     ));
 
@@ -78,13 +80,19 @@ mod tests {
     #[test]
     fn emit_with_context_args() {
         let global_ctx = GlobalContext::new(vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
-        let storage = vec![Var {
-            name: "my_var".to_string(),
-            ty: Type::Bool,
-            initializer: None,
-            is_immutable: false,
-        }];
-        let contract_ctx = ContractContext::new(&global_ctx, &storage);
+        let mut storage = std::collections::HashMap::new();
+        storage.insert(
+            Class::from("test"),
+            vec![Var {
+                name: "my_var".to_string(),
+                ty: Type::Bool,
+                initializer: None,
+                is_immutable: false,
+            }],
+        );
+        let data = ContractData::with_storage("test", storage);
+
+        let contract_ctx = ContractContext::new(&global_ctx, data);
         let mut ctx = LocalContext::new(contract_ctx);
 
         let stmt = Stmt::Emit(Expression::Func(

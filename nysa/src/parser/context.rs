@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use crate::model::ir::{Expression, FnImplementations, Stmt, Type, Var};
+use crate::model::{
+    ir::{Expression, FnImplementations, Stmt, Type, Var},
+    ContractData,
+};
 
 #[derive(Debug)]
 pub enum ItemType {
@@ -43,6 +46,7 @@ pub trait TypeInfo {
 }
 
 pub trait ContractInfo {
+    fn current_contract(&self) -> &ContractData;
     fn as_contract_name(&self, name: &Expression) -> Option<String>;
     fn is_class(&self, name: &str) -> bool;
 }
@@ -155,19 +159,38 @@ impl TypeInfo for GlobalContext {
 #[derive(Debug)]
 pub struct ContractContext<'a> {
     global: &'a GlobalContext,
-    storage: &'a [Var],
+    storage: Vec<Var>,
     external_calls: HashSet<String>,
     emitted_events: HashSet<String>,
+    data: ContractData,
 }
 
 impl<'a> ContractContext<'a> {
-    pub fn new(ctx: &'a GlobalContext, storage: &'a [Var]) -> Self {
+    pub fn new(ctx: &'a GlobalContext, data: ContractData) -> Self {
+        let storage = data
+            .vars()
+            .into_iter()
+            .filter(|v| !v.is_immutable)
+            .collect::<Vec<_>>();
         Self {
             global: ctx,
             storage,
             external_calls: Default::default(),
             emitted_events: Default::default(),
+            data,
         }
+    }
+}
+
+impl ContractInfo for ContractContext<'_> {
+    fn as_contract_name(&self, name: &Expression) -> Option<String> {
+        self.global.as_contract_name(name)
+    }
+    fn is_class(&self, name: &str) -> bool {
+        self.global.is_class(name)
+    }
+    fn current_contract(&self) -> &ContractData {
+        &self.data
     }
 }
 
@@ -384,6 +407,10 @@ macro_rules! delegate_contract_info {
             fn is_class(&self, name: &str) -> bool {
                 self.$to.is_class(name)
             }
+
+            fn current_contract(&self) -> &ContractData {
+                self.$to.current_contract()
+            }
         }
     };
 }
@@ -393,13 +420,11 @@ delegate_storage_info!(LocalContext<'_>, contract);
 delegate_events_register!(LocalContext<'_>, contract);
 delegate_external_calls_register!(LocalContext<'_>, contract);
 
-delegate_contract_info!(ContractContext<'_>, global);
-
 #[cfg(test)]
 pub fn with_context<F: Fn(&mut LocalContext) -> ()>(f: F) {
-    let storage = vec![];
+    let data = ContractData::empty("test");
     let ctx = GlobalContext::default();
-    let ctx = ContractContext::new(&ctx, &storage);
+    let ctx = ContractContext::new(&ctx, data);
     let mut ctx = LocalContext::new(ctx);
 
     f(&mut ctx)
@@ -408,7 +433,7 @@ pub fn with_context<F: Fn(&mut LocalContext) -> ()>(f: F) {
 #[allow(unused_variables)]
 #[cfg(test)]
 pub mod test {
-    use crate::model::ir::Expression;
+    use crate::model::{ir::Expression, ContractData};
 
     use super::{
         ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
@@ -440,6 +465,10 @@ pub mod test {
 
         fn is_class(&self, name: &str) -> bool {
             false
+        }
+
+        fn current_contract(&self) -> &ContractData {
+            unimplemented!()
         }
     }
 
