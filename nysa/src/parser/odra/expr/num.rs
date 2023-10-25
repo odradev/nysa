@@ -40,7 +40,10 @@ pub(crate) fn to_typed_int_expr<T: TypeInfo + FnContext>(
 pub(crate) fn try_to_generic_int_expr(expr: &Expression) -> Result<syn::Expr, ParserError> {
     match expr {
         Expression::NumberLiteral(value) => to_generic_int_expr(value),
-        _ => Err(ParserError::InvalidExpression),
+        _ => Err(ParserError::InvalidExpression(format!(
+            "NumLiteral expected but found {:?}",
+            expr
+        ))),
     }
 }
 

@@ -1,4 +1,4 @@
-use c3_lang_parser::c3_ast::{ClassFnImpl, ComplexFnDef, FnDef};
+use c3_lang_parser::c3_ast::{ClassFnImpl, ComplexFnDef, FnDef, PlainFnDef};
 use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
@@ -52,6 +52,39 @@ where
         args,
         ret: common::parse_ret_type(&top_lvl_func.ret, ctx)?,
         implementations,
+    }))
+}
+
+/// Transforms [Var] into a c3 ast [FnDef].
+pub(super) fn def2<T>(impls: &FnImplementations, ctx: &mut T) -> Result<FnDef, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    let functions = impls.as_functions();
+    // only one impl expected
+    let (id, func) = functions.first().unwrap();
+
+    let mut attrs = vec![];
+    if func.is_payable {
+        attrs.push(parse_quote!(#[odra(payable)]));
+    }
+
+    let mut args = common::context_args(&func.params, func.is_mutable, ctx)?;
+    args.remove(0);
+
+    let implementation = ClassFnImpl {
+        class: None,
+        fun: func.name.clone().into(),
+        implementation: parse_body(func, ctx),
+        visibility: common::parse_visibility(&func.vis),
+    };
+
+    Ok(FnDef::Plain(PlainFnDef {
+        attrs,
+        name: func.name.as_str().into(),
+        args,
+        ret: common::parse_ret_type(&func.ret, ctx)?,
+        implementation,
     }))
 }
 

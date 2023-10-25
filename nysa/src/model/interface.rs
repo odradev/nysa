@@ -4,6 +4,7 @@ use crate::utils::{ast, map_collection};
 
 use super::{func::Function, misc::Contract, Named};
 
+#[derive(Debug, Clone)]
 pub struct InterfaceData {
     contract: Contract,
     fns: Vec<Function>,

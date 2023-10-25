@@ -1,5 +1,5 @@
 use super::{
-    parse,
+    parse, parse_many,
     primitives::{self, get_var_or_parse},
 };
 use crate::{
@@ -34,12 +34,13 @@ pub fn read_property<
 pub fn fn_call<T>(
     array_name: &str,
     fn_ident: Ident,
-    args: Vec<syn::Expr>,
+    args: &[Expression],
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
+    let args = parse_many(args, ctx)?;
     let result_expr: syn::Expr = parse_quote!(result);
     let arr = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
     let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;

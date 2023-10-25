@@ -18,59 +18,29 @@ pub mod math {
     impl Math {
         const PATH: &'static [ClassName; 1usize] = &[ClassName::Math];
         
-        fn min(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
-            self.__stack.push_path_on_stack(Self::PATH);
-            let result = self.super_min(x, y);
-            self.__stack.drop_one_from_stack();
-            result
-        }
-        fn super_min(
-            &self,
-            x: nysa_types::U256,
-            y: nysa_types::U256,
-        ) -> nysa_types::U256 {
-            let __class = self.__stack.pop_from_top_path();
-            match __class {
-                ClassName::Math => {
-                    let mut z = Default::default();
-                    z = if x < y {
-                        x
-                    } else {
-                        y
-                    };
-                    return (z);
-                }
-                #[allow(unreachable_patterns)]
-                _ => self.super_min(x, y),
-            }
+        pub(crate) fn min(x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
+            let mut z = Default::default();
+            z = if x < y {
+                x
+            } else {
+                y
+            };
+            return (z);
         }
 
-        fn sqrt(&self, y: nysa_types::U256) -> nysa_types::U256 {
-            self.__stack.push_path_on_stack(Self::PATH);
-            let result = self.super_sqrt(y);
-            self.__stack.drop_one_from_stack();
-            result
-        }
-        fn super_sqrt(&self, y: nysa_types::U256) -> nysa_types::U256 {
-            let __class = self.__stack.pop_from_top_path();
-            match __class {
-                ClassName::Math => {
-                    let mut z = Default::default();
-                    if y > nysa_types::U256::from_limbs_slice(&[3u64]) {
-                        z = y;
-                        let mut x = ((y / nysa_types::U256::from_limbs_slice(&[2u64])) + nysa_types::U256::ONE);
-                        while x < z {
-                            z = x;
-                            x = (((y / x) + x) / nysa_types::U256::from_limbs_slice(&[2u64]));
-                        }
-                    } else if y != nysa_types::U256::ZERO {
-                        z = nysa_types::U256::ONE;
-                    }
-                    return (z);
+        pub(crate) fn sqrt(y: nysa_types::U256) -> nysa_types::U256 {
+            let mut z = Default::default();
+            if y > nysa_types::U256::from_limbs_slice(&[3u64]) {
+                z = y;
+                let mut x = ((y / nysa_types::U256::from_limbs_slice(&[2u64])) + nysa_types::U256::ONE);
+                while x < z {
+                    z = x;
+                    x = (((y / x) + x) / nysa_types::U256::from_limbs_slice(&[2u64]));
                 }
-                #[allow(unreachable_patterns)]
-                _ => self.super_sqrt(y),
+            } else if y != nysa_types::U256::ZERO {
+                z = nysa_types::U256::ONE;
             }
+            return (z);
         }
     }
 }

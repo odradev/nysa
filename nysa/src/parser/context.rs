@@ -1,8 +1,11 @@
 use std::collections::HashSet;
 
-use crate::model::{
-    ir::{Expression, FnImplementations, Stmt, Type, Var},
-    ContractData,
+use crate::{
+    model::{
+        ir::{Expression, FnImplementations, Function, InterfaceData, Stmt, Type, Var},
+        ContractData, Named,
+    },
+    utils,
 };
 
 #[derive(Debug)]
@@ -43,6 +46,7 @@ pub trait TypeInfo {
         }
     }
     fn has_enums(&self) -> bool;
+    fn find_fn(&self, class: &str, name: &str) -> Option<Function>;
 }
 
 pub trait ContractInfo {
@@ -85,22 +89,22 @@ pub trait ExpressionContext {
 #[derive(Debug, Default)]
 pub struct GlobalContext {
     events: Vec<String>,
-    interfaces: Vec<String>,
-    libraries: Vec<String>,
+    interfaces: Vec<InterfaceData>,
+    libraries: Vec<ContractData>,
     enums: Vec<String>,
     errors: Vec<String>,
-    classes: Vec<String>,
+    classes: Vec<ContractData>,
     structs: Vec<String>,
 }
 
 impl GlobalContext {
     pub fn new(
         events: Vec<String>,
-        interfaces: Vec<String>,
-        libraries: Vec<String>,
+        interfaces: Vec<InterfaceData>,
+        libraries: Vec<ContractData>,
         enums: Vec<String>,
         errors: Vec<String>,
-        classes: Vec<String>,
+        classes: Vec<ContractData>,
         structs: Vec<String>,
     ) -> Self {
         Self {
@@ -123,23 +127,23 @@ impl GlobalContext {
     }
 
     pub fn is_class(&self, name: &str) -> bool {
-        self.classes.contains(&name.to_string())
+        self.classes.iter().any(|c| c.name() == name.to_string())
     }
 }
 
 impl TypeInfo for GlobalContext {
     fn type_from_string(&self, name: &str) -> Option<ItemType> {
         let name = &name.to_owned();
-        if self.libraries.contains(name) {
+        if self.libraries.iter().any(|c| c.name() == name.to_string()) {
             return Some(ItemType::Library(name.clone()));
         }
-        if self.classes.contains(name) {
+        if self.classes.iter().any(|c| c.name() == name.to_string()) {
             return Some(ItemType::Contract(name.clone()));
         }
         if self.events.contains(name) {
             return Some(ItemType::Event);
         }
-        if self.interfaces.contains(name) {
+        if self.interfaces.iter().any(|c| c.name() == name.to_string()) {
             return Some(ItemType::Interface(name.clone()));
         }
         if self.enums.contains(name) {
@@ -153,6 +157,36 @@ impl TypeInfo for GlobalContext {
 
     fn has_enums(&self) -> bool {
         !self.enums.is_empty()
+    }
+
+    fn find_fn(&self, class: &str, name: &str) -> Option<Function> {
+        if let Some(lib) = self
+            .libraries
+            .iter()
+            .find(|c| c.name() == class.to_string())
+        {
+            if let Some(f) = lib.fn_implementations().iter().find(|f| f.name == name) {
+                return Some(f.implementations.first().unwrap().1.clone());
+            }
+        }
+
+        if let Some(i) = self
+            .interfaces
+            .iter()
+            .find(|c| c.name() == class.to_string())
+        {
+            if let Some(f) = i.fns().iter().find(|f| f.name() == name) {
+                return Some(f.clone());
+            }
+        }
+
+        if let Some(lib) = self.classes.iter().find(|c| c.name() == class.to_string()) {
+            if let Some(f) = lib.fn_implementations().iter().find(|f| f.name == name) {
+                return Some(f.implementations.first().unwrap().1.clone());
+            }
+        }
+
+        None
     }
 }
 
@@ -235,6 +269,10 @@ impl TypeInfo for ContractContext<'_> {
     fn has_enums(&self) -> bool {
         self.global.has_enums()
     }
+
+    fn find_fn(&self, class: &str, name: &str) -> Option<Function> {
+        self.global.find_fn(class, name)
+    }
 }
 
 #[allow(dead_code)]
@@ -272,6 +310,10 @@ impl TypeInfo for LocalContext<'_> {
     fn has_enums(&self) -> bool {
         self.contract.has_enums()
     }
+
+    fn find_fn(&self, class: &str, name: &str) -> Option<Function> {
+        self.contract.find_fn(class, name)
+    }
 }
 
 impl FnContext for LocalContext<'_> {
@@ -302,7 +344,9 @@ impl FnContext for LocalContext<'_> {
     }
 
     fn get_local_var_by_name(&self, name: &str) -> Option<&Var> {
-        self.local_vars.iter().find(|v| v.name == name)
+        self.local_vars
+            .iter()
+            .find(|v| v.name == name || v.name == utils::to_snake_case(name))
     }
 
     fn push_expected_type(&mut self, ty: Option<Type>) -> bool {
@@ -455,6 +499,10 @@ pub mod test {
 
         fn has_enums(&self) -> bool {
             false
+        }
+
+        fn find_fn(&self, class: &str, name: &str) -> Option<crate::model::ir::Function> {
+            None
         }
     }
 

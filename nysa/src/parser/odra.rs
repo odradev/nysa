@@ -47,11 +47,11 @@ impl Parser for OdraParser {
     fn parse(package: Package) -> Result<TokenStream, ParserError> {
         let ctx = GlobalContext::new(
             package.events().as_string_vec(),
-            package.interfaces().as_string_vec(),
-            package.libraries().as_string_vec(),
+            package.interfaces().to_vec(),
+            package.libraries().to_vec(),
             package.enums().as_string_vec(),
             package.errors().as_string_vec(),
-            package.contracts().as_string_vec(),
+            package.contracts().to_vec(),
             package.structs().as_string_vec(),
         );
 

@@ -39,6 +39,6 @@ pub enum ParserError {
     #[error("Invalid statement: {0}")]
     InvalidStatement(&'static str),
     /// Attempt to use an expression in invalid context.
-    #[error("Invalid expression")]
-    InvalidExpression,
+    #[error("Could not parse expression: {0}")]
+    InvalidExpression(String),
 }

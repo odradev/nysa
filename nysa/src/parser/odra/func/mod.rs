@@ -31,12 +31,10 @@ where
     in_fn_context(ctx, |i, ctx| {
         if i.is_modifier() {
             modifier::def(i, ctx).map(|(a, b)| vec![a, b])
-        } else if i.is_constructor() && !ctx.current_contract().is_library() {
+        } else if i.is_constructor() {
             constructor::def(i, ctx)
-        } else if !(i.is_constructor() || i.is_modifier()) {
-            function::def(i, ctx).map(|f| vec![f])
         } else {
-            Ok(vec![])
+            function::def(i, ctx).map(|f| vec![f])
         }
     })
 }
@@ -45,7 +43,14 @@ fn parse_library_functions<'a, T>(ctx: &mut T) -> Result<Vec<FnDef>, ParserError
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
-    in_fn_context(ctx, |_, _| Ok(vec![]))
+    in_fn_context(ctx, |i, ctx| {
+        if i.is_constructor() {
+            Ok(vec![])
+        } else {
+            function::def2(i, ctx).map(|f| vec![f])
+        }
+        // Ok(vec![])
+    })
 }
 
 fn in_fn_context<T, F>(ctx: &mut T, f: F) -> Result<Vec<FnDef>, ParserError>

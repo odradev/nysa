@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn emit_with_context_args() {
-        let global_ctx = GlobalContext::new(vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+        let global_ctx = GlobalContext::default();
         let mut storage = std::collections::HashMap::new();
         storage.insert(
             Class::from("test"),

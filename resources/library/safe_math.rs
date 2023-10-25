@@ -17,106 +17,57 @@ pub mod safe_math {
     #[odra::module]
     impl SafeMath {
         const PATH: &'static [ClassName; 1usize] = &[ClassName::SafeMath];
-        fn add(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
-            self.__stack.push_path_on_stack(Self::PATH);
-            let result = self.super_add(x, y);
-            self.__stack.drop_one_from_stack();
-            result
-        }
-        fn super_add(
-            &self,
-            x: nysa_types::U256,
-            y: nysa_types::U256,
-        ) -> nysa_types::U256 {
-            let __class = self.__stack.pop_from_top_path();
-            match __class {
-                ClassName::SafeMath => {
-                    let mut z = Default::default();
-                    if !({
-                        z = (x + y);
-                        z
-                    } >= x)
-                    {
-                        odra::contract_env::revert(
-                            odra::types::ExecutionError::new(
-                                1u16,
-                                "ds-math-add-overflow",
-                            ),
-                        )
-                    }
-                    return (z);
-                }
-                #[allow(unreachable_patterns)]
-                _ => self.super_add(x, y),
+        
+        pub(crate) fn add(x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
+            let mut z = Default::default();
+            if !({
+                z = (x + y);
+                z
+            } >= x)
+            {
+                odra::contract_env::revert(
+                    odra::types::ExecutionError::new(
+                        1u16,
+                        "ds-math-add-overflow",
+                    ),
+                )
             }
+            return (z);
         }
 
-        fn mul(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
-            self.__stack.push_path_on_stack(Self::PATH);
-            let result = self.super_mul(x, y);
-            self.__stack.drop_one_from_stack();
-            result
-        }
-        fn super_mul(
-            &self,
-            x: nysa_types::U256,
-            y: nysa_types::U256,
-        ) -> nysa_types::U256 {
-            let __class = self.__stack.pop_from_top_path();
-            match __class {
-                ClassName::SafeMath => {
-                    let mut z = Default::default();
-                    if !(y == nysa_types::U256::ZERO
-                        || ({
-                            z = (x * y);
-                            z
-                        } / y) == x)
-                    {
-                        odra::contract_env::revert(
-                            odra::types::ExecutionError::new(
-                                1u16,
-                                "ds-math-mul-overflow",
-                            ),
-                        )
-                    }
-                    return (z);
-                }
-                #[allow(unreachable_patterns)]
-                _ => self.super_mul(x, y),
+        pub(crate) fn mul(x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
+            let mut z = Default::default();
+            if !(y == nysa_types::U256::ZERO
+                || ({
+                    z = (x * y);
+                    z
+                } / y) == x)
+            {
+                odra::contract_env::revert(
+                    odra::types::ExecutionError::new(
+                        1u16,
+                        "ds-math-mul-overflow",
+                    ),
+                )
             }
+            return (z);
         }
-        fn sub(&self, x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
-            self.__stack.push_path_on_stack(Self::PATH);
-            let result = self.super_sub(x, y);
-            self.__stack.drop_one_from_stack();
-            result
-        }
-        fn super_sub(
-            &self,
-            x: nysa_types::U256,
-            y: nysa_types::U256,
-        ) -> nysa_types::U256 {
-            let __class = self.__stack.pop_from_top_path();
-            match __class {
-                ClassName::SafeMath => {
-                    let mut z = Default::default();
-                    if !({
-                        z = (x - y);
-                        z
-                    } <= x)
-                    {
-                        odra::contract_env::revert(
-                            odra::types::ExecutionError::new(
-                                1u16,
-                                "ds-math-sub-underflow",
-                            ),
-                        )
-                    }
-                    return (z);
-                }
-                #[allow(unreachable_patterns)]
-                _ => self.super_sub(x, y),
+
+        pub(crate) fn sub(x: nysa_types::U256, y: nysa_types::U256) -> nysa_types::U256 {
+            let mut z = Default::default();
+            if !({
+                z = (x - y);
+                z
+            } <= x)
+            {
+                odra::contract_env::revert(
+                    odra::types::ExecutionError::new(
+                        1u16,
+                        "ds-math-sub-underflow",
+                    ),
+                )
             }
+            return (z);
         }
     }
 }

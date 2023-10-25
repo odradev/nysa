@@ -1,13 +1,89 @@
 use solidity_parser::pt::{self, Parameter};
 use syn::parse_quote;
 
-use crate::ParserError;
+use crate::{parser::context::*, ParserError};
 
 use super::{
-    misc::Type,
+    misc::{Type, Var},
     op::{BitwiseOp, LogicalOp, MathOp, Op, UnaryOp},
     stmt::Stmt,
 };
+
+pub fn eval_expression_type<T>(expr: &Expression, ctx: &T) -> Option<Type>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    match expr {
+        Expression::Require(_, _) => None,
+        Expression::Placeholder => None,
+        Expression::ZeroAddress => Some(Type::Address),
+        Expression::Message(msg) => match msg {
+            Message::Sender => Some(Type::Address),
+            Message::Value => None,
+            Message::Data => None,
+        },
+        Expression::Collection(_, _) => todo!(),
+        Expression::Variable(name) => ctx
+            .type_from_string(name)
+            .map(|t| match t {
+                ItemType::Contract(_) => None,
+                ItemType::Library(_) => None,
+                ItemType::Interface(_) => None,
+                ItemType::Enum(e) => Some(Type::Custom(e)),
+                ItemType::Struct(s) => Some(Type::Custom(s)),
+                ItemType::Event => None,
+                ItemType::Storage(v) => Some(v.ty.clone()),
+                ItemType::Local(v) => Some(v.ty.clone()),
+            })
+            .flatten(),
+        Expression::BoolLiteral(_) => Some(Type::Bool),
+        Expression::StringLiteral(_) => Some(Type::String),
+        Expression::Assign(l, _) => eval_expression_type(l, ctx),
+        Expression::LogicalOp(_, _, _) => Some(Type::Bool),
+        Expression::MathOp(l, r, op) => {
+            let lty = eval_expression_type(l, ctx);
+            let rty = eval_expression_type(r, ctx);
+            match (lty, rty) {
+                (Some(Type::Uint(s1)), Some(Type::Uint(s2))) => Some(Type::Uint(u16::max(s1, s2))),
+                (None, Some(Type::Uint(s))) => Some(Type::Uint(s)),
+                (Some(Type::Uint(s)), None) => Some(Type::Uint(s)),
+                (Some(Type::Int(s1)), Some(Type::Int(s2))) => Some(Type::Int(u16::max(s1, s2))),
+                (None, Some(Type::Int(s))) => Some(Type::Int(s)),
+                (Some(Type::Int(s)), None) => Some(Type::Int(s)),
+                (Some(Type::Bytes(s1)), Some(Type::Bytes(s2))) => {
+                    Some(Type::Bytes(u8::max(s1, s2)))
+                }
+                _ => None,
+            }
+        }
+        Expression::AssignAnd(l, _, _) => eval_expression_type(l, ctx),
+        Expression::Increment(e) => eval_expression_type(e, ctx),
+        Expression::Decrement(e) => eval_expression_type(e, ctx),
+        Expression::MemberAccess(name, e) => match ctx.type_from_expression(expr) {
+            Some(ItemType::Enum(ty)) => Some(Type::Custom(ty)),
+            Some(ItemType::Struct(ty)) => Some(Type::Custom(ty)),
+            Some(ItemType::Storage(Var { ty, .. })) => Some(ty),
+            Some(ItemType::Local(Var { ty, .. })) => Some(ty),
+            _ => None,
+        },
+        Expression::NumberLiteral(_) => None,
+        Expression::Func(_, _) => todo!(),
+        Expression::SuperCall(_, _) => todo!(),
+        Expression::ExternalCall(_, _, _) => todo!(),
+        Expression::TypeInfo(_, _) => todo!(),
+        Expression::Type(t) => Some(t.clone()),
+        Expression::Not(e) => eval_expression_type(e, ctx),
+        Expression::BytesLiteral(b) => Some(Type::Bytes(b.len() as u8)),
+        Expression::ArrayLiteral(_) => todo!(),
+        Expression::Initializer(_) => todo!(),
+        Expression::Statement(s) => todo!(),
+        Expression::BitwiseOp(_, _, _) => todo!(),
+        Expression::UnaryOp(_, _) => todo!(),
+        Expression::Tuple(_) => todo!(),
+        #[cfg(test)]
+        Expression::Fail => None,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Expression {
@@ -74,7 +150,9 @@ impl TryInto<String> for Expression {
     fn try_into(self) -> Result<String, Self::Error> {
         match self {
             Self::Variable(name) => Ok(name.clone()),
-            _ => Err(ParserError::InvalidExpression),
+            _ => Err(ParserError::InvalidExpression(
+                "variable expected".to_string(),
+            )),
         }
     }
 }

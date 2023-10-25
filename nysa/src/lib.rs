@@ -1,5 +1,5 @@
 #![allow(unused_variables)]
-#![feature(box_patterns, int_roundings)]
+#![feature(box_patterns, int_roundings, is_some_and)]
 
 #[cfg(feature = "builder")]
 pub mod builder;

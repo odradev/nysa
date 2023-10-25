@@ -1,4 +1,4 @@
-use crate::model::ir::{Expression, Op, Stmt, TupleItem, Type, Var};
+use crate::model::ir::{eval_expression_type, Expression, Op, Stmt, TupleItem, Type, Var};
 use crate::parser::context::{
     ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType, StorageInfo, TypeInfo,
 };
@@ -26,7 +26,7 @@ where
 {
     match expression {
         Expression::Require(condition, error) => error::revert(Some(condition), error, ctx),
-        Expression::Placeholder => Err(ParserError::InvalidExpression),
+        Expression::Placeholder => Err(ParserError::InvalidExpression("Placeholder".to_string())),
         Expression::ZeroAddress => Ok(parse_quote!(None)),
         Expression::Message(msg) => msg.try_into(),
         Expression::Collection(name, keys) => primitives::parse_collection(name, keys, None, ctx),
@@ -73,7 +73,7 @@ where
         Expression::UnaryOp(expr, op) => op::unary_op(expr, op, ctx),
         Expression::Tuple(items) => parse_tuple(items, ctx),
         #[cfg(test)]
-        Expression::Fail => Err(ParserError::InvalidExpression),
+        Expression::Fail => Err(ParserError::InvalidExpression("Fail".to_string())),
     }
 }
 
@@ -150,7 +150,6 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     let fn_ident = utils::to_snake_case_ident(fn_name);
-    let args = parse_many(&args, ctx)?;
     let var_ident = utils::to_snake_case_ident(variable);
     // If in solidity code a reference is a contract may be a field,
     // but in Odra we store only an address, so a ref must be built
@@ -165,17 +164,32 @@ where
             let ty = ctx.type_from_string(&ty);
             if let Some(ItemType::Contract(class_name)) | Some(ItemType::Interface(class_name)) = ty
             {
-                ext_call(variable, &class_name, fn_ident, args, ctx)
+                let parsed_args = parse_fn_args(&class_name, fn_name, args, ctx)?;
+                ext_call(variable, &class_name, fn_ident, parsed_args, ctx)
             } else {
-                Ok(parse_quote!(#var_ident.#fn_ident(#(#args),*)))
+                Ok(parse_quote!(#var_ident.#fn_ident()))
+            }
+        }
+        Some(ItemType::Local(Var {
+            ty: Type::Custom(ty),
+            ..
+        })) => {
+            let ty = ctx.type_from_string(&ty);
+            if let Some(ItemType::Contract(class_name)) | Some(ItemType::Interface(class_name)) = ty
+            {
+                let parsed_args = parse_fn_args(&class_name, fn_name, args, ctx)?;
+                Ok(parse_quote!(#var_ident.#fn_ident(#(#parsed_args),*)))
+            } else {
+                panic!("sss")
             }
         }
         Some(ItemType::Contract(class_name)) | Some(ItemType::Interface(class_name)) => {
-            ext_call(variable, &class_name, fn_ident, args, ctx)
+            let parsed_args = parse_fn_args(&class_name, fn_name, args, ctx)?;
+            ext_call(variable, &class_name, fn_ident, parsed_args, ctx)
         }
         Some(ItemType::Library(class_name)) => {
-            lib_call(variable, fn_ident, args)
-            // ext_call(variable, &class_name, fn_ident, args, ctx)
+            let parsed_args = parse_fn_args(&class_name, fn_name, args, ctx)?;
+            lib_call(variable, fn_ident, parsed_args)
         }
         Some(ItemType::Storage(Var {
             ty: Type::Array(ty),
@@ -185,7 +199,10 @@ where
             ty: Type::Array(ty),
             ..
         })) => array::fn_call(variable, fn_ident, args, ctx),
-        _ => Ok(parse_quote!(#var_ident.#fn_ident(#(#args),*))),
+        _ => Err(ParserError::InvalidExpression(format!(
+            "ext_call {} {}",
+            variable, fn_name
+        ))),
     }
 }
 
@@ -215,6 +232,7 @@ fn lib_call(
     args: Vec<syn::Expr>,
 ) -> Result<syn::Expr, ParserError> {
     let ident = format_ident!("{}", lib_name);
+
     Ok(parse_quote!(#ident::#fn_ident(#(#args),*)))
 }
 
@@ -295,7 +313,7 @@ where
 {
     stmt::parse_statement(stmt, false, ctx).map(|stmt| match stmt {
         syn::Stmt::Expr(e) => Ok(e),
-        _ => Err(ParserError::InvalidExpression),
+        _ => Err(ParserError::InvalidStatement("Stmt::Expr expected")),
     })?
 }
 
@@ -324,7 +342,6 @@ where
         let args = parse_many(&args, ctx)?;
         return Ok(parse_quote!(odra::prelude::vec::Vec::with_capacity(#(#args),*)));
     }
-    dbg!(expr);
     todo!()
 }
 
@@ -337,9 +354,43 @@ where
         .iter()
         .map(|i| match i {
             TupleItem::Expr(i) => parse(i, ctx),
-            _ => Err(ParserError::InvalidExpression),
+            _ => Err(ParserError::InvalidExpression(format!(
+                "tuple parsing failed"
+            ))),
         })
         .collect::<Result<Vec<syn::Expr>, ParserError>>()?;
 
     Ok(parse_quote!( ( #(#items),* ) ))
+}
+
+/// A Solidity function may accept inexact types:
+/// fn set(uint256 r) {} accepts eg. uint32 and every uint smaller than 256
+/// nysa_types implement `cast()` function that adjust u(int)/bytes length.
+fn parse_fn_args<T>(
+    class_name: &str,
+    fn_name: &str,
+    args: &[Expression],
+    ctx: &mut T,
+) -> Result<Vec<syn::Expr>, ParserError>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    let f = ctx.find_fn(&class_name, &utils::to_snake_case(fn_name));
+    let mut parsed_args = vec![];
+    if let Some(func) = f {
+        let params = func.params();
+        for i in 0..params.len() {
+            let p = &params[i];
+            let arg = &args[i];
+
+            let ty = eval_expression_type(arg, ctx);
+            let required_ty = p.ty.clone();
+            let mut parsed_arg = parse(arg, ctx)?;
+            if ty.is_some_and(|t| t != required_ty) {
+                parsed_arg = parse_quote!((#parsed_arg).cast());
+            }
+            parsed_args.push(parsed_arg);
+        }
+    }
+    Ok(parsed_args)
 }

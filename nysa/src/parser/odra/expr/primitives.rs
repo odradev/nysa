@@ -100,7 +100,10 @@ pub fn set_var<T: StorageInfo + TypeInfo + FnContext>(
         // regular, local value
         Some(ItemType::Local(_)) => Ok(parse_quote!(#ident = #value_expr)),
         None => Ok(parse_quote!(#ident = #value_expr)),
-        _ => Err(ParserError::InvalidExpression),
+        _ => Err(ParserError::InvalidExpression(format!(
+            "unknown variable {:?}",
+            item
+        ))),
     }
 }
 
@@ -128,7 +131,10 @@ pub fn get_var<T: StorageInfo + TypeInfo + FnContext>(
         Some(ItemType::Storage(v)) => Ok(to_read_expr(quote!(self.#ident), None, &v.ty, ctx)),
         Some(ItemType::Local(_)) => Ok(parse_quote!(#ident)),
         None => Ok(parse_quote!(#ident)),
-        _ => Err(ParserError::InvalidExpression),
+        _ => Err(ParserError::InvalidExpression(format!(
+            "unknown variable {:?}",
+            item
+        ))),
     }
 }
 
@@ -145,11 +151,16 @@ where
 
     let item_type = ctx
         .type_from_string(name)
-        .ok_or(ParserError::InvalidExpression)?;
+        .ok_or(ParserError::InvalidExpression(
+            "unknown item type".to_string(),
+        ))?;
     match &item_type {
         ItemType::Storage(v) => parse_storage_collection(ident, keys_expr, value_expr, &v.ty, ctx),
         ItemType::Local(v) => parse_local_collection(ident, keys_expr, value_expr, &v.ty, ctx),
-        _ => Err(ParserError::InvalidExpression),
+        _ => Err(ParserError::InvalidExpression(format!(
+            "unknown collection {:?}",
+            item_type
+        ))),
     }
 }
 
@@ -450,10 +461,14 @@ where
                         let value = super::parse(r, ctx)?;
                         Ok(parse_quote!(let _ =  #value;))
                     }
-                    TupleItem::Declaration(_, _) => Err(ParserError::InvalidExpression),
+                    TupleItem::Declaration(_, _) => Err(ParserError::InvalidExpression(
+                        "invalid tuple item".to_string(),
+                    )),
                 }
             } else {
-                Err(ParserError::InvalidExpression)
+                Err(ParserError::InvalidExpression(
+                    "invalid tuple item".to_string(),
+                ))
             }
         })
         .collect::<Result<Vec<syn::Stmt>, ParserError>>()
