@@ -16,6 +16,7 @@ pub(super) fn parse_visibility(vis: &Visibility) -> syn::Visibility {
     match vis {
         Visibility::Private => parse_quote!(),
         Visibility::Public => parse_quote!(pub),
+        Visibility::Internal => parse_quote!(pub(crate)),
     }
 }
 
@@ -100,7 +101,9 @@ where
         .collect::<Vec<_>>()
 }
 
-pub(super) fn parse_external_contract_statements<T: ExternalCallsRegister + ContractInfo>(
+pub(super) fn parse_external_contract_statements<
+    T: ExternalCallsRegister + ContractInfo + FnContext,
+>(
     params: &[Param],
     ctx: &mut T,
 ) -> Vec<syn::Stmt> {

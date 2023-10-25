@@ -39,10 +39,7 @@ impl Function {
             Function::Function(f) => {
                 let ret = &f.ret;
                 if ret.len() == 1 {
-                    dbg!(2);
-
                     let ty = ctx.type_from_expression(&ret[0].1);
-                    dbg!(&ret[0].1);
                     let var = ty.map(|i| i.as_var().cloned()).flatten();
                     var.map(|v| v.ty.clone())
                 } else {
@@ -52,6 +49,14 @@ impl Function {
             }
             Function::Constructor(_) => None,
             Function::Modifier(_) => None,
+        }
+    }
+
+    pub fn params(&self) -> &[Param] {
+        match self {
+            Function::Function(f) => f.params.as_ref(),
+            Function::Constructor(c) => c.params.as_ref(),
+            Function::Modifier(m) => m.params.as_ref(),
         }
     }
 }
@@ -162,6 +167,7 @@ impl From<&&pt::FunctionDefinition> for Function {
 pub enum Visibility {
     Public,
     Private,
+    Internal,
 }
 
 impl From<&pt::Visibility> for Visibility {
@@ -172,7 +178,7 @@ impl From<&pt::Visibility> for Visibility {
             // we can allow such simplification
             pt::Visibility::External(_) => Self::Public,
             pt::Visibility::Public(_) => Self::Public,
-            pt::Visibility::Internal(_) => Self::Private,
+            pt::Visibility::Internal(_) => Self::Internal,
             pt::Visibility::Private(_) => Self::Private,
         }
     }
