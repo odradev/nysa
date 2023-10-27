@@ -1,4 +1,51 @@
 {{DEFAULT_MODULES}}
+pub mod callee {
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
+
+    {{DEFAULT_IMPORTS}}
+
+    {{STACK_DEF}}
+
+    #[derive(Clone)]
+    enum ClassName {
+        Callee,
+    }
+
+    #[odra::module] 
+    pub struct Callee { 
+        __stack: PathStack,
+        x: odra::Variable<nysa_types::U256>,
+    } 
+
+    #[odra::module] 
+    impl Callee { 
+        const PATH: &'static [ClassName; 1usize] = &[ClassName::Callee];
+
+        #[odra(init)]
+        pub fn init(&mut self) {
+        }
+
+        pub fn set_x(&mut self, _x: nysa_types::U256) -> nysa_types::U256 {
+            self.__stack.push_path_on_stack(Self::PATH);
+            let result = self.super_set_x(_x);
+            self.__stack.drop_one_from_stack();
+            result
+        }
+
+        fn super_set_x(&mut self, _x: nysa_types::U256) -> nysa_types::U256 {
+            let __class = self.__stack.pop_from_top_path();
+            match __class {
+                ClassName::Callee => {
+                    self.x.set(_x);
+                    return self.x.get_or_default()
+                }
+                #[allow(unreachable_patterns)]
+                _ => self.super_set_x(_x)
+            }
+        }
+    }
+}
+
 pub mod caller {
     #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
@@ -62,52 +109,5 @@ pub mod caller {
                 _ => self.super_set_x_from_address(_addr, _x)
             }
         }  
-    }
-}
-
-pub mod callee {
-    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
-
-    {{DEFAULT_IMPORTS}}
-
-    {{STACK_DEF}}
-
-    #[derive(Clone)]
-    enum ClassName {
-        Callee,
-    }
-
-    #[odra::module] 
-    pub struct Callee { 
-        __stack: PathStack,
-        x: odra::Variable<nysa_types::U256>,
-    } 
-
-    #[odra::module] 
-    impl Callee { 
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::Callee];
-
-        #[odra(init)]
-        pub fn init(&mut self) {
-        }
-
-        pub fn set_x(&mut self, _x: nysa_types::U256) -> nysa_types::U256 {
-            self.__stack.push_path_on_stack(Self::PATH);
-            let result = self.super_set_x(_x);
-            self.__stack.drop_one_from_stack();
-            result
-        }
-
-        fn super_set_x(&mut self, _x: nysa_types::U256) -> nysa_types::U256 {
-            let __class = self.__stack.pop_from_top_path();
-            match __class {
-                ClassName::Callee => {
-                    self.x.set(_x);
-                    return self.x.get_or_default()
-                }
-                #[allow(unreachable_patterns)]
-                _ => self.super_set_x(_x)
-            }
-        }
     }
 }

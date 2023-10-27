@@ -226,3 +226,17 @@ pub struct Struct {
     pub name: String,
     pub fields: Vec<(String, Expression)>,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LibUsing {
+    pub name: String,
+    pub ty: Expression,
+}
+
+impl From<&&pt::Using> for LibUsing {
+    fn from(value: &&pt::Using) -> Self {
+        let name = value.library.name.to_owned();
+        let ty = value.ty.as_ref().map(Expression::from).unwrap();
+        Self { name, ty }
+    }
+}

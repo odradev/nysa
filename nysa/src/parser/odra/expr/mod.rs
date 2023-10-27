@@ -1,4 +1,5 @@
 use crate::model::ir::{eval_expression_type, Expression, Op, Stmt, TupleItem, Type, Var};
+use crate::model::Named;
 use crate::parser::context::{
     ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType, StorageInfo, TypeInfo,
 };
@@ -133,9 +134,32 @@ where
         };
     }
 
-    match parse(fn_name, ctx) {
-        Ok(name) => Ok(parse_quote!(self.#name(#(#args),*))),
-        Err(err) => Err(err),
+    match fn_name {
+        // state.positions.get
+        Expression::MemberAccess(function_name, ty_expr) => {
+            // member_name = get
+            // ty = state.positions
+            // check of what type is `state.position`, then check if there is a matching library or a regular call.
+            let ty = eval_expression_type(ty_expr, ctx);
+
+            // find matching lib
+            let matching_lib = ctx
+                .current_contract()
+                .libs()
+                .iter()
+                .find(|lib| eval_expression_type(&lib.ty, ctx) == ty)
+                .unwrap();
+
+            let matching_fn = ctx.find_fn(&matching_lib.name, function_name).unwrap();
+            let lib_ident = format_ident!("{}", matching_lib.name);
+            let fn_ident = utils::to_snake_case_ident(function_name);
+            let first_arg = parse(ty_expr, ctx)?;
+            Ok(parse_quote!(#lib_ident::#fn_ident(#first_arg, #(#args),*)))
+        }
+        _ => match parse(fn_name, ctx) {
+            Ok(name) => Ok(parse_quote!(self.#name(#(#args),*))),
+            Err(err) => Err(err),
+        },
     }
 }
 
@@ -187,8 +211,8 @@ where
             let parsed_args = parse_fn_args(&class_name, fn_name, args, ctx)?;
             ext_call(variable, &class_name, fn_ident, parsed_args, ctx)
         }
-        Some(ItemType::Library(class_name)) => {
-            let parsed_args = parse_fn_args(&class_name, fn_name, args, ctx)?;
+        Some(ItemType::Library(lib)) => {
+            let parsed_args = parse_fn_args(&lib.name(), fn_name, args, ctx)?;
             lib_call(variable, fn_ident, parsed_args)
         }
         Some(ItemType::Storage(Var {
@@ -232,7 +256,6 @@ fn lib_call(
     args: Vec<syn::Expr>,
 ) -> Result<syn::Expr, ParserError> {
     let ident = format_ident!("{}", lib_name);
-
     Ok(parse_quote!(#ident::#fn_ident(#(#args),*)))
 }
 
@@ -258,8 +281,13 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
     match ctx.type_from_expression(expr) {
-        Some(ItemType::Enum(ty)) => {
-            let ty = format_ident!("{}", ty);
+        Some(ItemType::Enum(name) | ItemType::Contract(name)) => {
+            let ty = format_ident!("{}", name);
+            let member: syn::Member = format_ident!("{}", member_name).into();
+            Ok(parse_quote!(#ty::#member))
+        }
+        Some(ItemType::Library(data)) => {
+            let ty = format_ident!("{}", data.name());
             let member: syn::Member = format_ident!("{}", member_name).into();
             Ok(parse_quote!(#ty::#member))
         }
@@ -268,7 +296,8 @@ where
         })) => array::read_property(member_name, expr, ctx),
         _ => {
             let base_expr: syn::Expr = parse(expr, ctx)?;
-            let member: syn::Member = format_ident!("{}", member_name).into();
+
+            let member: syn::Member = utils::to_snake_case_ident(member_name).into();
             Ok(parse_quote!(#base_expr.#member))
         }
     }

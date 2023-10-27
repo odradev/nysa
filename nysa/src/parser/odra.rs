@@ -52,7 +52,7 @@ impl Parser for OdraParser {
             package.enums().as_string_vec(),
             package.errors().as_string_vec(),
             package.contracts().to_vec(),
-            package.structs().as_string_vec(),
+            package.structs().to_vec(),
         );
 
         let events = event::events_def(&package, &ctx)?;

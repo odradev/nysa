@@ -30,7 +30,7 @@ where
                 ItemType::Library(_) => None,
                 ItemType::Interface(_) => None,
                 ItemType::Enum(e) => Some(Type::Custom(e)),
-                ItemType::Struct(s) => Some(Type::Custom(s)),
+                ItemType::Struct(s) => Some(Type::Custom(s.name)),
                 ItemType::Event => None,
                 ItemType::Storage(v) => Some(v.ty.clone()),
                 ItemType::Local(v) => Some(v.ty.clone()),
@@ -59,15 +59,72 @@ where
         Expression::AssignAnd(l, _, _) => eval_expression_type(l, ctx),
         Expression::Increment(e) => eval_expression_type(e, ctx),
         Expression::Decrement(e) => eval_expression_type(e, ctx),
-        Expression::MemberAccess(name, e) => match ctx.type_from_expression(expr) {
-            Some(ItemType::Enum(ty)) => Some(Type::Custom(ty)),
-            Some(ItemType::Struct(ty)) => Some(Type::Custom(ty)),
-            Some(ItemType::Storage(Var { ty, .. })) => Some(ty),
-            Some(ItemType::Local(Var { ty, .. })) => Some(ty),
-            _ => None,
-        },
+        Expression::MemberAccess(name, e) => {
+            if let Expression::MemberAccess(nested_name, nested_e) = &**e {
+                let ty = eval_expression_type(nested_e, ctx).unwrap();
+                match ty {
+                    Type::Custom(class_name) => {
+                        if let Some(ItemType::Struct(s)) = ctx.type_from_string(&class_name) {
+                            let f = s.fields.iter().find(|f| &f.0 == nested_name).unwrap();
+                            return eval_expression_type(&f.1, ctx);
+                        } else {
+                            todo!()
+                        }
+                    }
+                    _ => todo!(),
+                }
+            }
+            match ctx.type_from_expression(e) {
+                Some(ItemType::Enum(ty)) => Some(Type::Custom(ty)),
+                Some(ItemType::Struct(ty)) => {
+                    if let Some((name, fty)) = ty.fields.iter().find(|(f, t)| f == &ty.name) {
+                        eval_expression_type(fty, ctx)
+                    } else {
+                        None
+                    }
+                }
+                Some(ItemType::Library(ty)) => ty
+                    .vars()
+                    .iter()
+                    .find(|v| &v.name == name)
+                    .map(|v| v.ty.clone()),
+                Some(ItemType::Storage(Var { ty, .. })) => Some(ty),
+                Some(ItemType::Local(Var {
+                    ty: Type::Custom(struct_name),
+                    ..
+                })) => {
+                    if let Some(ItemType::Struct(ty)) = ctx.type_from_string(&struct_name) {
+                        if let Some((name, fty)) = ty.fields.iter().find(|(f, t)| f == name) {
+                            eval_expression_type(fty, ctx)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
+                Some(ItemType::Local(Var { ty, .. })) => Some(ty),
+                e => panic!("{:?}", e),
+            }
+        }
         Expression::NumberLiteral(_) => None,
-        Expression::Func(_, _) => todo!(),
+        Expression::Func(f, args) => {
+            if let Expression::MemberAccess(function_name, ty_expr) = &**f {
+                let ty = eval_expression_type(ty_expr, ctx);
+
+                // find matching lib
+                let matching_lib = ctx
+                    .current_contract()
+                    .libs()
+                    .iter()
+                    .find(|lib| eval_expression_type(&lib.ty, ctx) == ty)
+                    .unwrap();
+
+                let matching_fn = ctx.find_fn(&matching_lib.name, function_name).unwrap();
+                return matching_fn.ret_ty(ctx);
+            }
+            todo!()
+        }
         Expression::SuperCall(_, _) => todo!(),
         Expression::ExternalCall(_, _, _) => todo!(),
         Expression::TypeInfo(_, _) => todo!(),

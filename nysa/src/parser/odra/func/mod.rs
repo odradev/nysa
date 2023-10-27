@@ -49,7 +49,6 @@ where
         } else {
             function::def2(i, ctx).map(|f| vec![f])
         }
-        // Ok(vec![])
     })
 }
 
@@ -64,11 +63,12 @@ where
         .iter()
         .map(|i| {
             ctx.set_current_fn(i);
-            f(i, ctx)
+            let res = f(i, ctx);
+            ctx.clear_current_fn();
+            res
         })
         .collect::<Result<Vec<_>, ParserError>>()
         .map(|v: Vec<Vec<FnDef>>| v.into_iter().flatten().collect());
 
-    ctx.clear_current_fn();
     result
 }

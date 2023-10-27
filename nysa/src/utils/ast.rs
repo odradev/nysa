@@ -1,7 +1,8 @@
 use solidity_parser::{
     pt::{
         ContractDefinition, ContractPart, ContractTy, EnumDefinition, ErrorDefinition,
-        EventDefinition, FunctionDefinition, SourceUnitPart, StructDefinition, VariableDefinition,
+        EventDefinition, FunctionDefinition, SourceUnitPart, StructDefinition, Using,
+        VariableDefinition,
     },
     Diagnostic,
 };
@@ -44,6 +45,13 @@ pub(crate) fn extract_functions(contract: &ContractDefinition) -> Vec<&FunctionD
 pub(crate) fn extract_vars(contract: &ContractDefinition) -> Vec<&VariableDefinition> {
     filter_source_part(contract, |part| match part {
         ContractPart::VariableDefinition(var) => Some(var.as_ref()),
+        _ => None,
+    })
+}
+
+pub(crate) fn extract_using(contract: &ContractDefinition) -> Vec<&Using> {
+    filter_source_part(contract, |part| match part {
+        ContractPart::Using(u) => Some(u.as_ref()),
         _ => None,
     })
 }

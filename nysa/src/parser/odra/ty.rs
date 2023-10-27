@@ -1,10 +1,10 @@
-use quote::format_ident;
+use quote::{format_ident, quote};
 use syn::parse_quote;
 
 use crate::{
     model::ir::{Expression, Type},
     parser::context::{self, TypeInfo},
-    ParserError,
+    utils, ParserError,
 };
 
 /// Parses solidity statement into a syn type.
@@ -132,6 +132,11 @@ pub fn parse_type_from_expr<T: TypeInfo>(
     let err = || ParserError::UnexpectedExpression(String::from("Expression::Type"), expr.clone());
     match expr {
         Expression::Type(ty) => parse_type_from_ty(ty, t),
+        Expression::MemberAccess(f, box Expression::Variable(name)) => {
+            let p = utils::to_snake_case_ident(name);
+            let ident = format_ident!("{}", f);
+            Ok(parse_quote!(#p::#ident))
+        }
         Expression::Variable(name) => match t.type_from_string(name) {
             Some(context::ItemType::Enum(_) | context::ItemType::Struct(_)) => {
                 let ident = format_ident!("{}", name);
@@ -236,9 +241,13 @@ pub fn parse_type_from_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, Pa
                     let ident = format_ident!("{}", name);
                     parse_quote!(#ident)
                 }
-                context::ItemType::Struct(_) => {
+                context::ItemType::Struct(s) => {
+                    let namespace = s
+                        .namespace
+                        .map(|ns| utils::to_snake_case_ident(ns))
+                        .map(|i| quote!(#i::));
                     let ident = format_ident!("{}", name);
-                    parse_quote!(#ident)
+                    parse_quote!(#namespace #ident)
                 }
                 context::ItemType::Event => todo!(),
                 context::ItemType::Storage(_) => todo!(),

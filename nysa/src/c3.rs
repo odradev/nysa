@@ -63,6 +63,6 @@ pub fn find_top_level_contracts(
             result.push(class.clone());
         }
     }
-
+    result.sort();
     Ok(result)
 }

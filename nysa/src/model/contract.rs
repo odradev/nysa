@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     func::{Constructor, FnImplementations, Function},
-    misc::{Contract, Var},
+    misc::{Contract, LibUsing, Var},
     Named,
 };
 
@@ -22,6 +22,7 @@ pub struct ContractData {
     all_contracts: Vec<Contract>,
     fn_map: HashMap<String, Vec<(Class, Function)>>,
     var_map: HashMap<Class, Vec<Var>>,
+    libs: Vec<LibUsing>,
     c3: C3,
 }
 
@@ -40,6 +41,7 @@ impl ContractData {
             )],
             fn_map: Default::default(),
             var_map: Default::default(),
+            libs: Default::default(),
             c3,
         }
     }
@@ -62,6 +64,7 @@ impl ContractData {
                 false,
             )],
             fn_map: Default::default(),
+            libs: Default::default(),
             var_map,
             c3,
         }
@@ -86,6 +89,7 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
 
         let mut fn_map: HashMap<String, Vec<(Class, Function)>> = HashMap::new();
         let mut var_map = HashMap::new();
+        let mut libs = Vec::<LibUsing>::new();
 
         c3.path(&contract.name().into())
             .unwrap()
@@ -147,6 +151,8 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
                     };
                 }
 
+                libs.extend(map_collection(ast::extract_using(c)));
+
                 let vars: Vec<Var> = map_collection(ast::extract_vars(c));
                 for var in vars.iter() {
                     let var_class = Class::from(var.name.as_str());
@@ -161,6 +167,7 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
             all_contracts,
             fn_map,
             var_map,
+            libs,
             c3,
         })
     }
@@ -249,6 +256,10 @@ impl ContractData {
 
     pub fn is_library(&self) -> bool {
         self.contract.is_library()
+    }
+
+    pub fn libs(&self) -> &[LibUsing] {
+        self.libs.as_ref()
     }
 }
 

@@ -1,6 +1,6 @@
 use syn::parse_quote;
 
-use crate::model::ir::{Expression, Type};
+use crate::model::ir::{eval_expression_type, Expression, Type};
 use crate::parser::context::{
     ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
 };
@@ -15,7 +15,7 @@ where
     let name = utils::to_snake_case_ident(name);
     let pat: syn::Pat = parse_quote!(#name);
     ctx.register_local_var(&name, ty);
-    Ok(parse_quote!(let #pat;))
+    Ok(parse_quote!(let mut #pat = Default::default();))
 }
 
 pub(super) fn definition<T>(
@@ -37,8 +37,21 @@ where
         }
     };
     let expr: syn::Expr = expr::primitives::get_var_or_parse(init, ctx)?;
-    ctx.register_local_var(&name, ty);
+    register_var(&name, ty, init, ctx);
     Ok(parse_quote!(let mut #pat = #expr;))
+}
+
+fn register_var<T, S>(name: &S, ty: &Type, init: &Expression, ctx: &mut T)
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    S: ToString,
+{
+    if ty == &Type::Unknown {
+        let ty = eval_expression_type(init, ctx).unwrap_or(Type::Unknown);
+        ctx.register_local_var(name, &ty);
+    } else {
+        ctx.register_local_var(name, ty);
+    }
 }
 
 #[cfg(test)]
@@ -55,7 +68,10 @@ mod tests {
     fn var_declaration() {
         let stmt = Stmt::VarDeclaration("x".to_string(), Type::Bool);
 
-        assert_tokens_eq(unsafe_parse_with_empty_context(stmt), quote!(let x;))
+        assert_tokens_eq(
+            unsafe_parse_with_empty_context(stmt),
+            quote!(let mut x = Default::default();),
+        )
     }
 
     #[test]

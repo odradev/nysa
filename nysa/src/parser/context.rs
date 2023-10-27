@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     model::{
-        ir::{Expression, FnImplementations, Function, InterfaceData, Stmt, Type, Var},
+        ir::{Expression, FnImplementations, Function, InterfaceData, Stmt, Struct, Type, Var},
         ContractData, Named,
     },
     utils,
@@ -11,10 +11,10 @@ use crate::{
 #[derive(Debug)]
 pub enum ItemType {
     Contract(String),
-    Library(String),
+    Library(ContractData),
     Interface(String),
     Enum(String),
-    Struct(String),
+    Struct(Struct),
     Event,
     Storage(Var),
     Local(Var),
@@ -42,6 +42,7 @@ pub trait TypeInfo {
                     _ => None,
                 })
                 .flatten(),
+
             _ => None,
         }
     }
@@ -94,7 +95,7 @@ pub struct GlobalContext {
     enums: Vec<String>,
     errors: Vec<String>,
     classes: Vec<ContractData>,
-    structs: Vec<String>,
+    structs: Vec<Struct>,
 }
 
 impl GlobalContext {
@@ -105,7 +106,7 @@ impl GlobalContext {
         enums: Vec<String>,
         errors: Vec<String>,
         classes: Vec<ContractData>,
-        structs: Vec<String>,
+        structs: Vec<Struct>,
     ) -> Self {
         Self {
             events,
@@ -134,8 +135,8 @@ impl GlobalContext {
 impl TypeInfo for GlobalContext {
     fn type_from_string(&self, name: &str) -> Option<ItemType> {
         let name = &name.to_owned();
-        if self.libraries.iter().any(|c| c.name() == name.to_string()) {
-            return Some(ItemType::Library(name.clone()));
+        if let Some(l) = self.libraries.iter().find(|c| c.name() == name.to_string()) {
+            return Some(ItemType::Library(l.clone()));
         }
         if self.classes.iter().any(|c| c.name() == name.to_string()) {
             return Some(ItemType::Contract(name.clone()));
@@ -149,8 +150,8 @@ impl TypeInfo for GlobalContext {
         if self.enums.contains(name) {
             return Some(ItemType::Enum(name.clone()));
         }
-        if self.structs.contains(name) {
-            return Some(ItemType::Struct(name.clone()));
+        if let Some(s) = self.structs.iter().find(|c| c.name() == name.to_string()) {
+            return Some(ItemType::Struct(s.clone()));
         }
         None
     }

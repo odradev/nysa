@@ -65,7 +65,12 @@ pub fn assign<
             }
             Expression::Variable(name) => update_variable(name, right, operator, ctx),
             Expression::Tuple(left_items) => update_tuple(left_items, right, operator, ctx),
-            _ => parse(left, ctx),
+            Expression::MemberAccess(field, var) => {
+                let l = parse(left, ctx)?;
+                let r = parse(right, ctx)?;
+                Ok(parse_quote!(#l = #r))
+            }
+            _ => todo!(),
         }
     } else {
         assign_default(left, ctx)
