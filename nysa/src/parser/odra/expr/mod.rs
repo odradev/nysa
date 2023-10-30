@@ -75,6 +75,20 @@ where
         Expression::Tuple(items) => parse_tuple(items, ctx),
         #[cfg(test)]
         Expression::Fail => Err(ParserError::InvalidExpression("Fail".to_string())),
+        Expression::Keccak256(args) => {
+            let args = parse_many(&args, ctx)?;
+            Ok(
+                parse_quote!(nysa_types::FixedBytes::try_from(&odra::contract_env::hash(#(#args),*)).unwrap_or_default()),
+            )
+        }
+        Expression::AbiEncodePacked(args) => {
+            let args = parse_many(&args, ctx)?;
+            Ok(parse_quote!({
+                let mut result = Vec::new();
+                #(result.extend(odra::UnwrapOrRevert::unwrap_or_revert(odra::types::casper_types::bytesrepr::ToBytes::to_bytes(&#args)));)*
+                result
+            }))
+        }
     }
 }
 
@@ -204,7 +218,7 @@ where
                 let parsed_args = parse_fn_args(&class_name, fn_name, args, ctx)?;
                 Ok(parse_quote!(#var_ident.#fn_ident(#(#parsed_args),*)))
             } else {
-                panic!("sss")
+                todo!()
             }
         }
         Some(ItemType::Contract(class_name)) | Some(ItemType::Interface(class_name)) => {

@@ -206,7 +206,23 @@ fn parse_local_collection<T>(
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
 {
-    let _ = ty;
+    if let Type::Mapping(_, _) = ty {
+        let mut token_stream = quote!(#var_ident);
+
+        for i in 0..(keys_expr.len() - 1) {
+            let key = parse_storage_key(&keys_expr[i], ctx)?;
+            token_stream.extend(quote!(.get_instance(&#key)));
+        }
+
+        let key = keys_expr.last().unwrap();
+        let key = parse_storage_key(key, ctx)?;
+        if let Some(value) = value_expr {
+            return Ok(parse_quote!(#token_stream.set(&#key, #value)));
+        } else {
+            return Ok(to_read_expr(token_stream, Some(key), ty, ctx));
+        }
+    }
+
     let keys_len = keys_expr.len();
     if keys_len == 0 {
         return Err(ParserError::InvalidCollection);
@@ -286,7 +302,9 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
         Type::Custom(name) => ctx
             .type_from_string(&name)
             .map(|ty| match ty {
-                context::ItemType::Contract(_) | context::ItemType::Interface(_) => {
+                context::ItemType::Contract(_)
+                | context::ItemType::Library(_)
+                | context::ItemType::Interface(_) => {
                     parse_quote!(#stream.get(#key).unwrap_or(None))
                 }
                 context::ItemType::Enum(_) => parse_quote!(#stream.get_or_default(#key)),
@@ -297,7 +315,13 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
             parse_quote!(#stream.get_or_default(#key))
         }
         Type::Mapping(_, v) => {
-            let ty = Type::try_from(&**v).unwrap();
+            let ty = ctx.type_from_expression(v);
+            let ty = match ty {
+                Some(ItemType::Struct(s)) => Type::Custom(s.name),
+                _ => Type::try_from(&**v).unwrap(),
+            };
+
+            // let ty = Type::try_from(&**v).unwrap();
             to_read_expr(stream, key_expr, &ty, ctx)
         }
         Type::Array(ty) => {

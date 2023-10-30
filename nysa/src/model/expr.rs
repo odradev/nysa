@@ -139,6 +139,8 @@ where
         Expression::Tuple(_) => todo!(),
         #[cfg(test)]
         Expression::Fail => None,
+        Expression::Keccak256(_) => Some(Type::Bytes(32)),
+        Expression::AbiEncodePacked(_) => Some(Type::Array(Box::new(Type::Uint(8)))),
     }
 }
 
@@ -147,6 +149,8 @@ pub enum Expression {
     Require(Box<Expression>, Box<Expression>),
     Placeholder,
     ZeroAddress,
+    Keccak256(Vec<Expression>),
+    AbiEncodePacked(Vec<Expression>),
     Message(Message),
     Collection(String, Vec<Expression>),
     Variable(String),
@@ -284,6 +288,26 @@ fn try_to_ext_contract_call(name: &pt::Expression, args: &[pt::Expression]) -> O
     None
 }
 
+fn try_to_keccak(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expression> {
+    if let pt::Expression::Variable(var) = name {
+        if &var.name == "keccak256" {
+            return Some(Expression::Keccak256(args.iter().map(From::from).collect()));
+        }
+    }
+    None
+}
+
+fn try_to_abi_encode(name: &pt::Expression, args: &[pt::Expression]) -> Option<Expression> {
+    if let pt::Expression::MemberAccess(_, box pt::Expression::Variable(var), fn_id) = name {
+        if &var.name == "abi" && &fn_id.name == "encodePacked" {
+            return Some(Expression::AbiEncodePacked(
+                args.iter().map(From::from).collect(),
+            ));
+        }
+    }
+    None
+}
+
 fn parse_expr(e: &pt::Expression) -> Expression {
     match e {
         pt::Expression::ArraySubscript(_, arr, key) => {
@@ -326,6 +350,8 @@ fn parse_expr(e: &pt::Expression) -> Expression {
                 || Expression::Func(to_boxed_expr(name), args.iter().map(From::from).collect());
 
             try_to_zero_address(name)
+                .or(try_to_keccak(name, args))
+                .or(try_to_abi_encode(name, args))
                 .or(try_to_super_call(name, args))
                 .or(try_to_require(name, args))
                 .or(try_to_ext_contract_call(name, args))

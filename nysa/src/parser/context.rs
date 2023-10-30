@@ -42,7 +42,9 @@ pub trait TypeInfo {
                     _ => None,
                 })
                 .flatten(),
-
+            Expression::MemberAccess(namespace, box Expression::Variable(name)) => {
+                self.type_from_string(namespace)
+            }
             _ => None,
         }
     }
