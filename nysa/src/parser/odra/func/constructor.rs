@@ -1,8 +1,9 @@
 use crate::{
-    model::ir::{BaseImpl, Constructor, Expression, FnImplementations, Stmt, Type},
+    model::ir::{BaseCall, Constructor, Expression, FnImplementations, Stmt, Type},
     parser::{
         context::{
-            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+            ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+            TypeInfo,
         },
         odra::{expr, stmt},
     },
@@ -16,7 +17,13 @@ use super::common;
 
 pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let impls = impls.as_constructors();
 
@@ -77,7 +84,13 @@ where
 
 fn init_storage_fields<T>(ctx: &mut T) -> Result<Vec<syn::Stmt>, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     ctx.storage()
         .iter()
@@ -103,7 +116,13 @@ fn parse_base_calls<T>(
     ctx: &mut T,
 ) -> Vec<syn::Stmt>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let mut stmts = vec![];
     let find_base_class = |class: &Class| {
@@ -123,14 +142,20 @@ where
     stmts
 }
 
-fn parse_base_args<T>(base: &BaseImpl, ctx: &mut T) -> Vec<syn::Expr>
+fn parse_base_args<T>(base: &BaseCall, ctx: &mut T) -> Vec<syn::Expr>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     expr::parse_many(&base.args, ctx).unwrap_or(vec![])
 }
 
-fn parse_base_ident(base: &BaseImpl) -> Ident {
+fn parse_base_ident(base: &BaseCall) -> Ident {
     let base = utils::to_snake_case(&base.class_name);
     let prefix = format!("_{}_", base);
     let ident = utils::to_prefixed_snake_case_ident(&prefix, "init");

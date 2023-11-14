@@ -3,10 +3,11 @@ use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
-    model::ir::{BaseImpl, FnImplementations, Func, Type},
+    model::ir::{BaseCall, FnImplementations, Func, Type},
     parser::{
         context::{
-            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+            ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+            TypeInfo,
         },
         odra::expr,
     },
@@ -18,7 +19,13 @@ use super::common;
 /// Transforms [Var] into a c3 ast [FnDef].
 pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<FnDef, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let definitions = impls.as_functions();
 
@@ -58,7 +65,13 @@ where
 /// Transforms [Var] into a c3 ast [FnDef].
 pub(super) fn def2<T>(impls: &FnImplementations, ctx: &mut T) -> Result<FnDef, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let functions = impls.as_functions();
     // only one impl expected
@@ -90,10 +103,14 @@ where
 
 fn parse_body<T>(def: &Func, ctx: &mut T) -> syn::Block
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
-    let names = ctx.current_contract().functions_str();
-
     def.ret
         .iter()
         .filter_map(|(name, ty)| match name {
@@ -143,9 +160,12 @@ where
     let before_stmts = def
         .modifiers
         .iter()
-        .filter_map(|BaseImpl { class_name, args }| {
+        .filter_map(|BaseCall { class_name, args }| {
             let args = expr::parse_many(args, ctx).unwrap_or(vec![]);
-            if names.contains(&utils::to_snake_case(class_name)) {
+            if ctx
+                .current_contract()
+                .has_function(&utils::to_snake_case(class_name))
+            {
                 // modifier call
                 let ident = utils::to_prefixed_snake_case_ident("modifier_before_", class_name);
                 Some(parse_quote!(self.#ident( #(#args),* );))
@@ -160,9 +180,12 @@ where
         .modifiers
         .iter()
         .rev()
-        .filter_map(|BaseImpl { class_name, args }| {
+        .filter_map(|BaseCall { class_name, args }| {
             let args = expr::parse_many(&args, ctx).unwrap_or(vec![]);
-            if names.contains(&utils::to_snake_case(class_name)) {
+            if ctx
+                .current_contract()
+                .has_function(&utils::to_snake_case(class_name))
+            {
                 // modifier call
                 let ident = utils::to_prefixed_snake_case_ident("modifier_after_", class_name);
                 Some(parse_quote!(self.#ident( #(#args),* );))

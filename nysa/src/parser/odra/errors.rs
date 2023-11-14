@@ -4,15 +4,9 @@ use syn::parse_quote;
 
 use crate::model::ir::Package;
 
-use super::ERRORS;
-
 pub(crate) fn errors_def(package: &Package) -> Option<syn::Item> {
-    let errors = package.errors();
-
-    let mut error_count = ERRORS.lock().unwrap();
-    *error_count = errors.len() as u16;
-
-    let execution_error_body = errors
+    let execution_error_body = package
+        .errors()
         .iter()
         .enumerate()
         .map(|(idx, e)| {

@@ -18,6 +18,7 @@ pub(super) fn attrs() -> Vec<syn::Attribute> {
 pub(super) fn other_code() -> Vec<syn::Item> {
     path_stack_default_impl()
 }
+
 /// Generates code that is not a direct derivative of Solidity code.
 pub(super) fn imports_code<T: ExternalCallsRegister + TypeInfo>(ctx: &T) -> Vec<syn::Item> {
     ctx.get_external_calls()

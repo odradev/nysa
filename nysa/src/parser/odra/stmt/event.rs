@@ -1,6 +1,7 @@
 use crate::model::ir::Expression;
 use crate::parser::context::{
-    ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+    TypeInfo,
 };
 use crate::parser::odra::expr;
 use crate::{utils, ParserError};
@@ -8,12 +9,17 @@ use syn::parse_quote;
 
 pub(super) fn emit<T>(expr: &Expression, ctx: &mut T) -> Result<syn::Stmt, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     match expr {
         Expression::Func(name, args) => {
-            let event_ident =
-                TryInto::<String>::try_into(*name.to_owned()).map(|name| utils::to_ident(&name))?;
+            let event_ident = TryInto::<String>::try_into(*name.to_owned()).map(utils::to_ident)?;
             let args: Vec<syn::Expr> = args
                 .iter()
                 .map(|e| expr::primitives::get_var_or_parse(e, ctx))
@@ -41,7 +47,6 @@ mod tests {
         parse_with_empty_context, unsafe_parse_with_empty_context,
     };
     use crate::parser::odra::test::assert_tokens_eq;
-    use c3_lang_linearization::Class;
     use quote::quote;
 
     #[test]
@@ -59,40 +64,35 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn emit_with_args() {
-    //     let stmt = Stmt::Emit(Expression::Func(
-    //         Box::new(Expression::Variable("DataUpdated".to_string())),
-    //         vec![
-    //             Expression::BoolLiteral(false),
-    //             Expression::NumberLiteral(vec![100]),
-    //         ],
-    //     ));
+    #[test]
+    fn emit_with_args() {
+        let stmt = Stmt::Emit(Expression::Func(
+            Box::new(Expression::Variable("DataUpdated".to_string())),
+            vec![
+                Expression::BoolLiteral(false),
+            ],
+        ));
 
-    //     assert_tokens_eq(
-    //         unsafe_parse_with_empty_context(stmt),
-    //         quote!(<DataUpdated as odra::types::event::OdraEvent>::emit(
-    //         DataUpdated::new(false, 100u8.into())
-    //     );),
-    //     );
-    // }
+        assert_tokens_eq(
+            unsafe_parse_with_empty_context(stmt),
+            quote!(<DataUpdated as odra::types::event::OdraEvent>::emit(
+            DataUpdated::new(false)
+        );),
+        );
+    }
 
     #[test]
     fn emit_with_context_args() {
-        let global_ctx = GlobalContext::default();
-        let mut storage = std::collections::HashMap::new();
-        storage.insert(
-            Class::from("test"),
-            vec![Var {
-                name: "my_var".to_string(),
-                ty: Type::Bool,
-                initializer: None,
-                is_immutable: false,
-            }],
-        );
+        let mut global_ctx = GlobalContext::default();
+        let storage = vec![Var {
+            name: "my_var".to_string(),
+            ty: Type::Bool,
+            initializer: None,
+            is_immutable: false,
+        }];
         let data = ContractData::with_storage("test", storage);
 
-        let contract_ctx = ContractContext::new(&global_ctx, data);
+        let contract_ctx = ContractContext::new(&mut global_ctx, data);
         let mut ctx = LocalContext::new(contract_ctx);
 
         let stmt = Stmt::Emit(Expression::Func(

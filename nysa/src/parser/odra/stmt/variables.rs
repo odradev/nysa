@@ -2,12 +2,24 @@ use syn::parse_quote;
 
 use crate::model::ir::{eval_expression_type, Expression, Type};
 use crate::parser::context::{
-    ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+    TypeInfo,
 };
 use crate::parser::odra::expr;
-use crate::parser::odra::stmt::ext::ext_contract_stmt;
 use crate::{utils, ParserError};
 
+/// A variable declaration. Creates a syn::Stmt which creates a mutable variable with a given
+/// name assigning its default value.
+/// 
+/// Updates the context - registers a local variables.
+/// 
+/// ## Solidity example
+/// `uint128 liquidityNext;`
+/// 
+/// ## Arguments
+/// * name - variable name
+/// * ty - variable type
+/// * ctx - parser context
 pub(super) fn declaration<T>(name: &str, ty: &Type, ctx: &mut T) -> Result<syn::Stmt, ParserError>
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
@@ -18,6 +30,20 @@ where
     Ok(parse_quote!(let mut #pat = Default::default();))
 }
 
+
+/// A variable definition. Creates a syn::Stmt which creates a mutable variable with a given
+/// name and a given value.
+/// 
+/// Updates the context - registers a local variables.
+/// 
+/// ## Solidity example
+/// `uint128 liquidityNext = 1234;`
+/// 
+/// ## Arguments
+/// * name - variable name
+/// * ty - variable type
+/// * init - an expression that initializes the variable
+/// * ctx - parser context
 pub(super) fn definition<T>(
     name: &str,
     ty: &Type,
@@ -25,23 +51,23 @@ pub(super) fn definition<T>(
     ctx: &mut T,
 ) -> Result<syn::Stmt, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let name = utils::to_snake_case_ident(name);
-    let pat: syn::Pat = parse_quote! { #name };
-    if let Expression::Func(name, args) = init {
-        if let Some(class_name) = ctx.as_contract_name(name) {
-            let args = expr::parse_many(&args, ctx)?;
-            let addr = args.get(0);
-            return Ok(ext_contract_stmt(&class_name, pat, addr, ctx));
-        }
-    };
+    let pat: syn::Pat = parse_quote!(#name);
+
     let expr: syn::Expr = expr::primitives::get_var_or_parse(init, ctx)?;
     register_var(&name, ty, init, ctx);
     Ok(parse_quote!(let mut #pat = #expr;))
 }
 
-fn register_var<T, S>(name: &S, ty: &Type, init: &Expression, ctx: &mut T)
+fn register_var<T, S>(name: S, ty: &Type, init: &Expression, ctx: &mut T)
 where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
     S: ToString,

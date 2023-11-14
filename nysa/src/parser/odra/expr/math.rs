@@ -1,5 +1,6 @@
 use super::num;
 use crate::model::ir::MathOp;
+use crate::parser::context::ErrorInfo;
 use crate::{
     model::ir::Expression,
     parser::{
@@ -14,7 +15,13 @@ use syn::parse_quote;
 
 /// Parses a math operation expression to `syn::Expr`.
 pub(crate) fn parse_op<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     left: &Expression,
     right: &Expression,
@@ -45,7 +52,13 @@ pub(crate) fn parse_op<
 /// x *= 2
 /// z /= 1
 pub(crate) fn eval<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     expr: &Expression,
     ctx: &mut T,
@@ -82,32 +95,32 @@ pub(crate) fn eval<
 /// In this example let's assume `y` and `x` are of `nysa_type::256` then, the subtraction result
 /// is the same type and finally the `123` literal should be parsed to`nysa_types::U256::from_limbs_slice(&[123u64])`
 pub(crate) fn eval_in_context<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     expr: &Expression,
-    companion_expr: &Expression,
+    context_expr: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let ty = match companion_expr {
-        Expression::Assign(left, _) => ctx.type_from_expression(left),
-        Expression::AssignAnd(left, _, _) => ctx.type_from_expression(left),
-        Expression::Increment(expr) => ctx.type_from_expression(expr),
-        Expression::Decrement(expr) => ctx.type_from_expression(expr),
-        _ => ctx.type_from_expression(companion_expr),
-    }
-    .map(|v| v.as_var().map(|v| v.ty.clone()))
-    .flatten();
-
-    let pushed = ctx.push_expected_type(ty);
+    ctx.push_contextual_expr(context_expr.clone());
     let expr = eval(expr, ctx)?;
-    if pushed {
-        ctx.drop_expected_type();
-    }
+    ctx.drop_contextual_expr();
     Ok(expr)
 }
 
 fn pow<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     left: &Expression,
     right: &Expression,

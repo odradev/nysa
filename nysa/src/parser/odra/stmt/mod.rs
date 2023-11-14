@@ -1,7 +1,8 @@
 use crate::{
     model::ir::Stmt,
     parser::context::{
-        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+        TypeInfo,
     },
     ParserError,
 };
@@ -16,10 +17,21 @@ pub mod ext;
 mod ret;
 mod variables;
 
-/// Parses solidity statement into a syn statement.
+/// Parses a nysa statement into a syn::Stmt.
+/// 
+/// ## Arguments
+/// * stmt - a nysa statement
+/// * is_semi - indicates in the `stmt` ends with a semicolon
+/// * ctx - parser context
 pub fn parse_statement<T>(stmt: &Stmt, is_semi: bool, ctx: &mut T) -> Result<syn::Stmt, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     match stmt {
         Stmt::Expression(expr) => expr::parse_expr(expr, is_semi, ctx),

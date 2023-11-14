@@ -1,7 +1,10 @@
 use crate::{
-    model::ir::Expression,
+    formatted_invalid_expr,
+    model::ir::{eval_expression_type, Expression},
     parser::{
-        context::{FnContext, TypeInfo},
+        context::{
+            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        },
         odra::ty,
     },
     ParserError,
@@ -15,19 +18,24 @@ macro_rules! to_uint {
     };
 }
 
-pub(crate) fn to_typed_int_expr<T: TypeInfo + FnContext>(
+pub(crate) fn to_typed_int_expr<
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+>(
     value: &[u64],
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    let ty = ctx.expected_type();
     let arr = value
         .iter()
         .map(|v| quote::quote!(#v))
         .collect::<Punctuated<TokenStream, Token![,]>>();
-    let ty = ty
-        .map(|t| ty::parse_type_from_ty(&t, ctx).ok())
+    let ty = ctx
+        .contextual_expr()
+        .map(|e| eval_expression_type(e, ctx))
+        .map(|t| t.map(|t| ty::parse_type_from_ty(&t, ctx).ok()))
+        .flatten()
         .flatten()
         .unwrap_or(parse_quote!(nysa_types::U256));
+
     if value.is_empty() {
         Ok(parse_quote!(#ty::ZERO))
     } else if value.len() == 1 && value[0] == 1 {
@@ -40,10 +48,7 @@ pub(crate) fn to_typed_int_expr<T: TypeInfo + FnContext>(
 pub(crate) fn try_to_generic_int_expr(expr: &Expression) -> Result<syn::Expr, ParserError> {
     match expr {
         Expression::NumberLiteral(value) => to_generic_int_expr(value),
-        _ => Err(ParserError::InvalidExpression(format!(
-            "NumLiteral expected but found {:?}",
-            expr
-        ))),
+        _ => formatted_invalid_expr!("NumLiteral expected but found {:?}", expr),
     }
 }
 

@@ -7,8 +7,9 @@ use solidity_parser::{
     Diagnostic,
 };
 
-pub(crate) fn parse(input: &str) -> Result<Vec<SourceUnitPart>, Vec<Diagnostic>> {
-    let solidity_ast = solidity_parser::parse(&input, 0);
+/// Parses
+pub(crate) fn parse<I: AsRef<str>>(input: I) -> Result<Vec<SourceUnitPart>, Vec<Diagnostic>> {
+    let solidity_ast = solidity_parser::parse(input.as_ref(), 0);
     solidity_ast.map(|ast| ast.0 .0)
 }
 
@@ -22,7 +23,7 @@ pub(crate) fn extract_contracts<'a>(ast: &[SourceUnitPart]) -> Vec<&ContractDefi
         .collect::<Vec<_>>()
 }
 
-/// Filters [ContractDefinition] from solidity ast.
+/// Filters [ContractDefinition] of the interface type from solidity ast.
 pub(crate) fn extract_interfaces<'a>(
     contracts: &'a [&'a ContractDefinition],
 ) -> Vec<&ContractDefinition> {
@@ -49,6 +50,7 @@ pub(crate) fn extract_vars(contract: &ContractDefinition) -> Vec<&VariableDefini
     })
 }
 
+/// Filters [Using] from a contract.
 pub(crate) fn extract_using(contract: &ContractDefinition) -> Vec<&Using> {
     filter_source_part(contract, |part| match part {
         ContractPart::Using(u) => Some(u.as_ref()),
@@ -56,8 +58,9 @@ pub(crate) fn extract_using(contract: &ContractDefinition) -> Vec<&Using> {
     })
 }
 
-/// Iterates over [SourceUnitPart]s and collects all [EventDefinition]s. An [EventDefinition] may be
-/// at the top level or inside a [ContractDefinition].
+/// Iterates over [SourceUnitPart]s and collects all [EventDefinition]s.
+///
+/// An [EventDefinition] may be at the top level or inside a [ContractDefinition].
 pub(crate) fn extract_events(ast: &[SourceUnitPart]) -> Vec<&EventDefinition> {
     filter_source_unit_part(ast, |unit| match unit {
         SourceUnitPart::ContractDefinition(contract) => {
@@ -72,6 +75,9 @@ pub(crate) fn extract_events(ast: &[SourceUnitPart]) -> Vec<&EventDefinition> {
     })
 }
 
+/// Iterates over [SourceUnitPart]s and collects all [EnumDefinition]s.
+///
+/// An [EnumDefinition] may be at the top level or inside a [ContractDefinition].
 pub(crate) fn extract_enums(ast: &[SourceUnitPart]) -> Vec<&EnumDefinition> {
     filter_source_unit_part(ast, |unit| match unit {
         SourceUnitPart::ContractDefinition(contract) => {
@@ -86,6 +92,10 @@ pub(crate) fn extract_enums(ast: &[SourceUnitPart]) -> Vec<&EnumDefinition> {
     })
 }
 
+/// Iterates over [SourceUnitPart]s and collects all [StructDefinition]s along with it's namespace.
+///
+/// An [StructDefinition] may be at the top level or inside a [ContractDefinition].
+/// A top level struct does not have the namespace (is None).
 pub(crate) fn extract_structs(ast: &[SourceUnitPart]) -> Vec<(Option<String>, &StructDefinition)> {
     filter_source_unit_part(ast, |unit| match unit {
         SourceUnitPart::ContractDefinition(contract) => {
@@ -102,6 +112,9 @@ pub(crate) fn extract_structs(ast: &[SourceUnitPart]) -> Vec<(Option<String>, &S
     })
 }
 
+/// Iterates over [SourceUnitPart]s and collects all [ErrorDefinition]s.
+///
+/// An [ErrorDefinition] may be at the top level or inside a [ContractDefinition].
 pub(crate) fn extract_errors(ast: &[SourceUnitPart]) -> Vec<&ErrorDefinition> {
     filter_source_unit_part(ast, |unit| match unit {
         SourceUnitPart::ContractDefinition(contract) => {

@@ -1,14 +1,12 @@
 use crate::{
     model::ir::Type,
-    parser::context::{ExternalCallsRegister, FnContext},
+    parser::context::{ExternalCallsRegister, FnContext}, utils,
 };
-use quote::{format_ident, ToTokens};
 use syn::parse_quote;
 
-pub fn ext_contract_stmt<S: ToTokens, T: ToTokens, R>(
+pub fn ext_contract_stmt<R>(
+    var_name: &str,
     contract_name: &str,
-    ident: S,
-    addr: T,
     ctx: &mut R,
 ) -> syn::Stmt
 where
@@ -16,10 +14,11 @@ where
 {
     ctx.register_external_call(contract_name);
     ctx.register_local_var(
-        &ident.to_token_stream(),
+        var_name,
         &Type::Custom(contract_name.to_string()),
     );
-
-    let ref_ident = format_ident!("{}Ref", contract_name);
-    parse_quote!(let mut #ident = #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr));)
+    
+    let ident = utils::to_ident(var_name);
+    let ref_ident = utils::to_ref_ident(contract_name);
+    parse_quote!(let mut #ident = #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#ident));)
 }

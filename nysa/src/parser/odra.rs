@@ -1,17 +1,12 @@
 use crate::{
-    model::{
-        ir::{Expression, Package, Var},
-        AsStringVec,
-    },
-    utils, ParserError,
+    model::ir::Package,
+    utils::{self, AsStringVec},
+    ParserError,
 };
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use proc_macro2::TokenStream;
 use quote::format_ident;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Mutex,
-};
+
 use syn::parse_quote;
 
 use super::{
@@ -30,22 +25,13 @@ mod stmt;
 mod ty;
 mod var;
 
-lazy_static::lazy_static! {
-    static ref ERROR_MAP: Mutex<HashMap<String, u16>> = Mutex::new(HashMap::new());
-    static ref ERRORS: Mutex<u16> = Mutex::new(0);
-
-    static ref MSG_DATA: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
-    static ref SOLIDITY_ERRORS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
-
-    static ref DEFAULT_VARIABLES: Mutex<HashMap<Var, Expression>> = Mutex::new(HashMap::new());
-}
-
 /// Implementation of [Parser]. Generates code compatible with the Odra Framework.
 pub struct OdraParser;
 
 impl Parser for OdraParser {
     fn parse(package: Package) -> Result<TokenStream, ParserError> {
-        let ctx = GlobalContext::new(
+        // register all metadata in the global context.
+        let mut ctx = GlobalContext::new(
             package.events().as_string_vec(),
             package.interfaces().to_vec(),
             package.libraries().to_vec(),
@@ -61,7 +47,7 @@ impl Parser for OdraParser {
         let structs = custom::struct_def(&package, &ctx)?;
         let ext = ext::ext_contracts_def(&package, &ctx)?;
 
-        let packages = parse_packages(&package, &ctx)?;
+        let packages = parse_packages(&package, &mut ctx)?;
 
         let contracts = packages
             .iter()
@@ -100,7 +86,10 @@ impl Parser for OdraParser {
     }
 }
 
-fn parse_packages(package: &Package, ctx: &GlobalContext) -> Result<Vec<PackageDef>, ParserError> {
+fn parse_packages(
+    package: &Package,
+    ctx: &mut GlobalContext,
+) -> Result<Vec<PackageDef>, ParserError> {
     package
         .contracts()
         .iter()

@@ -5,7 +5,8 @@ use super::{
 use crate::{
     model::ir::Expression,
     parser::context::{
-        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+        TypeInfo,
     },
     ParserError,
 };
@@ -16,7 +17,13 @@ use syn::parse_quote;
 const PROPERTY_LENGTH: &str = "length";
 
 pub fn read_property<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     member_name: &str,
     expr: &Expression,
@@ -38,7 +45,13 @@ pub fn fn_call<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let args = parse_many(args, ctx)?;
     let result_expr: syn::Expr = parse_quote!(result);
@@ -52,7 +65,13 @@ where
 }
 
 pub fn replace_value<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     array_name: &str,
     index: &Expression,

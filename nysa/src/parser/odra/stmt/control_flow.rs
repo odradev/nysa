@@ -2,7 +2,8 @@ use syn::parse_quote;
 
 use crate::model::ir::{Expression, Stmt};
 use crate::parser::context::{
-    ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+    TypeInfo,
 };
 use crate::parser::odra::expr;
 use crate::ParserError;
@@ -13,7 +14,13 @@ pub(super) fn if_stmt<T>(
     ctx: &mut T,
 ) -> Result<syn::Stmt, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let assertion = expr::parse(assertion, ctx)?;
     let if_body = super::parse_statement(body, true, ctx)?;
@@ -29,7 +36,13 @@ pub(super) fn if_else_stmt<T>(
     ctx: &mut T,
 ) -> Result<syn::Stmt, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let if_expr = if_stmt(assertion, if_body, ctx)?;
     let else_body = super::parse_statement(else_body, true, ctx)?;
@@ -42,7 +55,13 @@ pub(super) fn while_loop<T>(
     ctx: &mut T,
 ) -> Result<syn::Stmt, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let assertion = expr::parse(assertion, ctx)?;
     let block = super::parse_statement(block, false, ctx)?;

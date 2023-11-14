@@ -5,22 +5,28 @@ use crate::{parser::context::TypeInfo, utils};
 
 use super::{
     expr::{to_expr, Expression},
-    misc::{BaseImpl, Type},
+    misc::{BaseCall, Type},
     stmt::Stmt,
-    Named,
+    Named, RESERVED_NAMES,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Param {
-    pub name: String,
-    pub ty: Type,
-}
-
+/// A function representation.
+///
+/// A contract may multiple implementations of the same function
+/// inherited from super-contracts.
+///
+/// See [FnImplementations].
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Function {
     Function(Func),
     Constructor(Constructor),
     Modifier(Modifier),
+}
+
+impl Into<Class> for &Function {
+    fn into(self) -> Class {
+        self.name().into()
+    }
 }
 
 impl Named for Function {
@@ -61,6 +67,7 @@ impl Function {
     }
 }
 
+/// Represents a regular function.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Func {
     pub name: String,
@@ -70,9 +77,14 @@ pub struct Func {
     pub is_mutable: bool,
     pub ret: Vec<(Option<String>, Expression)>,
     pub stmts: Vec<Stmt>,
-    pub modifiers: Vec<BaseImpl>,
+    pub modifiers: Vec<BaseCall>,
 }
 
+/// Represents a special type of function - a constructor.
+///
+/// The function is called at the deploy time. Each contract has exactly one
+/// constructor. If the solidity code does not define a constructor explicitly,
+/// for consistency a default empty constructor is created.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Constructor {
     pub name: String,
@@ -81,7 +93,7 @@ pub struct Constructor {
     pub is_mutable: bool,
     pub ret: Vec<(Option<String>, Expression)>,
     pub stmts: Vec<Stmt>,
-    pub base: Vec<BaseImpl>,
+    pub base: Vec<BaseCall>,
 }
 
 impl Default for Constructor {
@@ -99,7 +111,7 @@ impl Default for Constructor {
 }
 
 impl Constructor {
-    pub fn extend_base(&mut self, base: Vec<BaseImpl>) {
+    pub fn extend_base(&mut self, base: &[BaseCall]) {
         base.iter().for_each(|b| {
             if self
                 .base
@@ -113,6 +125,11 @@ impl Constructor {
     }
 }
 
+/// Represents a special type of function - a modifier.
+///
+/// In rust modifiers don't exist. To mimic this feature
+/// two functions must be created to execute pre-guards and
+/// post-guards.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Modifier {
     pub base_name: String,
@@ -163,6 +180,7 @@ impl From<&&pt::FunctionDefinition> for Function {
     }
 }
 
+/// Function visibility modifier.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Visibility {
     Public,
@@ -287,12 +305,15 @@ fn parse_params(func: &pt::FunctionDefinition) -> Vec<Param> {
         .filter_map(|p| p.1.as_ref())
         .enumerate()
         .map(|(idx, param)| {
-            let name = param
+            let mut name = param
                 .name
                 .as_ref()
                 .map(|id| id.name.to_owned())
                 .unwrap_or(format!("param_{}", idx));
 
+            if RESERVED_NAMES.contains(&name.as_str()) {
+                name = format!("_{}", name);
+            }
             let ty = match &param.ty {
                 pt::Expression::Type(_, ty) => Type::from(ty),
                 pt::Expression::Variable(name) => Type::from(name),
@@ -342,7 +363,7 @@ fn parse_modifier_statements(func: &pt::FunctionDefinition) -> (Vec<Stmt>, Vec<S
     (before_stmts, after_stmts)
 }
 
-fn parse_base(func: &pt::FunctionDefinition) -> Vec<BaseImpl> {
+fn parse_base(func: &pt::FunctionDefinition) -> Vec<BaseCall> {
     func.attributes
         .iter()
         .filter_map(|attr| match attr {
@@ -352,15 +373,28 @@ fn parse_base(func: &pt::FunctionDefinition) -> Vec<BaseImpl> {
         .map(|base| {
             let class_name = base.name.name.to_owned();
             let args = base.args.clone().map(to_expr).unwrap_or_default();
-            BaseImpl { class_name, args }
+            BaseCall { class_name, args }
         })
         .collect::<Vec<_>>()
 }
 
+/// A full function definition.
+///
+/// Each function may have more than one implementation.
+/// The original order resulting from C3 model is preserved.
 #[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct FnImplementations {
     pub name: String,
     pub implementations: Vec<(Class, Function)>,
+}
+
+impl FnImplementations {
+    pub fn new(name: &str, implementations: &[(Class, Function)]) -> Self {
+        Self {
+            name: name.to_string(),
+            implementations: implementations.to_vec(),
+        }
+    }
 }
 
 impl Ord for FnImplementations {
@@ -415,4 +449,22 @@ impl FnImplementations {
     pub fn len(&self) -> usize {
         self.implementations.len()
     }
+
+    pub fn ret_ty(&self) -> Expression {
+        self.implementations
+            .first()
+            .map(|(_, func)| match &func {
+                Function::Function(Func { ret, .. }) => Some(ret[0].1.clone()),
+                _ => None,
+            })
+            .flatten()
+            .expect("Function should have at least one implementation.")
+    }
+}
+
+/// A function parameter representation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Param {
+    pub name: String,
+    pub ty: Type,
 }

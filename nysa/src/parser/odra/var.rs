@@ -14,7 +14,7 @@ use crate::{
 
 use super::ty;
 
-/// Extracts variable definitions and pareses into a vector of c3 ast [VarDef].
+/// Pareses mutable [Var]s into a vector of c3 ast [VarDef].
 pub fn variables_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<VarDef>, ParserError> {
     t.current_contract()
         .vars()
@@ -24,24 +24,25 @@ pub fn variables_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<VarDef
         .collect()
 }
 
-pub fn const_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<syn::Item>, ParserError> {
-    t.current_contract()
+/// Pareses immutable [Var]s into a vector of c3 ast [VarDef].
+pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Item>, ParserError> {
+    ctx.current_contract()
         .vars()
         .iter()
         .filter(|v| v.is_immutable)
         .map(|v| {
-            let ident = format_ident!("{}", &v.name);
+            let const_ident = format_ident!("{}", &v.name);
 
-            let ty = ty::parse_type_from_ty(&v.ty, t)?;
-            let expr = v.initializer.as_ref().unwrap();
+            let ty = ty::parse_type_from_ty(&v.ty, ctx)?;
+            let expr = v.initializer.as_ref().expect("A const must be initialized.");
             match expr {
-                Expression::BoolLiteral(v) => Ok(parse_quote!(pub const #ident: bool = #v;)),
-                Expression::StringLiteral(s) => Ok(parse_quote!(pub const #ident: &str = #s;)),
+                Expression::BoolLiteral(v) => Ok(parse_quote!(pub const #const_ident: bool = #v;)),
+                Expression::StringLiteral(s) => Ok(parse_quote!(pub const #const_ident: &str = #s;)),
                 Expression::NumberLiteral(n) => {
                     if let Type::Uint(size) | Type::Int(size) = v.ty {
                         let words = to_sized_u64_words(n, size.div_ceil(64) as usize);
                         let num = words_to_number(words, &ty);
-                        Ok(parse_quote!(pub const #ident: #ty = #num;))
+                        Ok(parse_quote!(pub const #const_ident: #ty = #num;))
                     } else {
                         Err(ParserError::InvalidType)
                     }
@@ -51,10 +52,10 @@ pub fn const_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<syn::Item>
                         let bytes = bytes.iter().rev().map(|u| *u).collect::<Vec<_>>();
                         let words = to_bytes_u64_words(&bytes, size.div_ceil(64) as usize);
                         let num = words_to_number(words, &ty);
-                        Ok(parse_quote!(pub const #ident: #ty = #num;))
+                        Ok(parse_quote!(pub const #const_ident: #ty = #num;))
                     } else if let Type::Bytes(b) = v.ty {
                         let value = expr::parse_bytes_lit(bytes)?;
-                        Ok(parse_quote!(pub const #ident: #ty = #value;))
+                        Ok(parse_quote!(pub const #const_ident: #ty = #value;))
                     } else {
                         Err(ParserError::InvalidType)
                     }
@@ -66,7 +67,7 @@ pub fn const_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<syn::Item>
         .collect()
 }
 
-/// Transforms [NysaVar] into a c3 ast [VarDef].
+/// Transforms [Var] into a c3 ast [VarDef].
 fn variable_def<T: TypeInfo>(v: &Var, t: &T) -> Result<VarDef, ParserError> {
     let ident = utils::to_snake_case_ident(&v.name);
     let ty = ty::parse_state_ty(&v.ty, t)?;

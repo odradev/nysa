@@ -1,21 +1,23 @@
+use c3_lang_linearization::Class;
 use solidity_parser::pt::{self, VariableAttribute};
 
 use crate::model::expr::to_expr;
 
 use super::expr::Expression;
 
+/// Stores a basic contract metadata.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Contract {
-    pub name: String,
-    base_impl: Vec<BaseImpl>,
+pub struct ContractMetadata {
+    pub(super) name: String,
+    base_impl: Vec<BaseCall>,
     is_abstract: bool,
     is_library: bool,
 }
 
-impl Contract {
+impl ContractMetadata {
     pub fn new(
         name: String,
-        base_impl: Vec<BaseImpl>,
+        base_impl: Vec<BaseCall>,
         is_abstract: bool,
         is_library: bool,
     ) -> Self {
@@ -27,7 +29,7 @@ impl Contract {
         }
     }
 
-    pub fn base_impl(&self) -> &[BaseImpl] {
+    pub fn base_impl(&self) -> &[BaseCall] {
         &self.base_impl
     }
 
@@ -40,12 +42,12 @@ impl Contract {
     }
 }
 
-impl From<&pt::ContractDefinition> for Contract {
+impl From<&pt::ContractDefinition> for ContractMetadata {
     fn from(value: &pt::ContractDefinition) -> Self {
         let base_impl = value
             .base
             .iter()
-            .map(|base| BaseImpl {
+            .map(|base| BaseCall {
                 class_name: base.name.name.to_owned(),
                 args: base.args.clone().map(to_expr).unwrap_or_default(),
             })
@@ -60,6 +62,7 @@ impl From<&pt::ContractDefinition> for Contract {
     }
 }
 
+/// Value type representation.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub enum Type {
     Address,
@@ -122,6 +125,10 @@ impl TryFrom<&Expression> for Type {
     }
 }
 
+/// State variable.
+///
+/// A variable apart from the name and type can have a initializer.
+/// The initializer is called in a [Constructor](super::func::Constructor).
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Var {
     pub name: String,
@@ -153,6 +160,13 @@ impl From<&&pt::VariableDefinition> for Var {
     }
 }
 
+impl Into<Class> for &Var {
+    fn into(self) -> Class {
+        self.name.as_str().into()
+    }
+}
+
+/// Stores data required to create an event.
 pub struct Event {
     pub name: String,
     pub fields: Vec<(String, Expression)>,
@@ -177,6 +191,7 @@ impl From<&&pt::EventDefinition> for Event {
     }
 }
 
+/// Stores data required to build an error.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Error {
     pub name: String,
@@ -189,24 +204,14 @@ impl From<&&pt::ErrorDefinition> for Error {
     }
 }
 
+/// Represents base implementation call (a modifier call, or super constructor call).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BaseImpl {
+pub struct BaseCall {
     pub class_name: String,
     pub args: Vec<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Interface {
-    pub name: String,
-}
-
-impl From<&&pt::ContractDefinition> for Interface {
-    fn from(value: &&pt::ContractDefinition) -> Self {
-        let name = value.name.name.to_owned();
-        Self { name }
-    }
-}
-
+/// Stores data required to create a custom enum.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Enum {
     pub name: String,
@@ -221,6 +226,7 @@ impl From<&&pt::EnumDefinition> for Enum {
     }
 }
 
+/// Stores data required to create a custom struct.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Struct {
     pub namespace: Option<String>,
@@ -228,6 +234,24 @@ pub struct Struct {
     pub fields: Vec<(String, Expression)>,
 }
 
+impl From<(Option<String>, &pt::StructDefinition)> for Struct {
+    fn from(value: (Option<String>, &pt::StructDefinition)) -> Self {
+        let (namespace, def) = value;
+        let name = def.name.name.to_owned();
+        let fields = def
+            .fields
+            .iter()
+            .map(|v| (v.name.name.to_owned(), Expression::from(&v.ty)))
+            .collect();
+        Struct {
+            name,
+            fields,
+            namespace: namespace.clone(),
+        }
+    }
+}
+
+/// Stores data representing solidity using `lib_name` for `type` expression.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LibUsing {
     pub name: String,

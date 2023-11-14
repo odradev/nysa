@@ -30,8 +30,7 @@ use proc_macro2::TokenStream;
 ///
 /// ```
 pub fn parse<P: Parser, I: AsRef<str>>(input: I) -> TokenStream {
-    let solidity_ast =
-        utils::ast::parse(input.as_ref()).expect("The input should be a valid solidity code");
+    let solidity_ast = utils::ast::parse(input).expect("The input should be a valid solidity code");
 
     let package =
         parser::preprocess(&solidity_ast).expect("The ast should allow to create a valid Package");

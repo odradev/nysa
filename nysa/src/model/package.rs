@@ -4,6 +4,10 @@ use super::{
     ContractData,
 };
 
+/// A container that holds parsed and preprocessed Solidity code.
+///
+/// The structure is flatten in comparison to the original Solidity source code -
+/// each contract, event, error, enum, interface, struct is a top level structure.
 pub struct Package {
     contracts: Vec<ContractData>,
     events: Vec<Event>,

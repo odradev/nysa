@@ -15,12 +15,12 @@ use super::ty;
 
 pub(crate) fn events_def<T: TypeInfo>(
     package: &Package,
-    t: &T,
+    ctx: &T,
 ) -> Result<Vec<ClassDef>, ParserError> {
-    package.events().iter().map(|ev| event_def(ev, t)).collect()
+    package.events().iter().map(|ev| event_def(ev, ctx)).collect()
 }
 
-fn event_def<T: TypeInfo>(ev: &Event, t: &T) -> Result<ClassDef, ParserError> {
+fn event_def<T: TypeInfo>(ev: &Event, ctx: &T) -> Result<ClassDef, ParserError> {
     let class: Class = ev.name.clone().into();
     let path = vec![class.clone()];
     let variables = ev
@@ -28,7 +28,7 @@ fn event_def<T: TypeInfo>(ev: &Event, t: &T) -> Result<ClassDef, ParserError> {
         .iter()
         .map(|(field_name, ty)| {
             let ident = utils::to_snake_case_ident(field_name);
-            let ty = ty::parse_type_from_expr(ty, t)?;
+            let ty = ty::parse_type_from_expr(ty, ctx)?;
             Ok(VarDef { ident, ty })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -38,7 +38,7 @@ fn event_def<T: TypeInfo>(ev: &Event, t: &T) -> Result<ClassDef, ParserError> {
         .iter()
         .map(|(field_name, ty)| {
             let ident = utils::to_snake_case_ident(field_name);
-            let ty = ty::parse_type_from_expr(ty, t)?;
+            let ty = ty::parse_type_from_expr(ty, ctx)?;
             Ok(parse_quote!(#ident: #ty))
         })
         .collect::<Result<Vec<_>, _>>()?;

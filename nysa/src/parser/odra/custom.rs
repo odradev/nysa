@@ -28,7 +28,7 @@ pub(crate) fn enums_def(package: &Package) -> Vec<syn::Item> {
                 })
                 .collect::<Punctuated<TokenStream, Token![,]>>();
             parse_quote!(
-                #[derive(odra::OdraType, Copy, PartialEq, Eq, Debug, Default)]
+                #[derive(odra::OdraType, PartialEq, Eq, Debug, Default)]
                 pub enum #name { #variants }
             )
         })
@@ -55,11 +55,11 @@ pub(crate) fn struct_def<T: TypeInfo>(
                     .map(|(name, ty)| {
                         let ident = utils::to_snake_case_ident(name);
                         let ty = ty::parse_type_from_expr(ty, t)?;
-                        Ok(quote!(#ident: #ty))
+                        Ok(quote!(pub #ident: #ty))
                     })
                     .collect::<Result<Punctuated<TokenStream, Token![,]>, _>>()?;
                 let struct_def: syn::Item = parse_quote!(
-                    #[derive(odra::OdraType, Copy, PartialEq, Eq, Debug, Default)]
+                    #[derive(odra::OdraType, PartialEq, Eq, Debug, Default)]
                     pub struct #name { #fields }
                 );
                 Ok(struct_def)

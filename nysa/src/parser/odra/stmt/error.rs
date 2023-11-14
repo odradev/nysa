@@ -1,6 +1,7 @@
 use crate::model::ir::Expression;
 use crate::parser::context::{
-    ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+    TypeInfo,
 };
 use crate::parser::odra::expr;
 use crate::ParserError;
@@ -13,7 +14,13 @@ pub(crate) fn revert_with_msg(error_msg: &str) -> Result<syn::Stmt, ParserError>
 
 pub(crate) fn revert<T>(msg: &Option<Expression>, ctx: &mut T) -> Result<syn::Stmt, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     if let Some(error) = msg {
         let expr = expr::error::revert(None, error, ctx)?;

@@ -3,11 +3,12 @@ use syn::{parse_quote, BinOp};
 
 use super::{num, parse};
 use crate::{
+    formatted_invalid_expr,
     model::ir::{Expression, TupleItem, Type, Var},
     parser::{
         context::{
-            self, ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType,
-            StorageInfo, TypeInfo,
+            self, ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext,
+            ItemType, StorageInfo, TypeInfo,
         },
         odra::expr::array,
     },
@@ -17,7 +18,13 @@ use crate::{
 use quote::{format_ident, quote};
 
 pub fn get_var_or_parse<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     expr: &Expression,
     ctx: &mut T,
@@ -50,7 +57,13 @@ pub fn get_var_or_parse<
 /// * `value_expr` - An optional operator (eg. +, -)
 /// * `ctx` - parser Context.
 pub fn assign<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
     O: Into<BinOp> + Clone,
 >(
     left: &Expression,
@@ -58,7 +71,8 @@ pub fn assign<
     operator: Option<O>,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
-    if let Some(right) = right {
+    ctx.push_contextual_expr(left.clone());
+    let res = if let Some(right) = right {
         match left {
             Expression::Collection(name, keys) => {
                 update_collection(name, keys, right, operator, ctx)
@@ -74,7 +88,9 @@ pub fn assign<
         }
     } else {
         assign_default(left, ctx)
-    }
+    };
+    ctx.drop_contextual_expr();
+    res
 }
 
 /// Parses a single set value interaction.
@@ -105,10 +121,7 @@ pub fn set_var<T: StorageInfo + TypeInfo + FnContext>(
         // regular, local value
         Some(ItemType::Local(_)) => Ok(parse_quote!(#ident = #value_expr)),
         None => Ok(parse_quote!(#ident = #value_expr)),
-        _ => Err(ParserError::InvalidExpression(format!(
-            "unknown variable {:?}",
-            item
-        ))),
+        _ => formatted_invalid_expr!("unknown variable {:?}", item),
     }
 }
 
@@ -136,10 +149,7 @@ pub fn get_var<T: StorageInfo + TypeInfo + FnContext>(
         Some(ItemType::Storage(v)) => Ok(to_read_expr(quote!(self.#ident), None, &v.ty, ctx)),
         Some(ItemType::Local(_)) => Ok(parse_quote!(#ident)),
         None => Ok(parse_quote!(#ident)),
-        _ => Err(ParserError::InvalidExpression(format!(
-            "unknown variable {:?}",
-            item
-        ))),
+        _ => formatted_invalid_expr!("unknown variable {:?}", item),
     }
 }
 
@@ -150,7 +160,13 @@ pub fn parse_collection<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let ident = to_snake_case_ident(name);
 
@@ -162,33 +178,35 @@ where
     match &item_type {
         ItemType::Storage(v) => parse_storage_collection(ident, keys_expr, value_expr, &v.ty, ctx),
         ItemType::Local(v) => parse_local_collection(ident, keys_expr, value_expr, &v.ty, ctx),
-        _ => Err(ParserError::InvalidExpression(format!(
-            "unknown collection {:?}",
-            item_type
-        ))),
+        _ => formatted_invalid_expr!("unknown collection {:?}", item_type),
     }
 }
 
 fn assign_default<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     left: &Expression,
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError> {
     let err =
         || ParserError::UnexpectedExpression(String::from("Expression::Variable"), left.clone());
+    let default_expr = parse_quote!(Default::default());
 
     match left {
         Expression::Variable(name) => {
-            let value_expr = parse_quote!(Default::default());
-            set_var(&name, value_expr, ctx)
+            set_var(&name, default_expr, ctx)
         }
         Expression::Collection(name, keys) => match ctx.type_from_string(name) {
             Some(ItemType::Storage(Var {
                 ty: Type::Array(_), ..
             })) => {
-                let default_value = parse_quote!(Default::default());
-                array::replace_value(name, &keys[0], default_value, ctx)
+                array::replace_value(name, &keys[0], default_expr, ctx)
             }
             _ => Err(err()),
         },
@@ -204,31 +222,37 @@ fn parse_local_collection<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
-    if let Type::Mapping(_, _) = ty {
-        let mut token_stream = quote!(#var_ident);
+    let keys_len = keys_expr.len();
+    if keys_len == 0 {
+        return Err(ParserError::InvalidCollection);
+    }
+    let mut token_stream = quote!(#var_ident);
 
-        for i in 0..(keys_expr.len() - 1) {
+    // A local mapping should not exists but eg. can be passed by a reference to a function.
+    if let Type::Mapping(_, _) = ty {
+        // iterate over nested mappings
+        for i in 0..(keys_len - 1) {
             let key = parse_storage_key(&keys_expr[i], ctx)?;
             token_stream.extend(quote!(.get_instance(&#key)));
         }
 
-        let key = keys_expr.last().unwrap();
-        let key = parse_storage_key(key, ctx)?;
+        // the last key accesses the mapping key
+        let key_expr = keys_expr.last().expect("A valid key expr expected");
+        let key = parse_storage_key(key_expr, ctx)?;
         if let Some(value) = value_expr {
             return Ok(parse_quote!(#token_stream.set(&#key, #value)));
         } else {
             return Ok(to_read_expr(token_stream, Some(key), ty, ctx));
         }
     }
-
-    let keys_len = keys_expr.len();
-    if keys_len == 0 {
-        return Err(ParserError::InvalidCollection);
-    }
-
-    let mut token_stream = quote!(#var_ident);
 
     for i in 0..(keys_len - 1) {
         let key = parse_local_key(&keys_expr[i], ctx)?;
@@ -248,7 +272,13 @@ fn parse_storage_collection<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     if keys_expr.is_empty() {
         return Err(ParserError::InvalidCollection);
@@ -272,7 +302,13 @@ where
 
 fn parse_storage_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     match key {
         Expression::NumberLiteral(v) => num::to_typed_int_expr(v, ctx),
@@ -282,7 +318,13 @@ where
 
 fn parse_local_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     match num::try_to_generic_int_expr(key) {
         Ok(e) => Ok(e),
@@ -321,7 +363,6 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
                 _ => Type::try_from(&**v).unwrap(),
             };
 
-            // let ty = Type::try_from(&**v).unwrap();
             to_read_expr(stream, key_expr, &ty, ctx)
         }
         Type::Array(ty) => {
@@ -346,7 +387,13 @@ fn update_collection<T, O>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
     O: Into<BinOp>,
 {
     if operator.is_none() {
@@ -368,16 +415,16 @@ fn update_variable<T, O>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
     O: Into<BinOp>,
 {
-    let ty = ctx
-        .type_from_string(name)
-        .map(|v| v.as_var().map(|v| v.ty.clone()))
-        .flatten();
-    let pushed = ctx.push_expected_type(ty);
-    let result = if operator.is_none() {
-        // ctx.set_expected_type()
+    if operator.is_none() {
         let right = get_var_or_parse(right, ctx)?;
         set_var(&name, right, ctx)
     } else {
@@ -386,11 +433,7 @@ where
         let value_expr = get_var_or_parse(right, ctx)?;
         let new_value: syn::Expr = parse_quote!(#current_value_expr #op #value_expr);
         set_var(&name, new_value, ctx)
-    };
-    if pushed {
-        ctx.drop_expected_type();
     }
-    result
 }
 
 fn update_tuple<T, O>(
@@ -400,7 +443,13 @@ fn update_tuple<T, O>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
     O: Into<BinOp> + Clone,
 {
     // a tuple that defines local variables
@@ -475,7 +524,13 @@ fn parse_tuple_statements<T, O>(
     ctx: &mut T,
 ) -> Result<Vec<syn::Stmt>, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
     O: Into<BinOp> + Clone,
 {
     left.iter()
@@ -490,14 +545,10 @@ where
                         let value = super::parse(r, ctx)?;
                         Ok(parse_quote!(let _ =  #value;))
                     }
-                    TupleItem::Declaration(_, _) => Err(ParserError::InvalidExpression(
-                        "invalid tuple item".to_string(),
-                    )),
+                    TupleItem::Declaration(_, _) => formatted_invalid_expr!("invalid tuple item"),
                 }
             } else {
-                Err(ParserError::InvalidExpression(
-                    "invalid tuple item".to_string(),
-                ))
+                formatted_invalid_expr!("invalid tuple item")
             }
         })
         .collect::<Result<Vec<syn::Stmt>, ParserError>>()

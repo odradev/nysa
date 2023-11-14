@@ -1,7 +1,8 @@
 use crate::{
     model::ir::FnImplementations,
     parser::context::{
-        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+        TypeInfo,
     },
     ParserError,
 };
@@ -13,10 +14,16 @@ mod function;
 pub(super) mod interface;
 mod modifier;
 
-/// Extracts function definitions and pareses into a vector of c3 ast [FnDef].
+/// Parses currently processed function from the context into a vector of c3 ast [FnDef].
 pub fn functions_def<'a, T>(ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     match ctx.current_contract().is_library() {
         true => parse_library_functions(ctx),
@@ -26,7 +33,13 @@ where
 
 fn parse_contract_functions<'a, T>(ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     in_fn_context(ctx, |i, ctx| {
         if i.is_modifier() {
@@ -41,7 +54,13 @@ where
 
 fn parse_library_functions<'a, T>(ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     in_fn_context(ctx, |i, ctx| {
         if i.is_constructor() {
@@ -57,7 +76,7 @@ where
     T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
     F: Fn(&FnImplementations, &mut T) -> Result<Vec<FnDef>, ParserError>,
 {
-    let result = ctx
+    ctx
         .current_contract()
         .fn_implementations()
         .iter()
@@ -68,7 +87,5 @@ where
             res
         })
         .collect::<Result<Vec<_>, ParserError>>()
-        .map(|v: Vec<Vec<FnDef>>| v.into_iter().flatten().collect());
-
-    result
+        .map(|v: Vec<Vec<FnDef>>| v.into_iter().flatten().collect())
 }

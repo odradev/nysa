@@ -1,5 +1,6 @@
 use syn::{parse_quote, FnArg};
 
+use crate::parser::context::{ErrorInfo, ItemType};
 use crate::parser::odra::stmt::ext::ext_contract_stmt;
 use crate::{
     model::ir::{Expression, Param, Stmt, Type, Visibility},
@@ -92,7 +93,13 @@ pub(super) fn parse_ret_type<T: TypeInfo>(
 
 pub(super) fn parse_statements<T>(statements: &[Stmt], ctx: &mut T) -> Vec<syn::Stmt>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     statements
         .iter()
@@ -102,7 +109,7 @@ where
 }
 
 pub(super) fn parse_external_contract_statements<
-    T: ExternalCallsRegister + ContractInfo + FnContext,
+    T: ExternalCallsRegister + ContractInfo + FnContext + TypeInfo,
 >(
     params: &[Param],
     ctx: &mut T,
@@ -114,9 +121,8 @@ pub(super) fn parse_external_contract_statements<
             _ => None,
         })
         .filter_map(|(name, param_name)| {
-            if ctx.is_class(name) {
-                let ident = quote::format_ident!("{}", param_name);
-                Some(ext_contract_stmt(name, ident.clone(), ident, ctx))
+            if let Some(ItemType::Contract(contract_name)) = ctx.type_from_string(name) {
+                Some(ext_contract_stmt(param_name, &contract_name, ctx))
             } else {
                 None
             }

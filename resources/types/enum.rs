@@ -1,7 +1,7 @@
 pub mod errors {}
 pub mod events {}
 pub mod enums {
-    #[derive(odra::OdraType, Copy, PartialEq, Eq, Debug, Default)]
+    #[derive(odra::OdraType, PartialEq, Eq, Debug, Default)]
     pub enum Status {
         #[default]
         Pending = 0u8,

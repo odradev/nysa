@@ -1,3 +1,9 @@
+//! However the result of parsing solidity code gives a well-structured representation to work with,
+//! for the sake of code generation, an intermediary step is beneficial. At this step we can remove any
+//! ambiguities or missing context.
+//!
+//! The main responsibility of the module is conversion the model from solidity_parser to a more friendly,
+//! preprocessed representation.
 mod contract;
 mod expr;
 mod func;
@@ -10,7 +16,11 @@ mod stmt;
 pub use contract::ContractData;
 use itertools::Itertools;
 
-use self::misc::{Contract, Enum, Error, Event, Struct};
+use crate::utils::AsStringVec;
+
+use self::misc::{ContractMetadata, Enum, Error, Event, Struct};
+
+pub(super) const RESERVED_NAMES: [&str; 1] = ["self"];
 
 pub mod ir {
     pub use super::expr::{eval_expression_type, to_expr, Expression, TupleItem};
@@ -22,12 +32,10 @@ pub mod ir {
     pub use super::stmt::Stmt;
 }
 
+/// A type that has a name.
 pub trait Named {
+    /// Returns the type name.
     fn name(&self) -> String;
-}
-
-pub trait AsStringVec {
-    fn as_string_vec(&self) -> Vec<String>;
 }
 
 impl<T: Named> AsStringVec for &[T] {
@@ -54,4 +62,4 @@ macro_rules! impl_named {
     };
 }
 
-impl_named!(Enum, Error, Event, Contract, Struct);
+impl_named!(Enum, Error, Event, ContractMetadata, Struct);

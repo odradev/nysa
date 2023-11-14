@@ -11,9 +11,6 @@ pub enum ParserError {
     /// Expression is not supported by the parser.
     #[error("Unexpected expression, expected `{0}`, but found `{1:?}`.")]
     UnexpectedExpression(String, Expression),
-    /// Solidity's msg.* value is not supported by the parser.
-    #[error("Unsupported message type {0}.")]
-    UnsupportedMessageType(String),
     /// Contract constructor expected but found.
     #[error("Constructor not found")]
     ConstructorNotFound,
@@ -41,4 +38,11 @@ pub enum ParserError {
     /// Attempt to use an expression in invalid context.
     #[error("Could not parse expression: {0}")]
     InvalidExpression(String),
+}
+
+#[macro_export]
+macro_rules! formatted_invalid_expr {
+    ($($arg:tt)*) => {
+        Err(crate::ParserError::InvalidExpression(format!($($arg)*)))
+    }
 }

@@ -2,26 +2,25 @@ use convert_case::{Case, Casing};
 use quote::format_ident;
 use solidity_parser::pt::SourceUnitPart;
 
-pub mod ast;
+pub(crate) mod ast;
 
 pub type SolidityAST = Vec<SourceUnitPart>;
 
 /// Converts a &str into snake-cased Ident preserving the heading `_`
-pub fn to_snake_case_ident<T: AsRef<str>>(name: T) -> proc_macro2::Ident {
+pub(crate) fn to_snake_case_ident<T: AsRef<str>>(name: T) -> proc_macro2::Ident {
     format_ident!("{}", to_snake_case(name.as_ref()))
 }
 
 /// Converts a &str into snake-cased Ident starting with a `prefix ` and preserving the heading `_`
-pub fn to_prefixed_snake_case_ident<T: AsRef<str>>(prefix: &str, name: T) -> proc_macro2::Ident {
+pub(crate) fn to_prefixed_snake_case_ident<T: AsRef<str>>(
+    prefix: &str,
+    name: T,
+) -> proc_macro2::Ident {
     format_ident!("{}{}", prefix, to_snake_case(name.as_ref()))
 }
 
-pub fn to_ident(input: &str) -> proc_macro2::Ident {
-    format_ident!("{}", input)
-}
-
 /// Converts a &str into snake-cased String preserving the heading `_`
-pub fn to_snake_case(input: &str) -> String {
+pub(crate) fn to_snake_case(input: &str) -> String {
     if input.starts_with('_') {
         // `to_case()` consumes the heading `_`
         format!("_{}", input.to_case(Case::Snake))
@@ -30,18 +29,33 @@ pub fn to_snake_case(input: &str) -> String {
     }
 }
 
+/// Converts an `input` into [Ident](proc_macro2::Ident).
+pub(crate) fn to_ident<T: AsRef<str>>(input: T) -> proc_macro2::Ident {
+    format_ident!("{}", input.as_ref())
+}
+
+pub(crate) fn to_ref_ident<T: AsRef<str>>(input: T) -> proc_macro2::Ident {
+    format_ident!("{}Ref", input.as_ref())
+}
+
 /// Converts a vec to to an array. The vec length must match the array length.
-pub fn convert_to_array<const T: usize>(input: &[u8]) -> [u8; T] {
+pub(crate) fn convert_to_array<const T: usize>(input: &[u8]) -> [u8; T] {
     let mut array: [u8; T] = [0; T];
     array.copy_from_slice(&input[..T]);
     array
 }
 
-pub fn map_collection<'a, T, R>(collection: Vec<T>) -> Vec<R>
+/// Converts a vec of one type into a vec of another type.
+pub(crate) fn map_collection<'a, T, R>(collection: Vec<T>) -> Vec<R>
 where
     R: for<'b> From<&'b T>,
 {
-    collection.iter().map(|item| R::from(item)).collect()
+    collection.iter().map(R::from).collect()
+}
+
+/// A type that can be represented as a vector of strings
+pub trait AsStringVec {
+    fn as_string_vec(&self) -> Vec<String>;
 }
 
 #[cfg(test)]

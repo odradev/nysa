@@ -4,6 +4,7 @@ use crate::utils::{ast, map_collection};
 
 use super::{func::Function, Named};
 
+/// A library representation.
 pub struct LibraryData {
     name: String,
     fns: Vec<Function>,

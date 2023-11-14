@@ -5,7 +5,8 @@ use syn::parse_quote;
 use crate::{
     model::ir::FnImplementations,
     parser::context::{
-        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+        TypeInfo,
     },
     ParserError,
 };
@@ -21,7 +22,13 @@ use super::common;
 /// take the remaining statements.
 pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<(FnDef, FnDef), ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let modifiers = impls.as_modifiers();
 

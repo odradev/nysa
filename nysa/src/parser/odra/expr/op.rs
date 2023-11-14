@@ -4,7 +4,8 @@ use crate::{
     model::ir::{BitwiseOp, Expression, LogicalOp, MathOp, Op, UnaryOp},
     parser::{
         context::{
-            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+            ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+            TypeInfo,
         },
         odra::expr::math,
     },
@@ -12,7 +13,13 @@ use crate::{
 };
 
 pub(crate) fn bin_op<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
     O: Into<BinOp>,
 >(
     left: &Expression,
@@ -29,7 +36,13 @@ pub(crate) fn bin_op<
 }
 
 pub(crate) fn unary_op<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 >(
     expr: &Expression,
     op: &UnaryOp,

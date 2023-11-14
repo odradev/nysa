@@ -1,4 +1,3 @@
-use c3_lang_linearization::Class;
 use quote::{quote, ToTokens};
 use solidity_parser::pt;
 
@@ -61,19 +60,15 @@ fn eval_complex_stmt() {
 
 #[test]
 fn eval_variables() {
-    let global_ctx = GlobalContext::default();
-    let mut storage = std::collections::HashMap::new();
-    storage.insert(
-        Class::from("test"),
-        vec![Var {
-            name: "my_var".to_string(),
-            ty: Type::Bool,
-            initializer: None,
-            is_immutable: false,
-        }],
-    );
+    let mut global_ctx = GlobalContext::default();
+    let storage = vec![Var {
+        name: "my_var".to_string(),
+        ty: Type::Bool,
+        initializer: None,
+        is_immutable: false,
+    }];
     let data = ContractData::with_storage("test", storage);
-    let contract_ctx = ContractContext::new(&global_ctx, data);
+    let contract_ctx = ContractContext::new(&mut global_ctx, data);
     let mut ctx = LocalContext::new(contract_ctx);
     ctx.register_local_var(&"y".to_string(), &Type::Uint(32));
 

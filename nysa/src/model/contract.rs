@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use c3_lang_linearization::{Class, C3};
+use c3_lang_linearization::Class;
 use c3_lang_parser::c3_ast::ClassNameDef;
-use itertools::Itertools;
 use solidity_parser::pt::ContractDefinition;
 
 use crate::{
@@ -12,63 +11,22 @@ use crate::{
 
 use super::{
     func::{Constructor, FnImplementations, Function},
-    misc::{Contract, LibUsing, Var},
+    misc::{ContractMetadata, LibUsing, Var},
     Named,
 };
 
+/// A complete smart contract representation.
+/// In contrast to solidity representation, it has a flat structure.
+///
+/// Contains all information about inherited contracts, functions, state variables, libraries used.
 #[derive(Debug, Clone)]
 pub struct ContractData {
-    contract: Contract,
-    all_contracts: Vec<Contract>,
-    fn_map: HashMap<String, Vec<(Class, Function)>>,
-    var_map: HashMap<Class, Vec<Var>>,
+    contract: ContractMetadata,
+    all_contracts: Vec<ContractMetadata>,
+    functions: Vec<FnImplementations>,
+    vars: Vec<Var>,
     libs: Vec<LibUsing>,
-    c3: C3,
-}
-
-#[cfg(test)]
-impl ContractData {
-    pub fn empty<R: AsRef<str>>(name: R) -> Self {
-        let mut c3 = C3::new();
-        c3.add_class_str(name.as_ref(), name.as_ref());
-        Self {
-            contract: Contract::new(name.as_ref().to_string(), vec![], false, false),
-            all_contracts: vec![Contract::new(
-                name.as_ref().to_string(),
-                vec![],
-                false,
-                false,
-            )],
-            fn_map: Default::default(),
-            var_map: Default::default(),
-            libs: Default::default(),
-            c3,
-        }
-    }
-
-    pub fn with_storage<R: AsRef<str>>(name: R, var_map: HashMap<Class, Vec<Var>>) -> Self {
-        let mut c3 = C3::new();
-        c3.add_class_str(name.as_ref(), name.as_ref());
-        var_map.iter().for_each(|(class, v)| {
-            c3.register_vars(
-                class.clone(),
-                v.iter().map(|v| Class::from(v.name.clone())).collect(),
-            )
-        });
-        Self {
-            contract: Contract::new(name.as_ref().to_string(), vec![], false, false),
-            all_contracts: vec![Contract::new(
-                name.as_ref().to_string(),
-                vec![],
-                false,
-                false,
-            )],
-            fn_map: Default::default(),
-            libs: Default::default(),
-            var_map,
-            c3,
-        }
-    }
+    c3_path: Vec<Class>,
 }
 
 impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
@@ -76,45 +34,37 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
 
     fn try_from(value: (&Class, &Vec<&ContractDefinition>)) -> Result<Self, Self::Error> {
         let (class, contracts) = value;
-        let all_contracts = contracts.iter().map(|c| Contract::from(*c)).collect();
 
-        let contract = contracts
-            .iter()
-            .find(|c| c.name.name == class.to_string())
+        // extract the main contract definition
+        let contract: ContractMetadata = extract_contract(class, contracts)
             .ok_or("No contract found")?
-            .to_owned();
-        let contract = Contract::from(contract);
+            .to_owned()
+            .into();
 
-        let mut c3 = c3::linearization(&contracts);
+        let c3 = c3::linearization(&contracts);
 
         let mut fn_map: HashMap<String, Vec<(Class, Function)>> = HashMap::new();
-        let mut var_map = HashMap::new();
+        // let mut var_map = HashMap::new();
         let mut libs = Vec::<LibUsing>::new();
-
+        let mut vars = vec![];
+        // Iterate over all the classes from the inheritance graph and pull out variables, functions and libs
         c3.path(&contract.name().into())
             .unwrap()
-            .iter()
+            .into_iter()
             .rev()
             .for_each(|class| {
-                let c = contracts
-                    .iter()
-                    .find(|c| c.name.name == class.to_string())
-                    .unwrap();
+                let def = extract_contract(&class, contracts).unwrap();
 
-                let contract = Contract::from(*c);
-
-                let class = Class::from(contract.name());
-                let mut fns: Vec<Function> = map_collection(ast::extract_functions(c));
+                libs.extend(map_collection(ast::extract_using(def)));
+                let mut fns: Vec<Function> = map_collection(ast::extract_functions(def));
 
                 let constructor = fns
                     .iter_mut()
-                    .find(|f| matches!(f, Function::Constructor(_)))
-                    .map(|f| match f {
-                        Function::Function(_) => None,
+                    .filter_map(|f| match f {
                         Function::Constructor(c) => Some(c),
-                        Function::Modifier(_) => None,
+                        _ => None,
                     })
-                    .flatten();
+                    .last();
 
                 // There are two ways of calling a super constructor
                 // ```solidity
@@ -125,7 +75,8 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
                 // }
                 // ```
                 // So we need to pass super constructor calls from the contract level to the constructor level.
-                let contract_base = contract.base_impl().to_vec();
+                let meta = ContractMetadata::from(def);
+                let contract_base = meta.base_impl();
                 if let Some(c) = constructor {
                     c.extend_base(contract_base);
                 } else {
@@ -137,38 +88,36 @@ impl TryFrom<(&Class, &Vec<&ContractDefinition>)> for ContractData {
                     fns.push(Function::Constructor(default_constructor));
                 }
 
-                for func in fns.iter() {
-                    let fn_class = Class::from(func.name().as_str());
-                    c3.register_fn(class.clone(), fn_class);
-
+                for func in fns {
                     let fn_name = func.name();
-                    let record = (class.clone(), func.clone());
+                    let record = (class.clone(), func);
                     match fn_map.get_mut(&fn_name) {
                         Some(v) => v.push(record),
                         None => {
-                            fn_map.insert(fn_name.clone(), vec![record]);
+                            fn_map.insert(fn_name, vec![record]);
                         }
                     };
                 }
-
-                libs.extend(map_collection(ast::extract_using(c)));
-
-                let vars: Vec<Var> = map_collection(ast::extract_vars(c));
-                for var in vars.iter() {
-                    let var_class = Class::from(var.name.as_str());
-                    c3.register_var(class.clone(), var_class)
-                }
-
-                var_map.insert(class, vars);
+                vars.extend(map_collection(ast::extract_vars(def)));
             });
+        let all_contracts = contracts
+            .iter()
+            .map(|c| ContractMetadata::from(*c))
+            .collect();
+
+        let mut functions = fn_map
+            .iter()
+            .map(|(name, impls)| FnImplementations::new(name, impls))
+            .collect::<Vec<_>>();
+        functions.sort_by_key(|f| f.name.clone());
 
         Ok(Self {
             contract,
             all_contracts,
-            fn_map,
-            var_map,
+            functions,
+            vars,
             libs,
-            c3,
+            c3_path: c3.path(class).expect("Invalid contract path"),
         })
     }
 }
@@ -190,62 +139,25 @@ impl ContractData {
 
     /// Extracts contract name with inherited contracts and wraps with c3 ast abstraction.
     pub fn c3_path(&self) -> Vec<Class> {
-        let contract_id = self.c3_class();
-        self.c3.path(&contract_id).expect("Invalid contract path")
+        self.c3_path.clone()
     }
 
+    /// Returns contract functions (from the main contract and inherited).
     pub fn fn_implementations(&self) -> Vec<FnImplementations> {
-        let mut result = self
-            .fn_map
-            .iter()
-            .map(|(name, implementations)| FnImplementations {
-                name: name.to_owned(),
-                implementations: implementations.clone(),
-            })
-            .collect::<Vec<_>>();
-        result.sort_by_key(|f| f.name.clone());
-        result
+        self.functions.clone()
     }
 
-    pub fn functions_str(&self) -> Vec<String> {
-        self.c3.functions_str(self.contract.name().as_str())
+    /// Checks if a function with a given name exists in the contract.
+    pub fn has_function(&self, name: &str) -> bool {
+        self.functions.iter().find(|f| &f.name == name).is_some()
     }
 
+    /// Returns state variables (from the main contract and inherited).
     pub fn vars(&self) -> Vec<Var> {
-        let class = self.c3_class().to_string();
-        let c3_vars = self.c3.varialbes_str(&class);
-        let mut vars = self
-            .var_map
-            .iter()
-            .sorted()
-            .map(|(_, v)| v.clone())
-            .flatten()
-            .filter(|v| c3_vars.contains(&v.name))
-            .collect::<Vec<_>>();
-
-        vars.dedup();
-        vars
+        self.vars.clone()
     }
 
-    pub fn vars_to_initialize(&self) -> Vec<Var> {
-        let mut vars = self
-            .var_map
-            .iter()
-            .map(|(_, v)| v.clone())
-            .flatten()
-            .filter(|v| v.initializer.is_some())
-            .collect::<Vec<_>>();
-        vars.dedup();
-        vars
-    }
-
-    pub fn contract_names(&self) -> Vec<String> {
-        self.all_contracts
-            .iter()
-            .map(|c| c.name().to_owned())
-            .collect()
-    }
-
+    /// Returns if the contract of a given `class` is abstract.
     pub fn is_abstract(&self, class: &Class) -> bool {
         self.all_contracts
             .iter()
@@ -254,10 +166,12 @@ impl ContractData {
             .unwrap_or_default()
     }
 
+    /// Returns if the contract is a library.
     pub fn is_library(&self) -> bool {
         self.contract.is_library()
     }
 
+    /// Returns libraries used by the contract.
     pub fn libs(&self) -> &[LibUsing] {
         self.libs.as_ref()
     }
@@ -266,5 +180,50 @@ impl ContractData {
 impl Named for ContractData {
     fn name(&self) -> String {
         self.contract.name().to_string()
+    }
+}
+
+fn extract_contract<'a>(
+    class: &Class,
+    contracts: &'a [&ContractDefinition],
+) -> Option<&'a ContractDefinition> {
+    contracts
+        .iter()
+        .find(|c| c.name.name == class.to_string())
+        .copied()
+}
+
+#[cfg(test)]
+impl ContractData {
+    pub fn empty<R: AsRef<str>>(name: R) -> Self {
+        Self {
+            contract: ContractMetadata::new(name.as_ref().to_string(), vec![], false, false),
+            all_contracts: vec![ContractMetadata::new(
+                name.as_ref().to_string(),
+                vec![],
+                false,
+                false,
+            )],
+            functions: Default::default(),
+            vars: Default::default(),
+            libs: Default::default(),
+            c3_path: vec![],
+        }
+    }
+
+    pub fn with_storage<R: AsRef<str>>(name: R, vars: Vec<Var>) -> Self {
+        Self {
+            contract: ContractMetadata::new(name.as_ref().to_string(), vec![], false, false),
+            all_contracts: vec![ContractMetadata::new(
+                name.as_ref().to_string(),
+                vec![],
+                false,
+                false,
+            )],
+            functions: Default::default(),
+            libs: Default::default(),
+            vars,
+            c3_path: vec![],
+        }
     }
 }

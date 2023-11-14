@@ -1,181 +1,83 @@
 use solidity_parser::pt::{self, Parameter};
 use syn::parse_quote;
 
-use crate::{parser::context::*, ParserError};
+use crate::{formatted_invalid_expr, parser::context::*, ParserError};
 
 use super::{
     misc::{Type, Var},
     op::{BitwiseOp, LogicalOp, MathOp, Op, UnaryOp},
     stmt::Stmt,
+    RESERVED_NAMES,
 };
 
-pub fn eval_expression_type<T>(expr: &Expression, ctx: &T) -> Option<Type>
-where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
-{
-    match expr {
-        Expression::Require(_, _) => None,
-        Expression::Placeholder => None,
-        Expression::ZeroAddress => Some(Type::Address),
-        Expression::Message(msg) => match msg {
-            Message::Sender => Some(Type::Address),
-            Message::Value => None,
-            Message::Data => None,
-        },
-        Expression::Collection(_, _) => todo!(),
-        Expression::Variable(name) => ctx
-            .type_from_string(name)
-            .map(|t| match t {
-                ItemType::Contract(_) => None,
-                ItemType::Library(_) => None,
-                ItemType::Interface(_) => None,
-                ItemType::Enum(e) => Some(Type::Custom(e)),
-                ItemType::Struct(s) => Some(Type::Custom(s.name)),
-                ItemType::Event => None,
-                ItemType::Storage(v) => Some(v.ty.clone()),
-                ItemType::Local(v) => Some(v.ty.clone()),
-            })
-            .flatten(),
-        Expression::BoolLiteral(_) => Some(Type::Bool),
-        Expression::StringLiteral(_) => Some(Type::String),
-        Expression::Assign(l, _) => eval_expression_type(l, ctx),
-        Expression::LogicalOp(_, _, _) => Some(Type::Bool),
-        Expression::MathOp(l, r, op) => {
-            let lty = eval_expression_type(l, ctx);
-            let rty = eval_expression_type(r, ctx);
-            match (lty, rty) {
-                (Some(Type::Uint(s1)), Some(Type::Uint(s2))) => Some(Type::Uint(u16::max(s1, s2))),
-                (None, Some(Type::Uint(s))) => Some(Type::Uint(s)),
-                (Some(Type::Uint(s)), None) => Some(Type::Uint(s)),
-                (Some(Type::Int(s1)), Some(Type::Int(s2))) => Some(Type::Int(u16::max(s1, s2))),
-                (None, Some(Type::Int(s))) => Some(Type::Int(s)),
-                (Some(Type::Int(s)), None) => Some(Type::Int(s)),
-                (Some(Type::Bytes(s1)), Some(Type::Bytes(s2))) => {
-                    Some(Type::Bytes(u8::max(s1, s2)))
-                }
-                _ => None,
-            }
-        }
-        Expression::AssignAnd(l, _, _) => eval_expression_type(l, ctx),
-        Expression::Increment(e) => eval_expression_type(e, ctx),
-        Expression::Decrement(e) => eval_expression_type(e, ctx),
-        Expression::MemberAccess(name, e) => {
-            if let Expression::MemberAccess(nested_name, nested_e) = &**e {
-                let ty = eval_expression_type(nested_e, ctx).unwrap();
-                match ty {
-                    Type::Custom(class_name) => {
-                        if let Some(ItemType::Struct(s)) = ctx.type_from_string(&class_name) {
-                            let f = s.fields.iter().find(|f| &f.0 == nested_name).unwrap();
-                            return eval_expression_type(&f.1, ctx);
-                        } else {
-                            todo!()
-                        }
-                    }
-                    _ => todo!(),
-                }
-            }
-            match ctx.type_from_expression(e) {
-                Some(ItemType::Enum(ty)) => Some(Type::Custom(ty)),
-                Some(ItemType::Struct(ty)) => {
-                    if let Some((name, fty)) = ty.fields.iter().find(|(f, t)| f == &ty.name) {
-                        eval_expression_type(fty, ctx)
-                    } else {
-                        None
-                    }
-                }
-                Some(ItemType::Library(ty)) => ty
-                    .vars()
-                    .iter()
-                    .find(|v| &v.name == name)
-                    .map(|v| v.ty.clone()),
-                Some(ItemType::Storage(Var { ty, .. })) => Some(ty),
-                Some(ItemType::Local(Var {
-                    ty: Type::Custom(struct_name),
-                    ..
-                })) => {
-                    if let Some(ItemType::Struct(ty)) = ctx.type_from_string(&struct_name) {
-                        if let Some((name, fty)) = ty.fields.iter().find(|(f, t)| f == name) {
-                            eval_expression_type(fty, ctx)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                }
-                Some(ItemType::Local(Var { ty, .. })) => Some(ty),
-                e => panic!("{:?}", e),
-            }
-        }
-        Expression::NumberLiteral(_) => None,
-        Expression::Func(f, args) => {
-            if let Expression::MemberAccess(function_name, ty_expr) = &**f {
-                let ty = eval_expression_type(ty_expr, ctx);
-
-                // find matching lib
-                let matching_lib = ctx
-                    .current_contract()
-                    .libs()
-                    .iter()
-                    .find(|lib| eval_expression_type(&lib.ty, ctx) == ty)
-                    .unwrap();
-
-                let matching_fn = ctx.find_fn(&matching_lib.name, function_name).unwrap();
-                return matching_fn.ret_ty(ctx);
-            }
-            todo!()
-        }
-        Expression::SuperCall(_, _) => todo!(),
-        Expression::ExternalCall(_, _, _) => todo!(),
-        Expression::TypeInfo(_, _) => todo!(),
-        Expression::Type(t) => Some(t.clone()),
-        Expression::Not(e) => eval_expression_type(e, ctx),
-        Expression::BytesLiteral(b) => Some(Type::Bytes(b.len() as u8)),
-        Expression::ArrayLiteral(_) => todo!(),
-        Expression::Initializer(_) => todo!(),
-        Expression::Statement(s) => todo!(),
-        Expression::BitwiseOp(_, _, _) => todo!(),
-        Expression::UnaryOp(_, _) => todo!(),
-        Expression::Tuple(_) => todo!(),
-        #[cfg(test)]
-        Expression::Fail => None,
-        Expression::Keccak256(_) => Some(Type::Bytes(32)),
-        Expression::AbiEncodePacked(_) => Some(Type::Array(Box::new(Type::Uint(8)))),
-    }
-}
-
+/// Represents a single expression to parse.
+///
+/// This is an intermediate representation between a solidity statement and the ultimate rust
+/// representation.
+///
+/// An expression is intended to be parsed into [syn::Expr](syn::Expr).
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Expression {
+    /// Error handling expression eg. `require(c >= a, "SafeMath: addition overflow");`
     Require(Box<Expression>, Box<Expression>),
+    /// A special `_` occurring in modifiers.
     Placeholder,
+    /// A special `address(0)` expr.
     ZeroAddress,
+    /// keccak256 function call.
     Keccak256(Vec<Expression>),
+    /// abi.encodePacked function call.
     AbiEncodePacked(Vec<Expression>),
+    /// msg.* expr (eg. msg.sender).
     Message(Message),
+    /// A collection access (local array, state array/mapping)
     Collection(String, Vec<Expression>),
+    /// A variable access (local, state).
     Variable(String),
+    /// Boolean literal (false, true).
     BoolLiteral(bool),
+    /// String literal ("some string").
     StringLiteral(String),
+    /// Assign operation `left = right`. If the right-hand side expression if None, the default value should be assign.
     Assign(Box<Expression>, Option<Box<Expression>>),
+    /// Logical operation eg. `x & y``.
     LogicalOp(Box<Expression>, Box<Expression>, LogicalOp),
+    /// Mathematical operation eg. `2 + 4``.
     MathOp(Box<Expression>, Box<Expression>, MathOp),
+    /// Assign and operation expr like `x =* y`, `x =& y`.
     AssignAnd(Box<Expression>, Box<Expression>, Op),
+    /// Pre/post increment.
     Increment(Box<Expression>),
+    /// Pre/post decrement.
     Decrement(Box<Expression>),
+    /// Object member access, eg. `obj.value`.
     MemberAccess(String, Box<Expression>),
+    /// Number literal, eg. `123`.
     NumberLiteral(Vec<u64>),
+    /// A regular function call.
     Func(Box<Expression>, Vec<Expression>),
+    /// Super function call.
     SuperCall(String, Vec<Expression>),
+    /// External contract call.
     ExternalCall(String, String, Vec<Expression>),
+    /// Read a type property expr (eg. u32.max).
     TypeInfo(Box<Expression>, String),
+    /// Type expression (eg. `String`, `u32`, etc.)
     Type(Type),
+    /// Negation expr eg `!x;`
     Not(Box<Expression>),
+    /// Bytes literal eg `0x00af;` or `hex"02ff";`
     BytesLiteral(Vec<u8>),
+    /// Array literal eg `[1, 2, 3];`
     ArrayLiteral(Vec<Expression>),
+    /// Variable init expression.
     Initializer(Box<Expression>),
+    /// A [Stmt].
     Statement(Box<Stmt>),
     BitwiseOp(Box<Expression>, Box<Expression>, BitwiseOp),
+    /// One of unary expression eg `~x`, `-x`, `+x`.
     UnaryOp(Box<Expression>, UnaryOp),
+    /// A tuple expr eg. `(x, y, z)`.
     Tuple(Vec<TupleItem>),
     #[cfg(test)]
     /// To fail fast in tests
@@ -211,15 +113,12 @@ impl TryInto<String> for Expression {
     fn try_into(self) -> Result<String, Self::Error> {
         match self {
             Self::Variable(name) => Ok(name.clone()),
-            _ => Err(ParserError::InvalidExpression(
-                "variable expected".to_string(),
-            )),
+            _ => formatted_invalid_expr!("variable expected"),
         }
     }
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, PartialOrd, Eq, Ord)]
-#[allow(dead_code)]
 pub enum Message {
     Sender,
     Value,
@@ -359,7 +258,13 @@ fn parse_expr(e: &pt::Expression) -> Expression {
         }
         pt::Expression::Variable(id) => match id.name.as_str() {
             "_" => Expression::Placeholder,
-            name => Expression::Variable(name.to_string()),
+            name => {
+                if RESERVED_NAMES.contains(&name) {
+                    Expression::Variable(format!("_{}", name))
+                } else {
+                    Expression::Variable(name.to_string())
+                }
+            }
         },
         pt::Expression::MemberAccess(_, expression, id) => match expression.as_ref() {
             pt::Expression::Variable(var) => {
@@ -562,4 +467,167 @@ fn to_logical_expr(l: &pt::Expression, r: &pt::Expression, op: LogicalOp) -> Exp
 
 fn to_boxed_expr(e: &pt::Expression) -> Box<Expression> {
     Box::new(e.into())
+}
+
+pub fn eval_expression_type<T>(expr: &Expression, ctx: &T) -> Option<Type>
+where
+    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+{
+    match expr {
+        Expression::Require(_, _) => None,
+        Expression::Placeholder => None,
+        Expression::ZeroAddress => Some(Type::Address),
+        Expression::Message(msg) => match msg {
+            Message::Sender => Some(Type::Address),
+            Message::Value => None,
+            Message::Data => None,
+        },
+        Expression::Collection(name, key) => ctx
+            .type_from_string(name)
+            .map(|t| match t {
+                ItemType::Contract(_) => None,
+                ItemType::Library(_) => None,
+                ItemType::Interface(_) => None,
+                ItemType::Enum(e) => Some(Type::Custom(e)),
+                ItemType::Struct(s) => Some(Type::Custom(s.name)),
+                ItemType::Event => None,
+                ItemType::Storage(Var {
+                    ty: Type::Mapping(t, ta),
+                    ..
+                }) => eval_expression_type(&t, ctx),
+                ItemType::Storage(v) => Some(v.ty.clone()),
+                ItemType::Local(Var {
+                    ty: Type::Array(t), ..
+                }) => Some(*t),
+                ItemType::Local(v) => Some(v.ty.clone()),
+            })
+            .flatten(),
+        Expression::Variable(name) => ctx
+            .type_from_string(name)
+            .map(|t| match t {
+                ItemType::Contract(_) => None,
+                ItemType::Library(_) => None,
+                ItemType::Interface(_) => None,
+                ItemType::Enum(e) => Some(Type::Custom(e)),
+                ItemType::Struct(s) => Some(Type::Custom(s.name)),
+                ItemType::Event => None,
+                ItemType::Storage(Var {
+                    ty: Type::Array(t), ..
+                }) => Some(*t),
+                ItemType::Storage(v) => Some(v.ty.clone()),
+                ItemType::Local(Var {
+                    ty: Type::Array(t), ..
+                }) => Some(*t),
+                ItemType::Local(v) => Some(v.ty.clone()),
+            })
+            .flatten(),
+        Expression::BoolLiteral(_) => Some(Type::Bool),
+        Expression::StringLiteral(_) => Some(Type::String),
+        Expression::Assign(l, _) => eval_expression_type(l, ctx),
+        Expression::LogicalOp(_, _, _) => Some(Type::Bool),
+        Expression::MathOp(l, r, op) => {
+            let lty = eval_expression_type(l, ctx);
+            let rty = eval_expression_type(r, ctx);
+            match (lty, rty) {
+                (Some(Type::Uint(s1)), Some(Type::Uint(s2))) => Some(Type::Uint(u16::max(s1, s2))),
+                (None, Some(Type::Uint(s))) => Some(Type::Uint(s)),
+                (Some(Type::Uint(s)), None) => Some(Type::Uint(s)),
+                (Some(Type::Int(s1)), Some(Type::Int(s2))) => Some(Type::Int(u16::max(s1, s2))),
+                (None, Some(Type::Int(s))) => Some(Type::Int(s)),
+                (Some(Type::Int(s)), None) => Some(Type::Int(s)),
+                (Some(Type::Bytes(s1)), Some(Type::Bytes(s2))) => {
+                    Some(Type::Bytes(u8::max(s1, s2)))
+                }
+                _ => None,
+            }
+        }
+        Expression::AssignAnd(l, _, _) => eval_expression_type(l, ctx),
+        Expression::Increment(e) => eval_expression_type(e, ctx),
+        Expression::Decrement(e) => eval_expression_type(e, ctx),
+        Expression::MemberAccess(name, e) => {
+            if let Expression::MemberAccess(nested_name, nested_e) = &**e {
+                let ty = eval_expression_type(nested_e, ctx).unwrap();
+                match ty {
+                    Type::Custom(class_name) => {
+                        if let Some(ItemType::Struct(s)) = ctx.type_from_string(&class_name) {
+                            let f = s.fields.iter().find(|f| &f.0 == nested_name).unwrap();
+                            return eval_expression_type(&f.1, ctx);
+                        } else {
+                            todo!()
+                        }
+                    }
+                    _ => todo!(),
+                }
+            }
+            match ctx.type_from_expression(e) {
+                Some(ItemType::Enum(ty)) => Some(Type::Custom(ty)),
+                Some(ItemType::Struct(ty)) => {
+                    if let Some((name, fty)) = ty.fields.iter().find(|(f, t)| f == &ty.name) {
+                        eval_expression_type(fty, ctx)
+                    } else {
+                        None
+                    }
+                }
+                Some(ItemType::Library(ty)) => ty
+                    .vars()
+                    .iter()
+                    .find(|v| &v.name == name)
+                    .map(|v| v.ty.clone()),
+                Some(ItemType::Storage(Var { ty, .. })) => Some(ty),
+                Some(ItemType::Local(Var {
+                    ty: Type::Custom(struct_name),
+                    ..
+                })) => {
+                    if let Some(ItemType::Struct(ty)) = ctx.type_from_string(&struct_name) {
+                        if let Some((name, fty)) = ty.fields.iter().find(|(f, t)| f == name) {
+                            eval_expression_type(fty, ctx)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
+                Some(ItemType::Local(Var { ty, .. })) => Some(ty),
+                e => panic!("{:?}", e),
+            }
+        }
+        Expression::NumberLiteral(_) => None,
+        Expression::Func(f, args) => {
+            if let Expression::MemberAccess(function_name, ty_expr) = &**f {
+                let ty = eval_expression_type(ty_expr, ctx);
+
+                // find matching lib
+                let matching_lib = ctx
+                    .current_contract()
+                    .libs()
+                    .iter()
+                    .find(|lib| eval_expression_type(&lib.ty, ctx) == ty)
+                    .unwrap();
+
+                let matching_fn = ctx.find_fn(&matching_lib.name, function_name).unwrap();
+                return matching_fn.ret_ty(ctx);
+            }
+            if let Expression::Type(t) = &**f {
+                return Some(t.clone());
+            }
+            todo!()
+        }
+        Expression::SuperCall(_, _) => todo!(),
+        Expression::ExternalCall(_, _, _) => todo!(),
+        Expression::TypeInfo(_, _) => todo!(),
+        Expression::Type(t) => Some(t.clone()),
+        Expression::Not(e) => eval_expression_type(e, ctx),
+        Expression::BytesLiteral(b) => Some(Type::Bytes(b.len() as u8)),
+        Expression::ArrayLiteral(_) => todo!(),
+        Expression::Initializer(_) => todo!(),
+        Expression::Statement(s) => todo!(),
+        Expression::BitwiseOp(_, _, _) => None,
+        Expression::UnaryOp(_, _) => todo!(),
+        Expression::Tuple(_) => None,
+        #[cfg(test)]
+        Expression::Fail => None,
+        Expression::Keccak256(_) => Some(Type::Bytes(32)),
+        Expression::AbiEncodePacked(_) => Some(Type::Array(Box::new(Type::Uint(8)))),
+    }
 }

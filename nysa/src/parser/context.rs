@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     model::{
@@ -30,6 +30,10 @@ impl ItemType {
     }
 }
 
+/// Provides info about the type of an item based on its on or an expression.
+/// 
+/// Useful if we have access only to the name of eg. a variable but we need to know
+/// it's type.
 pub trait TypeInfo {
     fn type_from_string(&self, name: &str) -> Option<ItemType>;
     fn type_from_expression(&self, name: &Expression) -> Option<ItemType> {
@@ -52,40 +56,58 @@ pub trait TypeInfo {
     fn find_fn(&self, class: &str, name: &str) -> Option<Function>;
 }
 
+/// Provides information about the currently processing contract.
 pub trait ContractInfo {
     fn current_contract(&self) -> &ContractData;
-    fn as_contract_name(&self, name: &Expression) -> Option<String>;
-    fn is_class(&self, name: &str) -> bool;
 }
 
+/// Provides information on errors defined in the whole application.
+pub trait ErrorInfo {
+    fn get_error<T: ToString>(&self, msg: T) -> Option<u16>;
+    fn error_count(&self) -> u16;
+    fn increment_error_counter(&mut self);
+    fn insert_error<T: ToString>(&mut self, msg: T);
+}
+
+/// Provides info about the contract storage.
 pub trait StorageInfo {
     fn storage(&self) -> Vec<Var>;
 }
 
+/// Keeps track of events emitted across the app.
 pub trait EventsRegister {
     fn register_event<T: ToString>(&mut self, class: &T);
     fn emitted_events(&self) -> Vec<&String>;
 }
 
+/// Keeps track of calls to external contracts across the app.
 pub trait ExternalCallsRegister {
     fn register_external_call(&mut self, class: &str);
     fn get_external_calls(&self) -> Vec<&String>;
 }
 
+/// Provides the context of the currently processed function.
 pub trait FnContext {
+    /// Sets the current function data.
     fn set_current_fn(&mut self, func: &FnImplementations);
+    /// Drops the current function.
     fn clear_current_fn(&mut self);
+    /// Returns the current function.
     fn current_fn(&self) -> &FnImplementations;
-    fn register_local_var<T: ToString>(&mut self, name: &T, ty: &Type);
+    /// Adds a new local variable in the function context.
+    fn register_local_var<T: ToString>(&mut self, name: T, ty: &Type);
+    /// Finds a local variable by name.
     fn get_local_var_by_name(&self, name: &str) -> Option<&Var>;
-    fn push_expected_type(&mut self, ty: Option<Type>) -> bool;
-    fn drop_expected_type(&mut self);
-    fn expected_type(&self) -> Option<&Type>;
-}
-
-pub trait ExpressionContext {
-    fn current_expr(&self) -> &Expression;
-    fn set_expr(&mut self, expr: &Expression);
+    /// Push an expression to the context stack.
+    /// It adds more context to the currently processed expression. 
+    /// Some expressions are made of a few expressions (left and right expression 
+    /// in a simple case), then some expressions cannot be processed independently
+    /// without knowing details of a sibling expression.
+    fn push_contextual_expr(&mut self, expr: Expression) -> bool;
+    /// Removes an expression from the stack.
+    fn drop_contextual_expr(&mut self);
+    /// Gets an expression from the top of the stack.
+    fn contextual_expr(&self) -> Option<&Expression>;
 }
 
 #[allow(dead_code)]
@@ -98,6 +120,8 @@ pub struct GlobalContext {
     errors: Vec<String>,
     classes: Vec<ContractData>,
     structs: Vec<Struct>,
+    error_map: HashMap<String, u16>,
+    error_count: u16,
 }
 
 impl GlobalContext {
@@ -110,6 +134,7 @@ impl GlobalContext {
         classes: Vec<ContractData>,
         structs: Vec<Struct>,
     ) -> Self {
+        let error_count = errors.len() as u16;
         Self {
             events,
             interfaces,
@@ -118,19 +143,9 @@ impl GlobalContext {
             errors,
             classes,
             structs,
+            error_count,
+            ..Default::default()
         }
-    }
-
-    pub fn as_contract_name(&self, name: &Expression) -> Option<String> {
-        match self.type_from_expression(name) {
-            Some(ItemType::Contract(c)) => Some(c),
-            Some(ItemType::Interface(i)) => Some(i),
-            _ => None,
-        }
-    }
-
-    pub fn is_class(&self, name: &str) -> bool {
-        self.classes.iter().any(|c| c.name() == name.to_string())
     }
 }
 
@@ -193,9 +208,28 @@ impl TypeInfo for GlobalContext {
     }
 }
 
+impl ErrorInfo for GlobalContext {
+    fn error_count(&self) -> u16 {
+        self.error_count
+    }
+
+    fn increment_error_counter(&mut self) {
+        self.error_count += 1;
+    }
+
+    fn insert_error<T: ToString>(&mut self, msg: T) {
+        self.increment_error_counter();
+        self.error_map.insert(msg.to_string(), self.error_count);
+    }
+
+    fn get_error<T: ToString>(&self, msg: T) -> Option<u16> {
+        self.error_map.get(&msg.to_string()).copied()
+    }
+}
+
 #[derive(Debug)]
 pub struct ContractContext<'a> {
-    global: &'a GlobalContext,
+    global: &'a mut GlobalContext,
     storage: Vec<Var>,
     external_calls: HashSet<String>,
     emitted_events: HashSet<String>,
@@ -203,7 +237,7 @@ pub struct ContractContext<'a> {
 }
 
 impl<'a> ContractContext<'a> {
-    pub fn new(ctx: &'a GlobalContext, data: ContractData) -> Self {
+    pub fn new(ctx: &'a mut GlobalContext, data: ContractData) -> Self {
         let storage = data
             .vars()
             .into_iter()
@@ -220,12 +254,6 @@ impl<'a> ContractContext<'a> {
 }
 
 impl ContractInfo for ContractContext<'_> {
-    fn as_contract_name(&self, name: &Expression) -> Option<String> {
-        self.global.as_contract_name(name)
-    }
-    fn is_class(&self, name: &str) -> bool {
-        self.global.is_class(name)
-    }
     fn current_contract(&self) -> &ContractData {
         &self.data
     }
@@ -269,22 +297,31 @@ impl TypeInfo for ContractContext<'_> {
         None
     }
 
-    fn has_enums(&self) -> bool {
-        self.global.has_enums()
-    }
-
-    fn find_fn(&self, class: &str, name: &str) -> Option<Function> {
-        self.global.find_fn(class, name)
+    delegate::delegate! {
+        to self.global {
+            fn has_enums(&self) -> bool;
+            fn find_fn(&self, class: &str, name: &str) -> Option<Function>;
+        }
     }
 }
 
-#[allow(dead_code)]
+impl ErrorInfo for ContractContext<'_> {
+    delegate::delegate! {
+        to self.global {
+            fn get_error<T: ToString>(&self, msg: T) -> Option<u16>;
+            fn error_count(&self) -> u16;
+            fn increment_error_counter(&mut self);
+            fn insert_error<T: ToString>(&mut self, msg: T);
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct LocalContext<'a> {
     contract: ContractContext<'a>,
     current_fn: Option<FnImplementations>,
     local_vars: Vec<Var>,
-    expected_types: Vec<Type>,
+    contextual_expressions: Vec<Expression>,
 }
 
 impl<'a> LocalContext<'a> {
@@ -293,7 +330,7 @@ impl<'a> LocalContext<'a> {
             contract: ctx,
             current_fn: None,
             local_vars: Default::default(),
-            expected_types: Default::default(),
+            contextual_expressions: Default::default(),
         }
     }
 }
@@ -310,12 +347,11 @@ impl TypeInfo for LocalContext<'_> {
         None
     }
 
-    fn has_enums(&self) -> bool {
-        self.contract.has_enums()
-    }
-
-    fn find_fn(&self, class: &str, name: &str) -> Option<Function> {
-        self.contract.find_fn(class, name)
+    delegate::delegate! {
+        to self.contract {
+            fn has_enums(&self) -> bool;
+            fn find_fn(&self, class: &str, name: &str) -> Option<Function>;
+        }
     }
 }
 
@@ -336,7 +372,7 @@ impl FnContext for LocalContext<'_> {
             .expect("The current function should be set")
     }
 
-    fn register_local_var<T: ToString>(&mut self, name: &T, ty: &Type) {
+    fn register_local_var<T: ToString>(&mut self, name: T, ty: &Type) {
         let var = Var {
             name: name.to_string(),
             ty: ty.to_owned(),
@@ -352,126 +388,70 @@ impl FnContext for LocalContext<'_> {
             .find(|v| v.name == name || v.name == utils::to_snake_case(name))
     }
 
-    fn push_expected_type(&mut self, ty: Option<Type>) -> bool {
-        let result = ty.is_some();
-        match ty {
-            Some(Type::Array(ty)) => self.expected_types.push(*ty),
-            Some(ty) => self.expected_types.push(ty),
-            _ => {}
-        };
-        result
+    fn push_contextual_expr(&mut self, expr: Expression) -> bool {
+        self.contextual_expressions.push(expr);
+        true
     }
 
-    fn drop_expected_type(&mut self) {
-        let _ = self.expected_types.pop();
+    fn drop_contextual_expr(&mut self) {
+        let _ = self.contextual_expressions.pop();
     }
 
-    fn expected_type(&self) -> Option<&Type> {
-        self.expected_types.last()
+    fn contextual_expr(&self) -> Option<&Expression> {
+        self.contextual_expressions.last()
     }
 }
 
-macro_rules! delegate_external_calls_register {
-    ( <$lifetime:tt, $g:tt>, $ty:ty, $to:ident) => {
-        impl<$lifetime, $g: ExternalCallsRegister> ExternalCallsRegister for $ty {
-            delegate_external_calls_register!($to);
+impl ContractInfo for LocalContext<'_> {
+    delegate::delegate! {
+        to self.contract {
+            fn current_contract(&self) -> &ContractData;
         }
-    };
-    ($ty:ty, $to:ident) => {
-        impl ExternalCallsRegister for $ty {
-            delegate_external_calls_register!($to);
-        }
-    };
-    ($to:ident) => {
-        fn register_external_call(&mut self, class: &str) {
-            self.$to.register_external_call(class);
-        }
-
-        fn get_external_calls(&self) -> Vec<&String> {
-            self.$to.get_external_calls()
-        }
-    };
+    }
 }
 
-macro_rules! delegate_events_register {
-    ( <$lifetime:tt, $g:tt>, $ty:ty, $to:ident) => {
-        impl<$lifetime, $g: EventsRegister> EventsRegister for $ty {
-            delegate_events_register!($to);
+impl StorageInfo for LocalContext<'_> {
+    delegate::delegate! {
+        to self.contract {
+            fn storage(&self) -> Vec<Var>;
         }
-    };
-    ($ty:ty, $to:ident) => {
-        impl EventsRegister for $ty {
-            delegate_events_register!($to);
-        }
-    };
-    ($to:ident) => {
-        fn register_event<T: ToString>(&mut self, class: &T) {
-            self.$to.register_event(class);
-        }
-
-        fn emitted_events(&self) -> Vec<&String> {
-            self.$to.emitted_events()
-        }
-    };
+    }
 }
 
-macro_rules! delegate_storage_info {
-    ( <$lifetime:tt, $g:tt>, $ty:ty, $to:ident) => {
-        impl<$lifetime, $g: StorageInfo> StorageInfo for $ty {
-            delegate_storage_info!($to);
+impl EventsRegister for LocalContext<'_> {
+    delegate::delegate! {
+        to self.contract {
+            fn register_event<T: ToString>(&mut self, class: &T);
+            fn emitted_events(&self) -> Vec<&String>;
         }
-    };
-    ( $ty:ty, $to:ident) => {
-        impl StorageInfo for $ty {
-            delegate_storage_info!($to);
-        }
-    };
-    ($to:ident) => {
-        fn storage(&self) -> Vec<Var> {
-            self.$to.storage()
-        }
-    };
+    }
 }
 
-macro_rules! delegate_contract_info {
-    ( <$lifetime:tt, $g:tt>, $ty:ty, $to:ident) => {
-        impl<$lifetime, $g: ContractInfo> ContractInfo for $ty {
-            fn as_contract_name(&self, name: &Expression) -> Option<String> {
-                self.$to.as_contract_name(name)
-            }
-
-            fn is_class(&self, name: &str) -> bool {
-                self.$to.is_class(name)
-            }
+impl ExternalCallsRegister for LocalContext<'_> {
+    delegate::delegate! {
+        to self.contract {
+            fn register_external_call(&mut self, class: &str);
+            fn get_external_calls(&self) -> Vec<&String>;
         }
-    };
-    ($ty:ty, $to:ident) => {
-        impl ContractInfo for $ty {
-            fn as_contract_name(&self, name: &Expression) -> Option<String> {
-                self.$to.as_contract_name(name)
-            }
-
-            fn is_class(&self, name: &str) -> bool {
-                self.$to.is_class(name)
-            }
-
-            fn current_contract(&self) -> &ContractData {
-                self.$to.current_contract()
-            }
-        }
-    };
+    }
 }
 
-delegate_contract_info!(LocalContext<'_>, contract);
-delegate_storage_info!(LocalContext<'_>, contract);
-delegate_events_register!(LocalContext<'_>, contract);
-delegate_external_calls_register!(LocalContext<'_>, contract);
+impl ErrorInfo for LocalContext<'_> {
+    delegate::delegate! {
+        to self.contract {
+            fn get_error<T: ToString>(&self, msg: T) -> Option<u16>;
+            fn error_count(&self) -> u16;
+            fn increment_error_counter(&mut self);
+            fn insert_error<T: ToString>(&mut self, msg: T);
+        }
+    }
+}
 
 #[cfg(test)]
 pub fn with_context<F: Fn(&mut LocalContext) -> ()>(f: F) {
     let data = ContractData::empty("test");
-    let ctx = GlobalContext::default();
-    let ctx = ContractContext::new(&ctx, data);
+    let mut ctx = GlobalContext::default();
+    let ctx = ContractContext::new(&mut ctx, data);
     let mut ctx = LocalContext::new(ctx);
 
     f(&mut ctx)
@@ -483,7 +463,8 @@ pub mod test {
     use crate::model::{ir::Expression, ContractData};
 
     use super::{
-        ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
+        ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
+        TypeInfo,
     };
 
     #[derive(Debug)]
@@ -510,14 +491,6 @@ pub mod test {
     }
 
     impl ContractInfo for EmptyContext {
-        fn as_contract_name(&self, name: &Expression) -> Option<String> {
-            None
-        }
-
-        fn is_class(&self, name: &str) -> bool {
-            false
-        }
-
         fn current_contract(&self) -> &ContractData {
             unimplemented!()
         }
@@ -548,22 +521,34 @@ pub mod test {
             todo!()
         }
 
-        fn register_local_var<T: ToString>(&mut self, name: &T, ty: &crate::model::ir::Type) {}
+        fn register_local_var<T: ToString>(&mut self, name: T, ty: &crate::model::ir::Type) {}
 
         fn get_local_var_by_name(&self, name: &str) -> Option<&crate::model::ir::Var> {
             todo!()
         }
 
-        fn push_expected_type(&mut self, ty: Option<crate::model::ir::Type>) -> bool {
+        fn push_contextual_expr(&mut self, expr: Expression) -> bool {
             false
         }
 
-        fn drop_expected_type(&mut self) {
+        fn drop_contextual_expr(&mut self) {}
+
+        fn contextual_expr(&self) -> Option<&Expression> {
             todo!()
+        }
+    }
+
+    impl ErrorInfo for EmptyContext {
+        fn get_error<T: ToString>(&self, msg: T) -> Option<u16> {
+            None
         }
 
-        fn expected_type(&self) -> Option<&crate::model::ir::Type> {
-            todo!()
+        fn error_count(&self) -> u16 {
+            0
         }
+
+        fn increment_error_counter(&mut self) {}
+
+        fn insert_error<T: ToString>(&mut self, msg: T) {}
     }
 }

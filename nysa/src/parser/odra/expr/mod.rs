@@ -1,10 +1,11 @@
 use crate::model::ir::{eval_expression_type, Expression, Op, Stmt, TupleItem, Type, Var};
 use crate::model::Named;
 use crate::parser::context::{
-    ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType, StorageInfo, TypeInfo,
+    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType,
+    StorageInfo, TypeInfo,
 };
-use crate::utils;
 use crate::ParserError;
+use crate::{formatted_invalid_expr, utils};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::{parse_quote, punctuated::Punctuated, Token};
@@ -23,11 +24,17 @@ mod test;
 
 pub fn parse<T>(expression: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     match expression {
         Expression::Require(condition, error) => error::revert(Some(condition), error, ctx),
-        Expression::Placeholder => Err(ParserError::InvalidExpression("Placeholder".to_string())),
+        Expression::Placeholder => formatted_invalid_expr!("Placeholder"),
         Expression::ZeroAddress => Ok(parse_quote!(None)),
         Expression::Message(msg) => msg.try_into(),
         Expression::Collection(name, keys) => primitives::parse_collection(name, keys, None, ctx),
@@ -74,7 +81,7 @@ where
         Expression::UnaryOp(expr, op) => op::unary_op(expr, op, ctx),
         Expression::Tuple(items) => parse_tuple(items, ctx),
         #[cfg(test)]
-        Expression::Fail => Err(ParserError::InvalidExpression("Fail".to_string())),
+        Expression::Fail => formatted_invalid_expr!("Fail"),
         Expression::Keccak256(args) => {
             let args = parse_many(&args, ctx)?;
             Ok(
@@ -98,7 +105,13 @@ pub fn parse_expr<T>(
     ctx: &mut T,
 ) -> Result<syn::Stmt, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let expr = parse(expr, ctx)?;
     if !is_semi {
@@ -110,7 +123,13 @@ where
 
 pub fn parse_many<T>(expressions: &[Expression], ctx: &mut T) -> Result<Vec<syn::Expr>, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     expressions
         .iter()
@@ -124,7 +143,13 @@ fn parse_func<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     if let Expression::Type(ty) = fn_name {
         // cast expression
@@ -135,14 +160,14 @@ where
 
     let args = parse_many(&args, ctx)?;
     // Context allows us to distinct an external contract initialization from a regular function call
-    if let Some(class_name) = ctx.as_contract_name(fn_name) {
-        ctx.register_external_call(&class_name);
+    if let Some(ItemType::Interface(name) | ItemType::Contract(name)) = ctx.type_from_expression(fn_name) {
+        ctx.register_external_call(&name);
         // Storing a reference to a contract is disallowed, and in the constructor an external contract
         // should be considered an address, otherwise, a reference should be created
         return if ctx.current_fn().is_constructor() {
             Ok(parse_quote!(#(#args),*))
         } else {
-            let ref_ident = format_ident!("{}Ref", class_name);
+            let ref_ident = utils::to_ref_ident(name);
             let addr = args.get(0);
             Ok(parse_quote!(#ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr))))
         };
@@ -185,7 +210,13 @@ fn parse_ext_call<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let fn_ident = utils::to_snake_case_ident(fn_name);
     let var_ident = utils::to_snake_case_ident(variable);
@@ -237,10 +268,7 @@ where
             ty: Type::Array(ty),
             ..
         })) => array::fn_call(variable, fn_ident, args, ctx),
-        _ => Err(ParserError::InvalidExpression(format!(
-            "ext_call {} {}",
-            variable, fn_name
-        ))),
+        _ => formatted_invalid_expr!("ext_call {} {}", variable, fn_name),
     }
 }
 
@@ -252,10 +280,16 @@ fn ext_call<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     ctx.register_external_call(&class_name);
-    let ref_ident = format_ident!("{}Ref", class_name);
+    let ref_ident = utils::to_ref_ident(class_name);
     let addr = args.get(0);
 
     let addr = primitives::get_var_or_parse(&Expression::from(addr_var), ctx)?;
@@ -270,7 +304,8 @@ fn lib_call(
     args: Vec<syn::Expr>,
 ) -> Result<syn::Expr, ParserError> {
     let ident = format_ident!("{}", lib_name);
-    Ok(parse_quote!(#ident::#fn_ident(#(#args),*)))
+    let mod_name = utils::to_snake_case_ident(lib_name);
+    Ok(parse_quote!(super::#mod_name::#ident::#fn_ident(#(#args),*)))
 }
 
 fn parse_super_call<T>(
@@ -279,7 +314,13 @@ fn parse_super_call<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let fn_name = utils::to_prefixed_snake_case_ident("super_", fn_name);
     let args = parse_many(&args, ctx)?;
@@ -292,7 +333,13 @@ fn parse_member_access<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     match ctx.type_from_expression(expr) {
         Some(ItemType::Enum(name) | ItemType::Contract(name)) => {
@@ -328,7 +375,13 @@ fn parse_variable<T: TypeInfo>(name: &str, ctx: &mut T) -> Result<syn::Expr, Par
 
 fn parse_array_lit<T>(values: &[Expression], ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let arr = values
         .iter()
@@ -341,6 +394,7 @@ where
     Ok(parse_quote!(odra::prelude::vec![#arr]))
 }
 
+/// Parses a bytes slice into a syn::Expr that creates a new [nysa_types::FixedBytes].
 pub fn parse_bytes_lit(bytes: &[u8]) -> Result<syn::Expr, ParserError> {
     let arr = bytes
         .iter()
@@ -352,11 +406,17 @@ pub fn parse_bytes_lit(bytes: &[u8]) -> Result<syn::Expr, ParserError> {
 
 fn parse_statement<T>(stmt: &Stmt, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     stmt::parse_statement(stmt, false, ctx).map(|stmt| match stmt {
         syn::Stmt::Expr(e) => Ok(e),
-        _ => Err(ParserError::InvalidStatement("Stmt::Expr expected")),
+        _ => formatted_invalid_expr!("Stmt::Expr expected"),
     })?
 }
 
@@ -366,20 +426,32 @@ fn parse_type_info<T>(
     ctx: &mut T,
 ) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let ty = parse(ty, ctx)?;
     let property = match property {
         "max" => format_ident!("MAX"),
         "min" => format_ident!("MIN"),
-        p => return Err(ParserError::UnknownProperty(p.to_string())),
+        _ => return Err(ParserError::UnknownProperty(property.to_string())),
     };
     Ok(parse_quote!(#ty::#property))
 }
 
 fn parse_init<T>(expr: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     if let Expression::Func(box Expression::Type(Type::Array(_)), args) = expr {
         let args = parse_many(&args, ctx)?;
@@ -391,15 +463,19 @@ where
 /// Parses [TupleItem] into an expression `(e1, e2, .., eN)`
 fn parse_tuple<T>(items: &[TupleItem], ctx: &mut T) -> Result<syn::Expr, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let items = items
         .iter()
         .map(|i| match i {
             TupleItem::Expr(i) => parse(i, ctx),
-            _ => Err(ParserError::InvalidExpression(format!(
-                "tuple parsing failed"
-            ))),
+            _ => formatted_invalid_expr!("tuple parsing failed"),
         })
         .collect::<Result<Vec<syn::Expr>, ParserError>>()?;
 
@@ -416,7 +492,13 @@ fn parse_fn_args<T>(
     ctx: &mut T,
 ) -> Result<Vec<syn::Expr>, ParserError>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: StorageInfo
+        + TypeInfo
+        + EventsRegister
+        + ExternalCallsRegister
+        + ContractInfo
+        + FnContext
+        + ErrorInfo,
 {
     let f = ctx.find_fn(&class_name, &utils::to_snake_case(fn_name));
     let mut parsed_args = vec![];
