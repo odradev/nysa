@@ -12,3 +12,6 @@ proc-macro2 = "1.0.43"
 syn = { version = "1.0.99", features = ["full"] }
 project-root = "0.2.2"
 nysa = { path = "../nysa" }
+
+[dev-dependencies]
+odra = "0.8.0"

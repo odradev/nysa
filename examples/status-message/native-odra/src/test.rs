@@ -1,24 +1,25 @@
-use odra::{test_env, types::Address};
-use odra::prelude::string::{String, ToString};
 use super::*;
+use odra::{host::{Deployer, HostEnv, NoArgs}, Address, prelude::*};
 
-const ACCOUNT: fn() -> Address = || odra::test_env::get_account(1);
+const ACCOUNT: fn(&HostEnv) -> Address = |env: &HostEnv| env.get_account(1);
 
 #[test]
 fn set_get_message() {
-    let mut contract = StatusMessageDeployer::default();
+    let env = odra_test::env();
+    let mut contract = StatusMessageHostRef::deploy(&env, NoArgs);
     
-    test_env::set_caller(ACCOUNT());
+    env.set_caller(ACCOUNT(&env));
     contract.set_status("hello".to_string());
-    assert_eq!("hello".to_string(), contract.get_status(ACCOUNT()));
+    assert_eq!("hello".to_string(), contract.get_status(ACCOUNT(&env)));
 }
 
 #[test]
 fn get_nonexistent_message() {
-    let contract = StatusMessageDeployer::default();
+    let env = odra_test::env();
+    let contract = StatusMessageHostRef::deploy(&env, NoArgs);
 
     assert_eq!(
         String::new(),
-        contract.get_status(ACCOUNT())
+        contract.get_status(ACCOUNT(&env))
     );
 }

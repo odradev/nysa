@@ -1,6 +1,9 @@
 {{DEFAULT_MODULES}}
 
 pub mod i_uniswap_v_3_pool {
+    #![allow(unused_imports)]
+    use odra::prelude::*;
+    
     #[odra::external_contract]
     pub trait IUniswapV3Pool {
         fn deposit(
@@ -29,10 +32,10 @@ pub mod simple_uniswap_v_3_pool {
     #[odra::module] 
     pub struct SimpleUniswapV3Pool { 
         __stack: PathStack,
-        token_0: odra::Variable<Option<odra::types::Address>>, 
-        token_1: odra::Variable<Option<odra::types::Address>>, 
-        fee: odra::Variable<nysa_types::U24>, 
-        pool: odra::Variable<Option<odra::types::Address>>
+        token_0: odra::Var<Option<odra::Address>>, 
+        token_1: odra::Var<Option<odra::Address>>, 
+        fee: odra::Var<nysa_types::U24>, 
+        pool: odra::Var<Option<odra::Address>>
     } 
 
     #[odra::module] 
@@ -60,7 +63,7 @@ pub mod simple_uniswap_v_3_pool {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::SimpleUniswapV3Pool => {
-                    IUniswapV3PoolRef::at(&odra::UnwrapOrRevert::unwrap_or_revert(self.pool.get().unwrap_or(None)))
+                    IUniswapV3PoolContractRef::new(self.env(), odra::UnwrapOrRevert::unwrap_or_revert(self.pool.get().unwrap_or(None), &self.env()))
                         .deposit(
                             nysa_types::U256::ZERO, 
                             liquidity, 
@@ -76,10 +79,10 @@ pub mod simple_uniswap_v_3_pool {
         #[odra(init)]
         pub fn init(
             &mut self, 
-            _token_0: Option<odra::types::Address>, 
-            _token_1: Option<odra::types::Address>, 
+            _token_0: Option<odra::Address>, 
+            _token_1: Option<odra::Address>, 
             _fee: nysa_types::U24, 
-            _pool: Option<odra::types::Address>
+            _pool: Option<odra::Address>
         ) {
             self.token_0.set(_token_0);
             self.token_1.set(_token_1);

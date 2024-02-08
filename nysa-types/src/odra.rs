@@ -1,6 +1,6 @@
-use odra_types::{
-    casper_types::bytesrepr::{Error, FromBytes, ToBytes},
-    CLType, CLTyped, OdraItem,
+use odra_core::casper_types::{
+    bytesrepr::{Error, FromBytes, ToBytes},
+    CLType, CLTyped,
 };
 
 use crate::{FixedBytes, Signed, Unsigned};
@@ -69,12 +69,6 @@ macro_rules! impl_int_deser {
             fn cl_type() -> CLType {
                 <alloc::vec::Vec<u64>>::cl_type()
             }
-        }
-
-        impl<const BITS: usize, const LIMBS: usize> OdraItem for $ty<BITS, LIMBS> {
-            fn is_module() -> bool {
-                false
-            }
         })*
     };
 }
@@ -103,17 +97,11 @@ impl<const N: usize> CLTyped for FixedBytes<N> {
     }
 }
 
-impl<const N: usize> OdraItem for FixedBytes<N> {
-    fn is_module() -> bool {
-        false
-    }
-}
-
 #[inline]
-fn try_from_bytes<'a, const BITS: usize, const LIMBS: usize, const LEN: usize>(
+fn try_from_bytes<const BITS: usize, const LIMBS: usize, const LEN: usize>(
     bytes: [u8; LEN],
-    remainder: &'a [u8],
-) -> Result<(ruint::Uint<BITS, LIMBS>, &'a [u8]), Error> {
+    remainder: &[u8],
+) -> Result<(ruint::Uint<BITS, LIMBS>, &[u8]), Error> {
     let value = ruint::Uint::try_from_le_slice(&bytes).ok_or(Error::Formatting)?;
     Ok((value, remainder))
 }
@@ -121,7 +109,7 @@ fn try_from_bytes<'a, const BITS: usize, const LIMBS: usize, const LEN: usize>(
 #[cfg(test)]
 mod t {
     use crate::{I32, U8};
-    use odra_types::casper_types::bytesrepr::{FromBytes, ToBytes};
+    use odra_core::casper_types::bytesrepr::{FromBytes, ToBytes};
 
     #[test]
     fn ser_de() {

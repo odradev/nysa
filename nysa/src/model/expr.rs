@@ -130,7 +130,7 @@ impl TryInto<syn::Expr> for &Message {
 
     fn try_into(self) -> Result<syn::Expr, Self::Error> {
         match self {
-            Message::Sender => Ok(parse_quote!(Some(odra::contract_env::caller()))),
+            Message::Sender => Ok(parse_quote!(Some(self.env().caller()))),
             Message::Value => todo!(),
             Message::Data => todo!(),
         }
@@ -471,7 +471,7 @@ fn to_boxed_expr(e: &pt::Expression) -> Box<Expression> {
 
 pub fn eval_expression_type<T>(expr: &Expression, ctx: &T) -> Option<Type>
 where
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
+    T: TypeInfo + ContractInfo,
 {
     match expr {
         Expression::Require(_, _) => None,

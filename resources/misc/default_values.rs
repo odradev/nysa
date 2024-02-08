@@ -14,11 +14,11 @@ pub mod my_contract {
     #[odra::module] 
     pub struct MyContract { 
         __stack: PathStack, 
-        my_number: odra::Variable<nysa_types::U256>,
-        min_int: odra::Variable<nysa_types::I256>,
-        neg: odra::Variable<nysa_types::I32>,
-        boo: odra::Variable<bool>,
-        my_uint_2: odra::Variable<nysa_types::U256>,
+        my_number: odra::Var<nysa_types::U256>,
+        min_int: odra::Var<nysa_types::I256>,
+        neg: odra::Var<nysa_types::I32>,
+        boo: odra::Var<bool>,
+        my_uint_2: odra::Var<nysa_types::U256>,
     } 
 
     #[odra::module] 

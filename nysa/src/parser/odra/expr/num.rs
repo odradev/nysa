@@ -1,13 +1,13 @@
 use crate::{
+    error::ParserResult,
     formatted_invalid_expr,
     model::ir::{eval_expression_type, Expression},
     parser::{
         context::{
             ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
         },
-        odra::ty,
+        odra::{syn_utils::ty::u256, ty},
     },
-    ParserError,
 };
 use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
@@ -23,7 +23,7 @@ pub(crate) fn to_typed_int_expr<
 >(
     value: &[u64],
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
+) -> ParserResult<syn::Expr> {
     let arr = value
         .iter()
         .map(|v| quote::quote!(#v))
@@ -34,7 +34,7 @@ pub(crate) fn to_typed_int_expr<
         .map(|t| t.map(|t| ty::parse_type_from_ty(&t, ctx).ok()))
         .flatten()
         .flatten()
-        .unwrap_or(parse_quote!(nysa_types::U256));
+        .unwrap_or(u256());
 
     if value.is_empty() {
         Ok(parse_quote!(#ty::ZERO))
@@ -45,14 +45,14 @@ pub(crate) fn to_typed_int_expr<
     }
 }
 
-pub(crate) fn try_to_generic_int_expr(expr: &Expression) -> Result<syn::Expr, ParserError> {
+pub(crate) fn try_to_generic_int_expr(expr: &Expression) -> ParserResult<syn::Expr> {
     match expr {
         Expression::NumberLiteral(value) => to_generic_int_expr(value),
         _ => formatted_invalid_expr!("NumLiteral expected but found {:?}", expr),
     }
 }
 
-fn to_generic_int_expr(value: &[u64]) -> Result<syn::Expr, ParserError> {
+fn to_generic_int_expr(value: &[u64]) -> ParserResult<syn::Expr> {
     let bytes = value
         .iter()
         .map(|v| v.to_le_bytes())

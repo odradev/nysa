@@ -3,7 +3,7 @@
 extern crate alloc;
 
 mod plascoin;
-pub use plascoin::plascoin::{Plascoin, PlascoinDeployer, PlascoinRef};
+pub use plascoin::plascoin::{Plascoin, PlascoinHostRef};
 
 #[cfg(test)]
 mod test;

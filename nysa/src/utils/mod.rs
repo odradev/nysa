@@ -35,7 +35,7 @@ pub(crate) fn to_ident<T: AsRef<str>>(input: T) -> proc_macro2::Ident {
 }
 
 pub(crate) fn to_ref_ident<T: AsRef<str>>(input: T) -> proc_macro2::Ident {
-    format_ident!("{}Ref", input.as_ref())
+    format_ident!("{}ContractRef", input.as_ref())
 }
 
 /// Converts a vec to to an array. The vec length must match the array length.

@@ -45,7 +45,7 @@ pub(super) fn imports_code<T: ExternalCallsRegister + TypeInfo>(ctx: &T) -> Vec<
                 use super::structs::*;
             ),
             parse_quote!(
-                use odra::prelude::vec::Vec;
+                use odra::prelude::*;
             ),
         ])
         .collect()
@@ -55,32 +55,14 @@ pub(super) fn imports_code<T: ExternalCallsRegister + TypeInfo>(ctx: &T) -> Vec<
 pub(super) fn path_stack_default_impl() -> Vec<syn::Item> {
     vec![
         parse_quote! {
-            #[cfg(not(target_arch = "wasm32"))]
-            impl odra::types::contract_def::Node for PathStack {
-                const COUNT: u32 = 0;
-                const IS_LEAF: bool = false;
-            }
-        },
-        parse_quote! {
-            impl odra::types::OdraItem for PathStack {
-                fn is_module() -> bool {
-                    false
+            impl odra::module::ModuleComponent for PathStack {
+                fn instance(_env: Rc<odra::ContractEnv>, _index: u8) -> Self {
+                    Self::default()
                 }
             }
         },
         parse_quote! {
-            impl odra::StaticInstance for PathStack {
-                fn instance<'a>(keys: &'a [&'a str]) -> (Self, &'a [&'a str]) {
-                    (PathStack::default(), keys)
-                }
-            }
-        },
-        parse_quote! {
-            impl odra::DynamicInstance for PathStack {
-                #[allow(unused_variables)]
-                fn instance(namespace: &[u8]) -> Self {
-                    PathStack::default()
-                }
+            impl odra::module::ModulePrimitive for PathStack {
             }
         },
     ]

@@ -1,8 +1,12 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{parse_quote, BinOp};
+use syn::{parse_quote, punctuated::Punctuated, BinOp, Token};
 
-use super::{num, parse};
+use super::{
+    num, parse,
+    syn_utils::{self, ArrayReader, DefaultValue, ReadValue, UnwrapOrNone, UnwrapOrRevert},
+};
 use crate::{
+    error::ParserResult,
     formatted_invalid_expr,
     model::ir::{Expression, TupleItem, Type, Var},
     parser::{
@@ -10,12 +14,15 @@ use crate::{
             self, ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext,
             ItemType, StorageInfo, TypeInfo,
         },
-        odra::expr::array,
+        odra::{
+            expr::array,
+            syn_utils::{in_context, AsExpression, AsSelfField},
+        },
     },
     utils::{self, to_snake_case_ident},
     ParserError,
 };
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 
 pub fn get_var_or_parse<
     T: StorageInfo
@@ -28,7 +35,7 @@ pub fn get_var_or_parse<
 >(
     expr: &Expression,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
+) -> ParserResult<syn::Expr> {
     match expr {
         Expression::Variable(name) => get_var(name, ctx),
         _ => parse(expr, ctx),
@@ -45,7 +52,7 @@ pub fn get_var_or_parse<
 ///
 /// In Odra, if we update Variable or Mapping, there is a single expression.
 /// Eg.
-/// self.total_supply.set(self.balance_of.get(odra::contract_env::caller())).
+/// self.total_supply.set(self.balance_of.get(self.env().caller())).
 ///
 /// To parse any kind of an assign statement we need to treat it a single statement
 /// and parse both sides at once.
@@ -70,10 +77,9 @@ pub fn assign<
     right: Option<&Expression>,
     operator: Option<O>,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
-    ctx.push_contextual_expr(left.clone());
-    let res = if let Some(right) = right {
-        match left {
+) -> ParserResult<syn::Expr> {
+    in_context(left, ctx, |ctx| match right {
+        Some(right) => match left {
             Expression::Collection(name, keys) => {
                 update_collection(name, keys, right, operator, ctx)
             }
@@ -85,12 +91,9 @@ pub fn assign<
                 Ok(parse_quote!(#l = #r))
             }
             _ => todo!(),
-        }
-    } else {
-        assign_default(left, ctx)
-    };
-    ctx.drop_contextual_expr();
-    res
+        },
+        None => assign_default(left, ctx),
+    })
 }
 
 /// Parses a single set value interaction.
@@ -111,17 +114,14 @@ pub fn set_var<T: StorageInfo + TypeInfo + FnContext>(
     id: &str,
     value_expr: syn::Expr,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
-    let item = ctx.type_from_string(id);
-    let ident = to_snake_case_ident(id);
+) -> ParserResult<syn::Expr> {
+    let item_type = ctx.type_from_string(id);
+    let var = var(&item_type, id)?;
 
-    match item {
+    match item_type {
         // Variable update must use the `set` function
-        Some(ItemType::Storage(_)) => Ok(parse_quote!(self.#ident.set(#value_expr))),
-        // regular, local value
-        Some(ItemType::Local(_)) => Ok(parse_quote!(#ident = #value_expr)),
-        None => Ok(parse_quote!(#ident = #value_expr)),
-        _ => formatted_invalid_expr!("unknown variable {:?}", item),
+        Some(ItemType::Storage(_)) => Ok(parse_quote!(#var.set(#value_expr))),
+        _ => Ok(parse_quote!(#var = #value_expr)),
     }
 }
 
@@ -141,15 +141,13 @@ pub fn set_var<T: StorageInfo + TypeInfo + FnContext>(
 pub fn get_var<T: StorageInfo + TypeInfo + FnContext>(
     id: &str,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
-    let item = ctx.type_from_string(id);
-    let ident = to_snake_case_ident(id);
+) -> ParserResult<syn::Expr> {
+    let item_type = ctx.type_from_string(id);
+    let var = var(&item_type, id)?;
 
-    match item {
-        Some(ItemType::Storage(v)) => Ok(to_read_expr(quote!(self.#ident), None, &v.ty, ctx)),
-        Some(ItemType::Local(_)) => Ok(parse_quote!(#ident)),
-        None => Ok(parse_quote!(#ident)),
-        _ => formatted_invalid_expr!("unknown variable {:?}", item),
+    match item_type {
+        Some(ItemType::Storage(v)) => Ok(to_read_expr(var, None, &v.ty, ctx)),
+        _ => Ok(var),
     }
 }
 
@@ -158,7 +156,7 @@ pub fn parse_collection<T>(
     keys_expr: &[Expression],
     value_expr: Option<syn::Expr>,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -193,21 +191,16 @@ fn assign_default<
 >(
     left: &Expression,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
-    let err =
-        || ParserError::UnexpectedExpression(String::from("Expression::Variable"), left.clone());
-    let default_expr = parse_quote!(Default::default());
+) -> ParserResult<syn::Expr> {
+    let err = || ParserError::UnexpectedExpression("Expression::Variable", left.clone());
+    let default_expr = syn_utils::default();
 
     match left {
-        Expression::Variable(name) => {
-            set_var(&name, default_expr, ctx)
-        }
+        Expression::Variable(name) => set_var(&name, default_expr, ctx),
         Expression::Collection(name, keys) => match ctx.type_from_string(name) {
             Some(ItemType::Storage(Var {
                 ty: Type::Array(_), ..
-            })) => {
-                array::replace_value(name, &keys[0], default_expr, ctx)
-            }
+            })) => array::replace_value(name, &keys[0], default_expr, ctx),
             _ => Err(err()),
         },
         _ => Err(err()),
@@ -220,7 +213,7 @@ fn parse_local_collection<T>(
     value_expr: Option<syn::Expr>,
     ty: &Type,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -234,34 +227,36 @@ where
     if keys_len == 0 {
         return Err(ParserError::InvalidCollection);
     }
-    let mut token_stream = quote!(#var_ident);
 
     // A local mapping should not exists but eg. can be passed by a reference to a function.
     if let Type::Mapping(_, _) = ty {
         // iterate over nested mappings
-        for i in 0..(keys_len - 1) {
-            let key = parse_storage_key(&keys_expr[i], ctx)?;
-            token_stream.extend(quote!(.get_instance(&#key)));
-        }
-
-        // the last key accesses the mapping key
-        let key_expr = keys_expr.last().expect("A valid key expr expected");
-        let key = parse_storage_key(key_expr, ctx)?;
+        let key = match keys_expr.len() {
+            0 => return Err(ParserError::InvalidCollection),
+            1 => parse_storage_key(&keys_expr[0], ctx)?,
+            _ => {
+                let keys = keys_expr
+                    .iter()
+                    .map(|k| parse_storage_key(&k, ctx))
+                    .collect::<ParserResult<Punctuated<syn::Expr, Token![,]>>>()?;
+                keys.as_expression()
+            }
+        };
         if let Some(value) = value_expr {
-            return Ok(parse_quote!(#token_stream.set(&#key, #value)));
+            return Ok(parse_quote!(#var_ident.set(&#key, #value)));
         } else {
-            return Ok(to_read_expr(token_stream, Some(key), ty, ctx));
+            return Ok(to_read_expr(var_ident, Some(key), ty, ctx));
         }
     }
 
-    for i in 0..(keys_len - 1) {
+    let mut collection = quote!(#var_ident);
+    for i in 0..keys_len {
         let key = parse_local_key(&keys_expr[i], ctx)?;
-        token_stream.extend(quote!([#key]));
+        collection.extend(quote!([#key]));
     }
-    let key = keys_expr.last().unwrap();
-    let key = parse_local_key(key, ctx)?;
+
     let assign = value_expr.map(|e| quote!(= #e));
-    Ok(parse_quote!(#token_stream[#key] #assign))
+    Ok(parse_quote!(#collection #assign))
 }
 
 fn parse_storage_collection<T>(
@@ -270,7 +265,7 @@ fn parse_storage_collection<T>(
     value_expr: Option<syn::Expr>,
     ty: &Type,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -280,27 +275,26 @@ where
         + FnContext
         + ErrorInfo,
 {
-    if keys_expr.is_empty() {
-        return Err(ParserError::InvalidCollection);
-    }
+    let key = match keys_expr.len() {
+        0 => return Err(ParserError::InvalidCollection),
+        1 => parse_storage_key(&keys_expr[0], ctx)?,
+        _ => {
+            let keys = keys_expr
+                .iter()
+                .map(|k| parse_storage_key(&k, ctx))
+                .collect::<ParserResult<Punctuated<syn::Expr, Token![,]>>>()?;
+            keys.as_expression()
+        }
+    };
 
-    let mut token_stream = quote!(self.#var_ident);
-
-    for i in 0..(keys_expr.len() - 1) {
-        let key = parse_storage_key(&keys_expr[i], ctx)?;
-        token_stream.extend(quote!(.get_instance(&#key)));
-    }
-
-    let key = keys_expr.last().unwrap();
-    let key = parse_storage_key(key, ctx)?;
-    if let Some(value) = value_expr {
-        Ok(parse_quote!(#token_stream.set(&#key, #value)))
-    } else {
-        Ok(to_read_expr(token_stream, Some(key), ty, ctx))
+    let field = var_ident.as_self_field();
+    match value_expr {
+        Some(value) => Ok(parse_quote!(#field.set(&#key, #value))),
+        None => Ok(to_read_expr(field, Some(key), ty, ctx)),
     }
 }
 
-fn parse_storage_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+fn parse_storage_key<T>(key: &Expression, ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -316,7 +310,7 @@ where
     }
 }
 
-fn parse_local_key<T>(key: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+fn parse_local_key<T>(key: &Expression, ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -332,38 +326,35 @@ where
     }
 }
 
-fn to_read_expr<T: StorageInfo + TypeInfo>(
-    stream: TokenStream,
+fn to_read_expr<F: ToTokens, T: StorageInfo + TypeInfo>(
+    field: F,
     key_expr: Option<syn::Expr>,
     ty: &Type,
     ctx: &mut T,
 ) -> syn::Expr {
     let key = key_expr.clone().map(|k| quote!(&#k));
     match ty {
-        Type::Address => parse_quote!(#stream.get(#key).unwrap_or(None)),
+        Type::Address => <UnwrapOrNone as ReadValue>::expr(field, key),
         Type::Custom(name) => ctx
             .type_from_string(&name)
             .map(|ty| match ty {
                 context::ItemType::Contract(_)
                 | context::ItemType::Library(_)
-                | context::ItemType::Interface(_) => {
-                    parse_quote!(#stream.get(#key).unwrap_or(None))
-                }
-                context::ItemType::Enum(_) => parse_quote!(#stream.get_or_default(#key)),
-                _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
+                | context::ItemType::Interface(_) => <UnwrapOrNone as ReadValue>::expr(field, key),
+                context::ItemType::Enum(_) => <DefaultValue as ReadValue>::expr(field, key),
+                _ => <UnwrapOrRevert as ReadValue>::expr(field, key),
             })
             .unwrap(),
         Type::String | Type::Bool | Type::Uint(_) | Type::Int(_) => {
-            parse_quote!(#stream.get_or_default(#key))
+            <DefaultValue as ReadValue>::expr(field, key)
         }
         Type::Mapping(_, v) => {
-            let ty = ctx.type_from_expression(v);
-            let ty = match ty {
+            let ty = match ctx.type_from_expression(v) {
                 Some(ItemType::Struct(s)) => Type::Custom(s.name),
                 _ => Type::try_from(&**v).unwrap(),
             };
 
-            to_read_expr(stream, key_expr, &ty, ctx)
+            to_read_expr(field, key_expr, &ty, ctx)
         }
         Type::Array(ty) => {
             let key = key_expr.and_then(|key| match &**ty {
@@ -373,9 +364,9 @@ fn to_read_expr<T: StorageInfo + TypeInfo>(
                 },
                 _ => Some(quote!([#key])),
             });
-            parse_quote!(#stream.get_or_default()#key)
+            <ArrayReader as ReadValue>::expr(field, key)
         }
-        _ => parse_quote!(odra::UnwrapOrRevert::unwrap_or_revert(#stream.get(#key))),
+        _ => <UnwrapOrRevert as ReadValue>::expr(field, key),
     }
 }
 
@@ -385,7 +376,7 @@ fn update_collection<T, O>(
     right: &Expression,
     operator: Option<O>,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -413,7 +404,7 @@ fn update_variable<T, O>(
     right: &Expression,
     operator: Option<O>,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -441,7 +432,7 @@ fn update_tuple<T, O>(
     right: &Expression,
     operator: Option<O>,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -552,4 +543,17 @@ where
             }
         })
         .collect::<Result<Vec<syn::Stmt>, ParserError>>()
+}
+
+fn var(item_type: &Option<ItemType>, id: &str) -> ParserResult<syn::Expr> {
+    let ident = to_snake_case_ident(id);
+
+    match item_type {
+        // Variable update must use the `set` function
+        Some(ItemType::Storage(_)) => Ok(ident.as_self_field()),
+        // regular, local value
+        Some(ItemType::Local(_)) => Ok(ident.as_expression()),
+        None => Ok(ident.as_expression()),
+        _ => formatted_invalid_expr!("unknown variable {:?}", item_type),
+    }
 }

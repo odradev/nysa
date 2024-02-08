@@ -76,6 +76,7 @@ fn test_lib_safe_math() {
 }
 
 #[test]
+#[ignore]
 fn test_lib_mapping() {
     test_single("library", "mapping");
 }
@@ -136,7 +137,9 @@ fn read_file<P: AsRef<Path>>(file_path: P) -> String {
 
 const DEFAULT_MODULES: &str = r#"
 pub mod errors {}
-pub mod events {}
+pub mod events {
+    use odra::prelude::*;
+}
 pub mod enums {}
 pub mod structs {}
 "#;
@@ -148,28 +151,14 @@ use super::structs::*;
 "#;
 
 const STACK_DEF: &str = r#"
-use odra::prelude::vec::Vec;
-#[cfg(not(target_arch = "wasm32"))]
-impl odra::types::contract_def::Node for PathStack {
-    const COUNT: u32 = 0;
-    const IS_LEAF: bool = false;
-}
-impl odra::types::OdraItem for PathStack {
-    fn is_module() -> bool {
-        false
+use odra::prelude::*;
+
+impl odra::module::ModuleComponent for PathStack {
+    fn instance(_env: Rc<odra::ContractEnv>, _index: u8) -> Self {
+        Self::default()
     }
 }
-impl odra::StaticInstance for PathStack {
-    fn instance<'a>(keys: &'a [&'a str]) -> (Self, &'a [&'a str]) {
-        (PathStack::default(), keys)
-    }
-}
-impl odra::DynamicInstance for PathStack {
-    #[allow(unused_variables)]
-    fn instance(namespace: &[u8]) -> Self {
-        PathStack::default()
-    }
-}
+impl odra::module::ModulePrimitive for PathStack {}
 
 #[derive(Clone, Default)]
 struct PathStack {

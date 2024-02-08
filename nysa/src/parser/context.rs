@@ -31,7 +31,7 @@ impl ItemType {
 }
 
 /// Provides info about the type of an item based on its on or an expression.
-/// 
+///
 /// Useful if we have access only to the name of eg. a variable but we need to know
 /// it's type.
 pub trait TypeInfo {
@@ -99,8 +99,8 @@ pub trait FnContext {
     /// Finds a local variable by name.
     fn get_local_var_by_name(&self, name: &str) -> Option<&Var>;
     /// Push an expression to the context stack.
-    /// It adds more context to the currently processed expression. 
-    /// Some expressions are made of a few expressions (left and right expression 
+    /// It adds more context to the currently processed expression.
+    /// Some expressions are made of a few expressions (left and right expression
     /// in a simple case), then some expressions cannot be processed independently
     /// without knowing details of a sibling expression.
     fn push_contextual_expr(&mut self, expr: Expression) -> bool;

@@ -10,6 +10,7 @@ use crate::{model::ir::Package, ParserError};
 
 pub mod context;
 pub mod odra;
+pub mod soroban;
 
 /// Type that converts a pre-processed `package` into [TokenStream].
 pub trait Parser {

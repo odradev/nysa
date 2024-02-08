@@ -1,4 +1,3 @@
-use quote::format_ident;
 use syn::parse_quote;
 
 use crate::{
@@ -16,7 +15,7 @@ pub(crate) fn ext_contracts_def<T: TypeInfo>(
     interfaces
         .iter()
         .map(|i| {
-            let ident = format_ident!("{}", i.name());
+            let ident = utils::to_ident(i.name());
             let fns: Vec<syn::TraitItem> = i
                 .fns()
                 .iter()
@@ -26,6 +25,9 @@ pub(crate) fn ext_contracts_def<T: TypeInfo>(
             let mod_ident = utils::to_snake_case_ident(i.name());
             Ok(parse_quote!(
                 pub mod #mod_ident {
+                    #![allow(unused_imports)]
+                    use odra::prelude::*;
+
                     #[odra::external_contract]
                     pub trait #ident {
                         #(#fns)*

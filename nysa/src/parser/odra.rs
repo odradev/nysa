@@ -5,9 +5,8 @@ use crate::{
 };
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use proc_macro2::TokenStream;
-use quote::format_ident;
 
-use syn::parse_quote;
+use self::syn_utils::attr;
 
 use super::{
     context::{ContractContext, ContractInfo, EventsRegister, GlobalContext, LocalContext},
@@ -22,6 +21,7 @@ mod ext;
 mod func;
 mod other;
 mod stmt;
+mod syn_utils;
 mod ty;
 mod var;
 
@@ -68,6 +68,7 @@ impl Parser for OdraParser {
             }
 
             pub mod events {
+                use odra::prelude::*;
                 #(#events)*
             }
 
@@ -129,16 +130,16 @@ fn contract_def(ctx: &mut LocalContext) -> Result<ClassDef, ParserError> {
     let events = ctx
         .emitted_events()
         .iter()
-        .map(|ev| format_ident!("{}", ev))
+        .map(utils::to_ident)
         .collect::<Vec<_>>();
     let struct_attrs = match events.len() {
-        0 => vec![parse_quote!(#[odra::module])],
-        _ => vec![parse_quote!(#[odra::module(events = [ #(#events),* ])])],
+        0 => vec![attr::module()],
+        _ => vec![attr::module_with_events(events)],
     };
 
     Ok(ClassDef {
         struct_attrs,
-        impl_attrs: vec![parse_quote!(#[odra::module])],
+        impl_attrs: vec![attr::module()],
         class: ctx.current_contract().c3_class(),
         path: ctx.current_contract().c3_path(),
         variables,

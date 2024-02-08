@@ -1,5 +1,7 @@
 pub mod errors {}
-pub mod events {}
+pub mod events {
+    use odra::prelude::*;
+}
 pub mod enums {}
 pub mod structs {}
 pub mod array {
@@ -14,9 +16,9 @@ pub mod array {
     #[odra::module]
     pub struct Array {
         __stack: PathStack,
-        arr: odra::Variable<Vec<nysa_types::U256>>,
-        arr_2: odra::Variable<Vec<nysa_types::U256>>,
-        my_fixed_size_arr: odra::Variable<Vec<nysa_types::U256>>,
+        arr: odra::Var<odra::prelude::vec::Vec<nysa_types::U256>>,
+        arr_2: odra::Var<odra::prelude::vec::Vec<nysa_types::U256>>,
+        my_fixed_size_arr: odra::Var<odra::prelude::vec::Vec<nysa_types::U256>>,
     }
 
     #[odra::module]

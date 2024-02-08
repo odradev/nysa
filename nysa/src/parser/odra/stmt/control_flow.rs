@@ -1,5 +1,5 @@
-use syn::parse_quote;
-
+use super::syn_utils;
+use crate::error::ParserResult;
 use crate::model::ir::{Expression, Stmt};
 use crate::parser::context::{
     ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
@@ -12,7 +12,7 @@ pub(super) fn if_stmt<T>(
     assertion: &Expression,
     body: &Stmt,
     ctx: &mut T,
-) -> Result<syn::Stmt, ParserError>
+) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -24,9 +24,7 @@ where
 {
     let assertion = expr::parse(assertion, ctx)?;
     let if_body = super::parse_statement(body, true, ctx)?;
-    let a = quote::quote!(if #assertion #if_body);
-    let result: syn::Stmt = parse_quote!(if #assertion #if_body);
-    Ok(result)
+    Ok(syn_utils::if_stmt(assertion, if_body))
 }
 
 pub(super) fn if_else_stmt<T>(
@@ -34,7 +32,7 @@ pub(super) fn if_else_stmt<T>(
     if_body: &Stmt,
     else_body: &Stmt,
     ctx: &mut T,
-) -> Result<syn::Stmt, ParserError>
+) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -44,16 +42,17 @@ where
         + FnContext
         + ErrorInfo,
 {
-    let if_expr = if_stmt(assertion, if_body, ctx)?;
+    let assertion = expr::parse(assertion, ctx)?;
+    let if_body = super::parse_statement(if_body, true, ctx)?;
     let else_body = super::parse_statement(else_body, true, ctx)?;
-    Ok(parse_quote!(#if_expr else #else_body))
+    Ok(syn_utils::if_else_stmt(assertion, if_body, else_body))
 }
 
 pub(super) fn while_loop<T>(
     assertion: &Expression,
     block: &Stmt,
     ctx: &mut T,
-) -> Result<syn::Stmt, ParserError>
+) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -66,10 +65,9 @@ where
     let assertion = expr::parse(assertion, ctx)?;
     let block = super::parse_statement(block, false, ctx)?;
 
-    if matches!(block, syn::Stmt::Expr(syn::Expr::Block(_))) {
-        Ok(parse_quote!(while #assertion #block))
-    } else {
-        Err(ParserError::InvalidStatement("syn::Block expected"))
+    match block {
+        syn::Stmt::Expr(syn::Expr::Block(_)) => Ok(syn_utils::while_loop(assertion, block)),
+        _ => Err(ParserError::InvalidStatement("syn::Block expected")),
     }
 }
 

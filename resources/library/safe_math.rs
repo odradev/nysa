@@ -25,12 +25,7 @@ pub mod safe_math {
                 z
             } >= x)
             {
-                odra::contract_env::revert(
-                    odra::types::ExecutionError::new(
-                        1u16,
-                        "ds-math-add-overflow",
-                    ),
-                )
+                self.env().revert(odra::ExecutionError::User(1u16))
             }
             return (z);
         }
@@ -43,12 +38,7 @@ pub mod safe_math {
                     z
                 } / y) == x)
             {
-                odra::contract_env::revert(
-                    odra::types::ExecutionError::new(
-                        1u16,
-                        "ds-math-mul-overflow",
-                    ),
-                )
+                self.env().revert(odra::ExecutionError::User(1u16))
             }
             return (z);
         }
@@ -60,12 +50,7 @@ pub mod safe_math {
                 z
             } <= x)
             {
-                odra::contract_env::revert(
-                    odra::types::ExecutionError::new(
-                        1u16,
-                        "ds-math-sub-underflow",
-                    ),
-                )
+                self.env().revert(odra::ExecutionError::User(1u16))
             }
             return (z);
         }

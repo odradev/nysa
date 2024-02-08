@@ -14,7 +14,7 @@ pub mod callee {
     #[odra::module] 
     pub struct Callee { 
         __stack: PathStack,
-        x: odra::Variable<nysa_types::U256>,
+        x: odra::Var<nysa_types::U256>,
     } 
 
     #[odra::module] 
@@ -72,18 +72,18 @@ pub mod caller {
         pub fn init(&mut self) {
         }
 
-        pub fn set_x(&mut self, _callee: Option<odra::types::Address>, _x: nysa_types::U256) {
+        pub fn set_x(&mut self, _callee: Option<odra::Address>, _x: nysa_types::U256) {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_set_x(_callee, _x);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_set_x(&mut self, _callee: Option<odra::types::Address>, _x: nysa_types::U256) {
+        fn super_set_x(&mut self, _callee: Option<odra::Address>, _x: nysa_types::U256) {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Caller => {
-                    let mut _callee = CalleeRef::at(&odra::UnwrapOrRevert::unwrap_or_revert(_callee));
+                    let mut _callee = CalleeContractRef::new(self.env(), odra::UnwrapOrRevert::unwrap_or_revert(_callee, &self.env()));
                     let mut x = _callee.set_x(_x);
                 }
                 #[allow(unreachable_patterns)]
@@ -91,18 +91,18 @@ pub mod caller {
             }
         }
 
-        pub fn set_x_from_address(&mut self, _addr: Option<odra::types::Address>, _x: nysa_types::U256) {
+        pub fn set_x_from_address(&mut self, _addr: Option<odra::Address>, _x: nysa_types::U256) {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_set_x_from_address(_addr, _x);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_set_x_from_address(&mut self, _addr: Option<odra::types::Address>, _x: nysa_types::U256) {
+        fn super_set_x_from_address(&mut self, _addr: Option<odra::Address>, _x: nysa_types::U256) {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::Caller => {
-                    let mut callee = CalleeRef::at(&odra::UnwrapOrRevert::unwrap_or_revert(_addr));
+                    let mut callee = CalleeContractRef::new(self.env(), odra::UnwrapOrRevert::unwrap_or_revert(_addr, &self.env()));
                     callee.set_x(_x);
                 }
                 #[allow(unreachable_patterns)]

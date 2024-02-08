@@ -3,7 +3,7 @@
 extern crate alloc;
 
 mod status_message;
-pub use status_message::status_message::{StatusMessage, StatusMessageDeployer, StatusMessageRef};
+pub use status_message::status_message::{StatusMessage, StatusMessageHostRef};
 
 #[cfg(test)]
 mod test;

@@ -1,18 +1,36 @@
+use crate::error::ParserResult;
 use crate::model::ir::Expression;
 use crate::parser::context::{
     ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
     TypeInfo,
 };
 use crate::parser::odra::expr;
-use crate::ParserError;
-use syn::parse_quote;
+use crate::parser::odra::syn_utils::AsStatement;
 
-pub(crate) fn revert_with_msg(error_msg: &str) -> Result<syn::Stmt, ParserError> {
-    let expr = expr::error::revert_with_err(error_msg)?;
-    Ok(parse_quote!(#expr;))
+/// Generates a `revert` statement with an error message.
+///
+/// # Arguments
+///
+/// * `error_msg` - The error message to include in the `revert` statement.
+///
+/// # Returns
+///
+/// Returns a `ParserResult` containing the generated `revert` statement as a `syn::Stmt`.
+pub(crate) fn revert_with_msg(error_msg: &str) -> ParserResult<syn::Stmt> {
+    Ok(expr::error::revert_with_err(error_msg).as_statement())
 }
 
-pub(crate) fn revert<T>(msg: &Option<Expression>, ctx: &mut T) -> Result<syn::Stmt, ParserError>
+/// Generates a `revert` statement with an optional error message.
+///
+/// # Arguments
+///
+/// * `msg` - An optional expression representing the error message.
+/// * `ctx` - A mutable reference to the context object that provides information about the contract, storage, types, etc.
+///
+/// # Returns
+///
+/// Returns a `ParserResult` containing the generated `revert` statement as a `syn::Stmt`.
+pub(crate) fn revert<T>(msg: &Option<Expression>, ctx: &mut T) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -22,13 +40,11 @@ where
         + FnContext
         + ErrorInfo,
 {
-    if let Some(error) = msg {
-        let expr = expr::error::revert(None, error, ctx)?;
-        Ok(parse_quote!(#expr;))
-    } else {
-        let expr = expr::error::revert_with_str(None, "", ctx)?;
-        Ok(parse_quote!(#expr;))
-    }
+    let revert_expr = match msg {
+        Some(msg) => expr::error::revert(None, msg, ctx),
+        None => expr::error::revert_with_str(None, "", ctx),
+    }?;
+    Ok(revert_expr.as_statement())
 }
 
 #[cfg(test)]
@@ -47,7 +63,7 @@ mod tests {
 
         assert_tokens_eq(
             unsafe_parse_with_empty_context(stmt),
-            quote!(odra::contract_env::revert(odra::types::ExecutionError::new(1u16, ""));),
+            quote!(self.env().revert(odra::ExecutionError::User(1u16));),
         );
     }
 
@@ -60,7 +76,7 @@ mod tests {
         assert_tokens_eq(
             unsafe_parse_with_empty_context(stmt),
             quote!(
-                odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "An error occurred"));
+                self.env().revert(odra::ExecutionError::User(1u16));
             ),
         );
     }
@@ -71,7 +87,7 @@ mod tests {
 
         assert_tokens_eq(
             unsafe_parse_with_empty_context(stmt),
-            quote!(odra::contract_env::revert(Error::MyError);),
+            quote!(self.env().revert(Error::MyError);),
         )
     }
 

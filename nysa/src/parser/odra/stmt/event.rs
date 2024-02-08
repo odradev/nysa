@@ -1,3 +1,4 @@
+use crate::error::ParserResult;
 use crate::model::ir::Expression;
 use crate::parser::context::{
     ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
@@ -5,9 +6,14 @@ use crate::parser::context::{
 };
 use crate::parser::odra::expr;
 use crate::{utils, ParserError};
-use syn::parse_quote;
 
-pub(super) fn emit<T>(expr: &Expression, ctx: &mut T) -> Result<syn::Stmt, ParserError>
+use super::syn_utils;
+
+/// Parses a statement emitting an event into a `syn::Stmt`.
+///
+/// # Solidity example
+/// `emit OwnershipTransferred(oldOwner, newOwner);`
+pub(super) fn emit<T>(expr: &Expression, ctx: &mut T) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -23,16 +29,14 @@ where
             let args: Vec<syn::Expr> = args
                 .iter()
                 .map(|e| expr::primitives::get_var_or_parse(e, ctx))
-                .collect::<Result<_, _>>()?;
+                .collect::<ParserResult<_>>()?;
             ctx.register_event(&event_ident);
 
-            Ok(parse_quote!(
-                <#event_ident as odra::types::event::OdraEvent>::emit(
-                    #event_ident::new(#(#args),*)
-                );
-            ))
+            Ok(syn_utils::emit_event(event_ident, &args))
         }
-        _ => panic!("Invalid Emit statement"),
+        _ => Err(ParserError::InvalidExpression(String::from(
+            "Invalid Emit statement",
+        ))),
     }
 }
 
@@ -58,9 +62,7 @@ mod tests {
 
         assert_tokens_eq(
             unsafe_parse_with_empty_context(stmt),
-            quote!(<DataUpdated as odra::types::event::OdraEvent>::emit(
-            DataUpdated::new()
-        );),
+            quote!(self.env().emit_event(DataUpdated::new());),
         );
     }
 
@@ -68,16 +70,12 @@ mod tests {
     fn emit_with_args() {
         let stmt = Stmt::Emit(Expression::Func(
             Box::new(Expression::Variable("DataUpdated".to_string())),
-            vec![
-                Expression::BoolLiteral(false),
-            ],
+            vec![Expression::BoolLiteral(false)],
         ));
 
         assert_tokens_eq(
             unsafe_parse_with_empty_context(stmt),
-            quote!(<DataUpdated as odra::types::event::OdraEvent>::emit(
-            DataUpdated::new(false)
-        );),
+            quote!(self.env().emit_event(DataUpdated::new(false));),
         );
     }
 
@@ -107,9 +105,7 @@ mod tests {
 
         assert_tokens_eq(
             result,
-            quote!(<DataUpdated as odra::types::event::OdraEvent>::emit(
-            DataUpdated::new(self.my_var.get_or_default(), x)
-        );),
+            quote!(self.env().emit_event(DataUpdated::new(self.my_var.get_or_default(), x));),
         );
     }
 
@@ -124,9 +120,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn emit_invalid_stmt() {
         let stmt = Stmt::Emit(Expression::Fail);
-        let _ = parse_with_empty_context(stmt);
+        assert_eq!(
+            parse_with_empty_context(stmt),
+            Err(ParserError::InvalidExpression(String::from(
+                "Invalid Emit statement"
+            )))
+        );
     }
 }

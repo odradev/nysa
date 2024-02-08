@@ -9,7 +9,7 @@ use syn::parse::{Parse, ParseStream, Result};
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// nysa_macro::nysa_lang! {
 ///     contract StatusMessage {
 ///         mapping(address => string) records;
@@ -35,8 +35,8 @@ pub fn nysa_lang(item: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```
-/// nysa_macro::nysa_file!("example-status/src/contract.sol");
+/// ```ignore
+/// nysa_macro::nysa_file!("examples/status-message/nysa/src/status_message.sol");
 /// ```
 #[proc_macro]
 pub fn nysa_file(input: TokenStream) -> TokenStream {

@@ -1,3 +1,2 @@
 [[contracts]]
-name = "owned_token"
 fqn = "odra_owned_token::OwnedToken"

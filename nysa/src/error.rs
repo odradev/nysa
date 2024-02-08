@@ -2,6 +2,8 @@ use thiserror::Error;
 
 use crate::model::ir::{Expression, Function, Type};
 
+pub type ParserResult<T> = Result<T, ParserError>;
+
 /// Set of errors which may occur when parsing solidity code.
 #[derive(Error, Debug, PartialOrd, PartialEq)]
 pub enum ParserError {
@@ -10,13 +12,13 @@ pub enum ParserError {
     UnsupportedType(Type),
     /// Expression is not supported by the parser.
     #[error("Unexpected expression, expected `{0}`, but found `{1:?}`.")]
-    UnexpectedExpression(String, Expression),
+    UnexpectedExpression(&'static str, Expression),
     /// Contract constructor expected but found.
     #[error("Constructor not found")]
     ConstructorNotFound,
     /// Unexpected function type (function, modifier, constructor) in the current parser context.
     #[error("Invalid function type, expected `{0}`, but found `{1:?}`.")]
-    InvalidFunctionType(String, Function),
+    InvalidFunctionType(&'static str, Function),
     /// A modifier has more implementation in the inheritance graph.
     #[error("Modifier {0} must have exactly one implementation")]
     InvalidModifier(String),

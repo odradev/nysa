@@ -4,14 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-odra = { path = "../../../odra/core", default-features = false }
+odra = { version = "0.8.0", path = "../../../odra/odra" }
 nysa-types = { path = "../../nysa-types", features = ["odra"] }
+
+[dev-dependencies]
+odra-test = { version = "0.8.0", path = "../../../odra/odra-test" }
 
 [build-dependencies]
 nysa = { path = "../../nysa", features = ["builder"] }
-
-[features]
-default = ["mock-vm"]
-mock-vm = ["odra/mock-vm"]
-casper = ["odra/casper"]
 

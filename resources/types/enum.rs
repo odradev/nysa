@@ -1,5 +1,7 @@
 pub mod errors {}
-pub mod events {}
+pub mod events {
+    use odra::prelude::*;
+}
 pub mod enums {
     #[derive(odra::OdraType, PartialEq, Eq, Debug, Default)]
     pub enum Status {
@@ -25,7 +27,7 @@ pub mod enum_test {
     #[odra::module]
     pub struct EnumTest {
         __stack: PathStack,
-        status: odra::Variable<Status>,
+        status: odra::Var<Status>,
     }
     #[odra::module]
     impl EnumTest {

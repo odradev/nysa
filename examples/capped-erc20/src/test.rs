@@ -1,22 +1,27 @@
 use nysa_types::U256;
-use odra::test_env;
+use odra::host::{Deployer, HostEnv};
+
+use self::plascoin::plascoin::PlascoinInitArgs;
 
 use super::*;
 use crate::plascoin::errors::Error;
-use odra::prelude::string::String;
+use odra::prelude::*;
 
-fn setup() -> PlascoinRef {
-    let name = String::from("Plascoin");
-    let symbol = String::from("PLS");
-    let cap = U256::from(1_000_000_000_000_000u64);
-    let initial_owner = Some(test_env::get_account(1));
+fn setup() -> (PlascoinHostRef, HostEnv) {
+    let env = odra_test::env();
+    let init_args = PlascoinInitArgs {
+        name: String::from("Plascoin"),
+        symbol: String::from("PLS"),
+        cap: U256::from(1_000_000_000_000_000u64),
+        initial_owner: Some(env.get_account(1)),
+    };
 
-    PlascoinDeployer::init(name, symbol, cap, initial_owner)
+    (PlascoinHostRef::deploy(&env, init_args), env)
 }
 
 #[test]
 fn test_setup() {
-    let contract = setup();
+    let (contract, _) = setup();
 
     assert_eq!(contract.cap(), U256::from(1_000_000_000_000_000u64));
     assert_eq!(contract.name(), String::from("Plascoin"));
@@ -25,24 +30,22 @@ fn test_setup() {
 
 #[test]
 fn test_ownership() {
-    let mut contract = setup();
+    let (mut contract, env) = setup();
 
-    let (owner, non_owner, new_owner) = (
-        test_env::get_account(1),
-        test_env::get_account(2),
-        test_env::get_account(3),
+    let (owner, non_owner, new_owner) =
+        (env.get_account(1), env.get_account(2), env.get_account(3));
+
+    env.set_caller(non_owner);
+    assert_eq!(
+        contract.try_renounce_ownership(),
+        Err(Error::OwnableUnauthorizedAccount.into())
     );
 
-    test_env::set_caller(non_owner);
-    test_env::assert_exception(Error::OwnableUnauthorizedAccount, || {
-        contract.renounce_ownership();
-    });
-
-    test_env::set_caller(owner);
+    env.set_caller(owner);
     contract.transfer_ownership(Some(new_owner));
     assert_eq!(contract.owner(), Some(new_owner));
 
-    test_env::set_caller(new_owner);
+    env.set_caller(new_owner);
     contract.renounce_ownership();
 
     assert_eq!(contract.owner(), None);
@@ -50,12 +53,12 @@ fn test_ownership() {
 
 #[test]
 fn test_mint() {
-    let mut contract = setup();
+    let (mut contract, env) = setup();
 
-    let owner = test_env::get_account(1);
-    let recipient = Some(test_env::get_account(2));
+    let owner = env.get_account(1);
+    let recipient = Some(env.get_account(2));
 
-    test_env::set_caller(owner);
+    env.set_caller(owner);
     contract.mint(recipient, U256::from(1_000));
 
     assert_eq!(contract.balance_of(recipient), U256::from(1_000));

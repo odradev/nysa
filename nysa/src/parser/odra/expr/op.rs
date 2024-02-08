@@ -1,6 +1,7 @@
 use syn::{parse_quote, BinOp};
 
 use crate::{
+    error::ParserResult,
     model::ir::{BitwiseOp, Expression, LogicalOp, MathOp, Op, UnaryOp},
     parser::{
         context::{
@@ -9,7 +10,6 @@ use crate::{
         },
         odra::expr::math,
     },
-    ParserError,
 };
 
 pub(crate) fn bin_op<
@@ -26,7 +26,7 @@ pub(crate) fn bin_op<
     right: &Expression,
     op: O,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
+) -> ParserResult<syn::Expr> {
     let left_expr = math::eval_in_context(left, right, ctx)?;
     let right_expr = math::eval_in_context(right, left, ctx)?;
 
@@ -47,7 +47,7 @@ pub(crate) fn unary_op<
     expr: &Expression,
     op: &UnaryOp,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
+) -> ParserResult<syn::Expr> {
     let expr = math::eval(expr, ctx)?;
 
     Ok(match op {

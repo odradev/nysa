@@ -13,8 +13,8 @@ pub mod c {
     #[odra::module] 
     pub struct C { 
         __stack: PathStack, 
-        name: odra::Variable<odra::prelude::string::String>,
-        text: odra::Variable<odra::prelude::string::String>
+        name: odra::Var<odra::prelude::string::String>,
+        text: odra::Var<odra::prelude::string::String>
     } 
 
     #[odra::module] 

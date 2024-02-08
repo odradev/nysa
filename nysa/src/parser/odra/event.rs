@@ -11,13 +11,17 @@ use crate::{
     utils, ParserError,
 };
 
-use super::ty;
+use super::{syn_utils::attr, ty};
 
 pub(crate) fn events_def<T: TypeInfo>(
     package: &Package,
     ctx: &T,
 ) -> Result<Vec<ClassDef>, ParserError> {
-    package.events().iter().map(|ev| event_def(ev, ctx)).collect()
+    package
+        .events()
+        .iter()
+        .map(|ev| event_def(ev, ctx))
+        .collect()
 }
 
 fn event_def<T: TypeInfo>(ev: &Event, ctx: &T) -> Result<ClassDef, ParserError> {
@@ -53,7 +57,7 @@ fn event_def<T: TypeInfo>(ev: &Event, ctx: &T) -> Result<ClassDef, ParserError> 
         .collect::<Vec<_>>();
 
     Ok(ClassDef {
-        struct_attrs: vec![parse_quote!(#[derive(odra::Event, PartialEq, Eq, Debug)])],
+        struct_attrs: vec![attr::derive_odra_event()],
         impl_attrs: vec![],
         class,
         path: vec![],

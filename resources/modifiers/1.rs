@@ -14,23 +14,23 @@ pub mod function_modifier {
     #[odra::module] 
     pub struct FunctionModifier { 
         __stack: PathStack, 
-        owner: odra::Variable<Option<odra::types::Address>>,
-        x: odra::Variable<nysa_types::U32>,
-        locked: odra::Variable<bool>
+        owner: odra::Var<Option<odra::Address>>,
+        x: odra::Var<nysa_types::U32>,
+        locked: odra::Var<bool>
     } 
 
     #[odra::module] 
     impl FunctionModifier { 
         const PATH: &'static [ClassName; 1usize] = &[ClassName::FunctionModifier];
 
-        pub fn change_owner(&mut self, _new_owner: Option<odra::types::Address>) {
+        pub fn change_owner(&mut self, _new_owner: Option<odra::Address>) {
             self.__stack.push_path_on_stack(Self::PATH);
             let result = self.super_change_owner(_new_owner);
             self.__stack.drop_one_from_stack();
             result
         }
 
-        fn super_change_owner(&mut self, _new_owner: Option<odra::types::Address>) {
+        fn super_change_owner(&mut self, _new_owner: Option<odra::Address>) {
             let __class = self.__stack.pop_from_top_path();
             match __class {
                 ClassName::FunctionModifier => {
@@ -73,13 +73,13 @@ pub mod function_modifier {
 
         #[odra(init)]
         pub fn init(&mut self) {
-            self.owner.set(Some(odra::contract_env::caller()));
+            self.owner.set(Some(self.env().caller()));
             self.x.set(nysa_types::U32::from_limbs_slice(&[10u64]));
         }
 
         fn modifier_before_no_reentrancy(&mut self) {
             if !(!(self.locked.get_or_default())) {
-                odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "No reentrancy"))
+                self.env().revert(odra::ExecutionError::User(1u16))
             };
             self.locked.set(true);
         }
@@ -89,21 +89,21 @@ pub mod function_modifier {
         }
 
         fn modifier_before_only_owner(&mut self) {
-            if !(Some(odra::contract_env::caller()) == self.owner.get().unwrap_or(None)) {
-                odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "Not owner"))
+            if !(Some(self.env().caller()) == self.owner.get().unwrap_or(None)) {
+                self.env().revert(odra::ExecutionError::User(1u16))
             };
         }
 
         fn modifier_after_only_owner(&mut self) {
         }
 
-        fn modifier_before_valid_address(&mut self, _addr: Option<odra::types::Address>) {
+        fn modifier_before_valid_address(&mut self, _addr: Option<odra::Address>) {
             if !(_addr != None) {
-                odra::contract_env::revert(odra::types::ExecutionError::new(1u16, "Not valid address"))
+                self.env().revert(odra::ExecutionError::User(1u16))
             };
         }
 
-        fn modifier_after_valid_address(&mut self,  _addr: Option<odra::types::Address>) {
+        fn modifier_after_valid_address(&mut self,  _addr: Option<odra::Address>) {
         }
     }
 }

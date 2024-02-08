@@ -1,11 +1,12 @@
 use crate::{
+    error::ParserResult,
     model::ir::{BaseCall, Constructor, Expression, FnImplementations, Stmt, Type},
     parser::{
         context::{
             ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
             TypeInfo,
         },
-        odra::{expr, stmt},
+        odra::{expr, stmt, syn_utils::attr},
     },
     utils, ParserError,
 };
@@ -15,7 +16,7 @@ use syn::{parse_quote, Ident};
 
 use super::common;
 
-pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<Vec<FnDef>, ParserError>
+pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<Vec<FnDef>>
 where
     T: StorageInfo
         + TypeInfo
@@ -38,7 +39,7 @@ where
         .map(|(id, c)| {
             let mut attrs = vec![];
             if c.is_payable {
-                attrs.push(parse_quote!(#[odra(payable)]));
+                attrs.push(attr::payable());
             }
             let args = common::context_args(&c.params, c.is_mutable, ctx)?;
             let mut stmts: Vec<syn::Stmt> = vec![];
@@ -82,7 +83,7 @@ where
         .collect::<Result<Vec<_>, _>>()
 }
 
-fn init_storage_fields<T>(ctx: &mut T) -> Result<Vec<syn::Stmt>, ParserError>
+fn init_storage_fields<T>(ctx: &mut T) -> ParserResult<Vec<syn::Stmt>>
 where
     T: StorageInfo
         + TypeInfo
@@ -152,14 +153,13 @@ where
         + FnContext
         + ErrorInfo,
 {
-    expr::parse_many(&base.args, ctx).unwrap_or(vec![])
+    expr::parse_many(&base.args, ctx).unwrap_or_default()
 }
 
 fn parse_base_ident(base: &BaseCall) -> Ident {
     let base = utils::to_snake_case(&base.class_name);
     let prefix = format!("_{}_", base);
-    let ident = utils::to_prefixed_snake_case_ident(&prefix, "init");
-    ident
+    utils::to_prefixed_snake_case_ident(&prefix, "init")
 }
 
 fn parse_constructor_name(class: &Class, constructor: &Constructor, is_primary: bool) -> Class {

@@ -1,6 +1,8 @@
 use super::num;
+use crate::error::ParserResult;
 use crate::model::ir::MathOp;
 use crate::parser::context::ErrorInfo;
+use crate::parser::odra::syn_utils::in_context;
 use crate::{
     model::ir::Expression,
     parser::{
@@ -9,11 +11,15 @@ use crate::{
         },
         odra::expr::primitives,
     },
-    utils, ParserError,
+    utils,
 };
-use syn::parse_quote;
+use ::syn::parse_quote;
 
-/// Parses a math operation expression to `syn::Expr`.
+/// Parses a binary mathematical operation and returns a `syn::Expr` representing the operation.
+///
+/// This function takes the left and right expressions, the mathematical operation, and the context.
+/// If the operation is a power operation, it calls the `pow` function.
+/// Otherwise, it converts the operation into a `syn::BinOp` and evaluates the left and right expressions in the context.
 pub(crate) fn parse_op<
     T: StorageInfo
         + TypeInfo
@@ -27,7 +33,7 @@ pub(crate) fn parse_op<
     right: &Expression,
     op: &MathOp,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
+) -> ParserResult<::syn::Expr> {
     if *op == MathOp::Pow {
         return pow(left, right, ctx);
     }
@@ -62,7 +68,7 @@ pub(crate) fn eval<
 >(
     expr: &Expression,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
+) -> ParserResult<::syn::Expr> {
     let eval_or_parse = |e: &Expression, ctx: &mut T| {
         if let Expression::Variable(name) = e {
             let expr = primitives::get_var_or_parse(expr, ctx)?;
@@ -106,11 +112,8 @@ pub(crate) fn eval_in_context<
     expr: &Expression,
     context_expr: &Expression,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
-    ctx.push_contextual_expr(context_expr.clone());
-    let expr = eval(expr, ctx)?;
-    ctx.drop_contextual_expr();
-    Ok(expr)
+) -> ParserResult<::syn::Expr> {
+    in_context(context_expr, ctx, |ctx| eval(expr, ctx))
 }
 
 fn pow<
@@ -125,7 +128,7 @@ fn pow<
     left: &Expression,
     right: &Expression,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
+) -> ParserResult<::syn::Expr> {
     let left_expr = eval_in_context(left, right, ctx)?;
     let right_expr = eval_in_context(right, left, ctx)?;
     Ok(parse_quote!(#left_expr.pow(#right_expr)))

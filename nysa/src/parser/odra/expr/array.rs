@@ -1,21 +1,24 @@
-use super::{
-    parse, parse_many,
-    primitives::{self, get_var_or_parse},
-};
+use super::{parse, parse_many, primitives};
 use crate::{
+    error::ParserResult,
     model::ir::Expression,
     parser::context::{
         ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
         TypeInfo,
     },
-    ParserError,
+    utils,
 };
 use proc_macro2::Ident;
-use quote::format_ident;
 use syn::parse_quote;
 
 const PROPERTY_LENGTH: &str = "length";
 
+/// Parses an expression reading a property from an array into a `syn::Expr`.
+///
+/// # Solidity Example
+/// ```ignore
+/// arr.length;
+/// ````
 pub fn read_property<
     T: StorageInfo
         + TypeInfo
@@ -25,25 +28,31 @@ pub fn read_property<
         + FnContext
         + ErrorInfo,
 >(
-    member_name: &str,
+    property_name: &str,
     expr: &Expression,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
-    let base_expr: syn::Expr = get_var_or_parse(expr, ctx)?;
-    if member_name == PROPERTY_LENGTH {
-        Ok(parse_quote!(#base_expr.len().into()))
+) -> ParserResult<syn::Expr> {
+    let array = primitives::get_var_or_parse(expr, ctx)?;
+    if property_name == PROPERTY_LENGTH {
+        Ok(parse_quote!(#array.len().into()))
     } else {
-        let member: syn::Member = format_ident!("{}", member_name).into();
-        Ok(parse_quote!(#base_expr.#member))
+        let property = utils::to_ident(property_name);
+        Ok(parse_quote!(#array.#property))
     }
 }
 
+/// Parses an expression calling a function on an array into a `syn::Expr`.
+///
+/// # Solidity Example
+/// ```ignore
+/// arr.push(i);
+/// ```
 pub fn fn_call<T>(
     array_name: &str,
     fn_ident: Ident,
     args: &[Expression],
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -53,17 +62,24 @@ where
         + FnContext
         + ErrorInfo,
 {
-    let args = parse_many(args, ctx)?;
     let result_expr: syn::Expr = parse_quote!(result);
-    let arr = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
-    let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;
+    let array = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
+    let args = parse_many(args, ctx)?;
+    let update_array = primitives::set_var(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
-        let mut #result_expr = #arr;
-        result.#fn_ident(#(#args),*);
-        #update;
+        let mut #result_expr = #array;
+        #result_expr.#fn_ident(#(#args),*);
+        #update_array;
     }))
 }
 
+/// Parses an expression replacing a value in an array into a `syn::Expr`.
+///
+/// # Solidity Example
+/// ```ignore
+/// // uint[] memory a = new uint[](5);
+/// a[1] = 123;
+/// ```
 pub fn replace_value<
     T: StorageInfo
         + TypeInfo
@@ -77,14 +93,14 @@ pub fn replace_value<
     index: &Expression,
     value: syn::Expr,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError> {
+) -> ParserResult<syn::Expr> {
     let result_expr: syn::Expr = parse_quote!(result);
     let index = parse(index, ctx)?;
-    let arr = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
-    let update = primitives::set_var(array_name, result_expr.clone(), ctx)?;
+    let array = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
+    let update_array = primitives::set_var(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
-        let mut #result_expr = #arr;
-        result[#index] = #value;
-        #update;
+        let mut #result_expr = #array;
+        #result_expr[#index] = #value;
+        #update_array;
     }))
 }

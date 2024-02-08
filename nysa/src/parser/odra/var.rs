@@ -1,6 +1,5 @@
 use c3_lang_parser::c3_ast::VarDef;
 use proc_macro2::TokenStream;
-use quote::format_ident;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
@@ -12,7 +11,7 @@ use crate::{
     utils, ParserError,
 };
 
-use super::ty;
+use super::{syn_utils::AsType, ty};
 
 /// Pareses mutable [Var]s into a vector of c3 ast [VarDef].
 pub fn variables_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<VarDef>, ParserError> {
@@ -31,13 +30,18 @@ pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Ite
         .iter()
         .filter(|v| v.is_immutable)
         .map(|v| {
-            let const_ident = format_ident!("{}", &v.name);
+            let const_ident = utils::to_ident(&v.name);
 
             let ty = ty::parse_type_from_ty(&v.ty, ctx)?;
-            let expr = v.initializer.as_ref().expect("A const must be initialized.");
+            let expr = v
+                .initializer
+                .as_ref()
+                .expect("A const must be initialized.");
             match expr {
                 Expression::BoolLiteral(v) => Ok(parse_quote!(pub const #const_ident: bool = #v;)),
-                Expression::StringLiteral(s) => Ok(parse_quote!(pub const #const_ident: &str = #s;)),
+                Expression::StringLiteral(s) => {
+                    Ok(parse_quote!(pub const #const_ident: &str = #s;))
+                }
                 Expression::NumberLiteral(n) => {
                     if let Type::Uint(size) | Type::Int(size) = v.ty {
                         let words = to_sized_u64_words(n, size.div_ceil(64) as usize);
@@ -70,7 +74,7 @@ pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Ite
 /// Transforms [Var] into a c3 ast [VarDef].
 fn variable_def<T: TypeInfo>(v: &Var, t: &T) -> Result<VarDef, ParserError> {
     let ident = utils::to_snake_case_ident(&v.name);
-    let ty = ty::parse_state_ty(&v.ty, t)?;
+    let ty = ty::parse_state_ty(&v.ty, t)?.as_type();
     Ok(VarDef { ident, ty })
 }
 

@@ -1,5 +1,7 @@
 pub mod errors {}
-pub mod events {}
+pub mod events {
+    use odra::prelude::*;
+}
 pub mod enums {}
 pub mod structs {}
 pub mod erc_20 {
@@ -15,11 +17,11 @@ pub mod erc_20 {
     #[odra::module]
     pub struct ERC20 {
         __stack: PathStack,
-        name: odra::Variable<odra::prelude::string::String>,
-        symbol: odra::Variable<odra::prelude::string::String>,
-        decimals: odra::Variable<nysa_types::U8>,
-        total_supply: odra::Variable<nysa_types::U256>,
-        balance_of: odra::Mapping<Option<odra::types::Address>, nysa_types::U256>
+        name: odra::Var<odra::prelude::string::String>,
+        symbol: odra::Var<odra::prelude::string::String>,
+        decimals: odra::Var<nysa_types::U8>,
+        total_supply: odra::Var<nysa_types::U256>,
+        balance_of: odra::Mapping<Option<odra::Address>, nysa_types::U256>
     }
     #[odra::module]
     impl ERC20 {
@@ -43,7 +45,7 @@ pub mod erc_20 {
                             .pow(nysa_types::U256::from(*self.decimals.get_or_default())))
                 );
             self.balance_of.set(
-                &Some(odra::contract_env::caller()), 
+                &Some(self.env().caller()), 
                 self.total_supply.get_or_default()
             );
         }

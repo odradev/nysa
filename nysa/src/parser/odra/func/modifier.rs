@@ -3,6 +3,7 @@ use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, PlainFnDef};
 use syn::parse_quote;
 
 use crate::{
+    error::ParserResult,
     model::ir::FnImplementations,
     parser::context::{
         ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
@@ -20,7 +21,7 @@ use super::common;
 /// Both functions have the same definition, except the implementation:
 /// the  first function takes statements before the `_`, and the second
 /// take the remaining statements.
-pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<(FnDef, FnDef), ParserError>
+pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<(FnDef, FnDef)>
 where
     T: StorageInfo
         + TypeInfo
@@ -36,7 +37,7 @@ where
         return Err(ParserError::InvalidModifier(impls.name.to_owned()));
     }
 
-    let (_, def) = modifiers.first().unwrap();
+    let (_, def) = modifiers[0];
     let before_stmts = common::parse_statements(&def.before_stmts, ctx);
     let after_stmts = common::parse_statements(&def.after_stmts, ctx);
 

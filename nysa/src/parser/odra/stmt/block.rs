@@ -1,5 +1,6 @@
 use syn::parse_quote;
 
+use crate::error::ParserResult;
 use crate::model::ir::Stmt;
 use crate::parser::context::{
     ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
@@ -7,7 +8,17 @@ use crate::parser::context::{
 };
 use crate::ParserError;
 
-pub(super) fn block<T>(stmts: &[Stmt], ctx: &mut T) -> Result<syn::Stmt, ParserError>
+/// Parses a block of statements and returns a `syn::Stmt`.
+///
+/// # Arguments
+///
+/// * `stmts` - A slice of `Stmt` representing the statements in the block.
+/// * `ctx` - A mutable reference to a context object implementing various traits.
+///
+/// # Returns
+///
+/// A `ParserResult` containing the parsed `syn::Stmt`.
+pub(super) fn block<T>(stmts: &[Stmt], ctx: &mut T) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -20,11 +31,22 @@ where
     let stmts = stmts
         .iter()
         .map(|stmt| super::parse_statement(stmt, true, ctx))
-        .collect::<Result<Vec<syn::Stmt>, _>>()?;
+        .collect::<ParserResult<Vec<syn::Stmt>>>()?;
     Ok(parse_quote!({ #(#stmts)* }))
 }
 
-pub(super) fn ret_block<T>(stmts: &[Stmt], ctx: &mut T) -> Result<syn::Stmt, ParserError>
+/// Parses a block of statements and returns a `syn::Stmt` returning a value that
+/// the last statement returns.
+///
+/// # Arguments
+///
+/// * `stmts` - A slice of `Stmt` representing the statements in the block.
+/// * `ctx` - A mutable reference to a context object implementing various traits.
+///
+/// # Returns
+///
+/// A `ParserResult` containing the parsed `syn::Stmt`.
+pub(super) fn ret_block<T>(stmts: &[Stmt], ctx: &mut T) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -44,7 +66,7 @@ where
         .iter()
         .take(stmts.len() - 1)
         .map(|stmt| super::parse_statement(stmt, true, ctx))
-        .collect::<Result<Vec<syn::Stmt>, _>>()?;
+        .collect::<ParserResult<Vec<syn::Stmt>>>()?;
 
     Ok(parse_quote!({
         #(#stmts)*

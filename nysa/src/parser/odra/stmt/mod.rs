@@ -1,10 +1,10 @@
 use crate::{
+    error::ParserResult,
     model::ir::Stmt,
     parser::context::{
         ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
         TypeInfo,
     },
-    ParserError,
 };
 
 use super::expr;
@@ -15,15 +15,16 @@ mod error;
 mod event;
 pub mod ext;
 mod ret;
+mod syn_utils;
 mod variables;
 
 /// Parses a nysa statement into a syn::Stmt.
-/// 
+///
 /// ## Arguments
 /// * stmt - a nysa statement
-/// * is_semi - indicates in the `stmt` ends with a semicolon
+/// * is_semi - indicates if the `stmt` ends with a semicolon
 /// * ctx - parser context
-pub fn parse_statement<T>(stmt: &Stmt, is_semi: bool, ctx: &mut T) -> Result<syn::Stmt, ParserError>
+pub fn parse_statement<T>(stmt: &Stmt, is_semi: bool, ctx: &mut T) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -50,7 +51,7 @@ where
         Stmt::RevertWithError(msg) => error::revert_with_msg(msg),
         Stmt::While(assertion, block) => control_flow::while_loop(assertion, block, ctx),
         #[cfg(test)]
-        Stmt::Fail => Err(ParserError::InvalidStatement("Fail")),
+        Stmt::Fail => Err(crate::ParserError::InvalidStatement("Fail")),
         _ => panic!("Unsupported statement {:?}", stmt),
     }
 }

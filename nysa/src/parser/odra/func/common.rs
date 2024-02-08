@@ -1,5 +1,7 @@
 use syn::{parse_quote, FnArg};
 
+use super::syn_utils;
+use crate::error::ParserResult;
 use crate::parser::context::{ErrorInfo, ItemType};
 use crate::parser::odra::stmt::ext::ext_contract_stmt;
 use crate::{
@@ -10,7 +12,7 @@ use crate::{
         },
         odra::{stmt, ty},
     },
-    utils, ParserError,
+    utils,
 };
 
 pub(super) fn parse_visibility(vis: &Visibility) -> syn::Visibility {
@@ -21,34 +23,27 @@ pub(super) fn parse_visibility(vis: &Visibility) -> syn::Visibility {
     }
 }
 
-pub(super) fn parse_parameter<T: TypeInfo>(
-    param: &Param,
-    info: &T,
-) -> Result<syn::FnArg, ParserError> {
+pub(super) fn parse_parameter<T: TypeInfo>(param: &Param, info: &T) -> ParserResult<syn::FnArg> {
     let ty = ty::parse_type_from_ty(&param.ty, info)?;
     let name = utils::to_snake_case_ident(&param.name);
-    Ok(parse_quote!( #name: #ty ))
+    Ok(syn_utils::fn_arg(name, ty))
 }
 
 pub(super) fn context_args<T: TypeInfo + FnContext>(
     params: &[Param],
     is_mutable: bool,
     ctx: &mut T,
-) -> Result<Vec<FnArg>, ParserError> {
+) -> ParserResult<Vec<FnArg>> {
     let mut args = params
         .iter()
         .map(|p| parse_parameter(p, ctx))
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<ParserResult<Vec<_>>>()?;
+    args.insert(0, syn_utils::self_arg(is_mutable));
 
     params
         .iter()
         .for_each(|p| ctx.register_local_var(&p.name, &p.ty));
 
-    if is_mutable {
-        args.insert(0, parse_quote!(&mut self))
-    } else {
-        args.insert(0, parse_quote!(&self))
-    }
     Ok(args)
 }
 
@@ -56,24 +51,20 @@ pub(super) fn args<T: TypeInfo>(
     params: &[Param],
     is_mutable: bool,
     ctx: &T,
-) -> Result<Vec<FnArg>, ParserError> {
+) -> ParserResult<Vec<FnArg>> {
     let mut args = params
         .iter()
         .map(|p| parse_parameter(p, ctx))
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<ParserResult<Vec<_>>>()?;
+    args.insert(0, syn_utils::self_arg(is_mutable));
 
-    if is_mutable {
-        args.insert(0, parse_quote!(&mut self))
-    } else {
-        args.insert(0, parse_quote!(&self))
-    }
     Ok(args)
 }
 
 pub(super) fn parse_ret_type<T: TypeInfo>(
     returns: &[(Option<String>, Expression)],
     ctx: &T,
-) -> Result<syn::ReturnType, ParserError> {
+) -> ParserResult<syn::ReturnType> {
     Ok(match returns.len() {
         0 => parse_quote!(),
         1 => {
@@ -104,7 +95,7 @@ where
     statements
         .iter()
         .map(|stmt| stmt::parse_statement(&stmt, true, ctx))
-        .filter_map(|r| r.ok())
+        .filter_map(Result::ok)
         .collect::<Vec<_>>()
 }
 

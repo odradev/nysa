@@ -1,3 +1,4 @@
+use crate::error::ParserResult;
 use crate::model::ir::{eval_expression_type, Expression, Op, Stmt, TupleItem, Type, Var};
 use crate::model::Named;
 use crate::parser::context::{
@@ -7,10 +8,11 @@ use crate::parser::context::{
 use crate::ParserError;
 use crate::{formatted_invalid_expr, utils};
 use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use super::stmt;
+use super::syn_utils::AsExpression;
 use super::ty;
 
 mod array;
@@ -19,10 +21,11 @@ mod math;
 mod num;
 mod op;
 pub(crate) mod primitives;
+pub(crate) mod syn_utils;
 #[cfg(test)]
 mod test;
 
-pub fn parse<T>(expression: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+pub fn parse<T>(expression: &Expression, ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -35,16 +38,14 @@ where
     match expression {
         Expression::Require(condition, error) => error::revert(Some(condition), error, ctx),
         Expression::Placeholder => formatted_invalid_expr!("Placeholder"),
-        Expression::ZeroAddress => Ok(parse_quote!(None)),
+        Expression::ZeroAddress => Ok(syn_utils::none()),
         Expression::Message(msg) => msg.try_into(),
         Expression::Collection(name, keys) => primitives::parse_collection(name, keys, None, ctx),
         Expression::Variable(name) => parse_variable(name, ctx),
         Expression::Assign(left, right) => {
             primitives::assign(left, right.as_deref(), None::<&Op>, ctx)
         }
-        Expression::StringLiteral(string) => {
-            Ok(parse_quote!(odra::prelude::string::String::from(#string)))
-        }
+        Expression::StringLiteral(string) => Ok(syn_utils::string_from(string)),
         Expression::LogicalOp(left, right, op) => op::bin_op(left, right, op, ctx),
         Expression::MathOp(left, right, op) => math::parse_op(left, right, op, ctx),
         Expression::AssignAnd(left, right, op) => {
@@ -52,11 +53,13 @@ where
         }
         Expression::Increment(expr) => {
             let expr = parse(expr, ctx)?;
-            Ok(parse_quote!(#expr += nysa_types::Unsigned::ONE))
+            let one = syn_utils::unsigned_one();
+            Ok(parse_quote!(#expr += #one))
         }
         Expression::Decrement(expr) => {
             let expr = parse(expr, ctx)?;
-            Ok(parse_quote!(#expr -= nysa_types::Unsigned::ONE))
+            let one = syn_utils::unsigned_one();
+            Ok(parse_quote!(#expr -= one))
         }
         Expression::MemberAccess(name, expr) => parse_member_access(name, expr, ctx),
         Expression::NumberLiteral(limbs) => num::to_typed_int_expr(limbs, ctx),
@@ -64,10 +67,7 @@ where
         Expression::SuperCall(name, args) => parse_super_call(name, args, ctx),
         Expression::ExternalCall(var, fn_name, args) => parse_ext_call(var, fn_name, args, ctx),
         Expression::TypeInfo(ty, property) => parse_type_info(ty, property, ctx),
-        Expression::Type(ty) => {
-            let ty = ty::parse_type_from_ty(ty, ctx)?;
-            Ok(parse_quote!(#ty))
-        }
+        Expression::Type(ty) => Ok(ty::parse_type_from_ty(ty, ctx)?.as_expression()),
         Expression::BoolLiteral(b) => Ok(parse_quote!(#b)),
         Expression::Not(expr) => {
             let expr = primitives::get_var_or_parse(expr, ctx)?;
@@ -84,26 +84,16 @@ where
         Expression::Fail => formatted_invalid_expr!("Fail"),
         Expression::Keccak256(args) => {
             let args = parse_many(&args, ctx)?;
-            Ok(
-                parse_quote!(nysa_types::FixedBytes::try_from(&odra::contract_env::hash(#(#args),*)).unwrap_or_default()),
-            )
+            Ok(syn_utils::try_fixed_bytes(&args))
         }
         Expression::AbiEncodePacked(args) => {
             let args = parse_many(&args, ctx)?;
-            Ok(parse_quote!({
-                let mut result = Vec::new();
-                #(result.extend(odra::UnwrapOrRevert::unwrap_or_revert(odra::types::casper_types::bytesrepr::ToBytes::to_bytes(&#args)));)*
-                result
-            }))
+            Ok(syn_utils::serialize(&args))
         }
     }
 }
 
-pub fn parse_expr<T>(
-    expr: &Expression,
-    is_semi: bool,
-    ctx: &mut T,
-) -> Result<syn::Stmt, ParserError>
+pub fn parse_expr<T>(expr: &Expression, is_semi: bool, ctx: &mut T) -> ParserResult<syn::Stmt>
 where
     T: StorageInfo
         + TypeInfo
@@ -121,7 +111,7 @@ where
     }
 }
 
-pub fn parse_many<T>(expressions: &[Expression], ctx: &mut T) -> Result<Vec<syn::Expr>, ParserError>
+pub fn parse_many<T>(expressions: &[Expression], ctx: &mut T) -> ParserResult<Vec<syn::Expr>>
 where
     T: StorageInfo
         + TypeInfo
@@ -137,11 +127,7 @@ where
         .collect::<Result<Vec<syn::Expr>, _>>()
 }
 
-fn parse_func<T>(
-    fn_name: &Expression,
-    args: &[Expression],
-    ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+fn parse_func<T>(fn_name: &Expression, args: &[Expression], ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -160,16 +146,16 @@ where
 
     let args = parse_many(&args, ctx)?;
     // Context allows us to distinct an external contract initialization from a regular function call
-    if let Some(ItemType::Interface(name) | ItemType::Contract(name)) = ctx.type_from_expression(fn_name) {
+    if let Some(ItemType::Interface(name) | ItemType::Contract(name)) =
+        ctx.type_from_expression(fn_name)
+    {
         ctx.register_external_call(&name);
         // Storing a reference to a contract is disallowed, and in the constructor an external contract
         // should be considered an address, otherwise, a reference should be created
         return if ctx.current_fn().is_constructor() {
             Ok(parse_quote!(#(#args),*))
         } else {
-            let ref_ident = utils::to_ref_ident(name);
-            let addr = args.get(0);
-            Ok(parse_quote!(#ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr))))
+            Ok(syn_utils::contract_ref(&name, &args[0]))
         };
     }
 
@@ -190,7 +176,7 @@ where
                 .unwrap();
 
             let matching_fn = ctx.find_fn(&matching_lib.name, function_name).unwrap();
-            let lib_ident = format_ident!("{}", matching_lib.name);
+            let lib_ident = utils::to_ident(&matching_lib.name);
             let fn_ident = utils::to_snake_case_ident(function_name);
             let first_arg = parse(ty_expr, ctx)?;
             Ok(parse_quote!(#lib_ident::#fn_ident(#first_arg, #(#args),*)))
@@ -208,7 +194,7 @@ fn parse_ext_call<T>(
     fn_name: &str,
     args: &[Expression],
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -278,7 +264,7 @@ fn ext_call<T>(
     fn_ident: Ident,
     args: Vec<syn::Expr>,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -290,29 +276,19 @@ where
 {
     ctx.register_external_call(&class_name);
     let ref_ident = utils::to_ref_ident(class_name);
-    let addr = args.get(0);
-
-    let addr = primitives::get_var_or_parse(&Expression::from(addr_var), ctx)?;
+    let contract_address = primitives::get_var_or_parse(&Expression::from(addr_var), ctx)?;
     Ok(parse_quote!(
-        #ref_ident::at(&odra::UnwrapOrRevert::unwrap_or_revert(#addr)).#fn_ident(#(#args),*)
+        #ref_ident::new(self.env(), odra::UnwrapOrRevert::unwrap_or_revert(#contract_address, &self.env())).#fn_ident(#(#args),*)
     ))
 }
 
-fn lib_call(
-    lib_name: &str,
-    fn_ident: Ident,
-    args: Vec<syn::Expr>,
-) -> Result<syn::Expr, ParserError> {
-    let ident = format_ident!("{}", lib_name);
+fn lib_call(lib_name: &str, fn_ident: Ident, args: Vec<syn::Expr>) -> ParserResult<syn::Expr> {
+    let ident = utils::to_ident(lib_name);
     let mod_name = utils::to_snake_case_ident(lib_name);
     Ok(parse_quote!(super::#mod_name::#ident::#fn_ident(#(#args),*)))
 }
 
-fn parse_super_call<T>(
-    fn_name: &str,
-    args: &[Expression],
-    ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+fn parse_super_call<T>(fn_name: &str, args: &[Expression], ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -331,7 +307,7 @@ fn parse_member_access<T>(
     member_name: &str,
     expr: &Expression,
     ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -343,13 +319,13 @@ where
 {
     match ctx.type_from_expression(expr) {
         Some(ItemType::Enum(name) | ItemType::Contract(name)) => {
-            let ty = format_ident!("{}", name);
-            let member: syn::Member = format_ident!("{}", member_name).into();
+            let ty = utils::to_ident(name);
+            let member: syn::Member = utils::to_ident(member_name).into();
             Ok(parse_quote!(#ty::#member))
         }
         Some(ItemType::Library(data)) => {
-            let ty = format_ident!("{}", data.name());
-            let member: syn::Member = format_ident!("{}", member_name).into();
+            let ty = utils::to_ident(data.name());
+            let member: syn::Member = utils::to_ident(member_name).into();
             Ok(parse_quote!(#ty::#member))
         }
         Some(ItemType::Storage(Var {
@@ -364,7 +340,7 @@ where
     }
 }
 
-fn parse_variable<T: TypeInfo>(name: &str, ctx: &mut T) -> Result<syn::Expr, ParserError> {
+fn parse_variable<T: TypeInfo>(name: &str, ctx: &mut T) -> ParserResult<syn::Expr> {
     let ident = utils::to_snake_case_ident(name);
     let self_ty = ctx
         .type_from_string(name)
@@ -373,7 +349,7 @@ fn parse_variable<T: TypeInfo>(name: &str, ctx: &mut T) -> Result<syn::Expr, Par
     Ok(parse_quote!(#self_ty #ident))
 }
 
-fn parse_array_lit<T>(values: &[Expression], ctx: &mut T) -> Result<syn::Expr, ParserError>
+fn parse_array_lit<T>(values: &[Expression], ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -395,7 +371,7 @@ where
 }
 
 /// Parses a bytes slice into a syn::Expr that creates a new [nysa_types::FixedBytes].
-pub fn parse_bytes_lit(bytes: &[u8]) -> Result<syn::Expr, ParserError> {
+pub fn parse_bytes_lit(bytes: &[u8]) -> ParserResult<syn::Expr> {
     let arr = bytes
         .iter()
         .map(|v| quote::quote!(#v))
@@ -404,7 +380,7 @@ pub fn parse_bytes_lit(bytes: &[u8]) -> Result<syn::Expr, ParserError> {
     Ok(parse_quote!(nysa_types::FixedBytes([#arr])))
 }
 
-fn parse_statement<T>(stmt: &Stmt, ctx: &mut T) -> Result<syn::Expr, ParserError>
+fn parse_statement<T>(stmt: &Stmt, ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -420,11 +396,7 @@ where
     })?
 }
 
-fn parse_type_info<T>(
-    ty: &Expression,
-    property: &str,
-    ctx: &mut T,
-) -> Result<syn::Expr, ParserError>
+fn parse_type_info<T>(ty: &Expression, property: &str, ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -436,14 +408,14 @@ where
 {
     let ty = parse(ty, ctx)?;
     let property = match property {
-        "max" => format_ident!("MAX"),
-        "min" => format_ident!("MIN"),
+        "max" => utils::to_ident("MAX"),
+        "min" => utils::to_ident("MIN"),
         _ => return Err(ParserError::UnknownProperty(property.to_string())),
     };
     Ok(parse_quote!(#ty::#property))
 }
 
-fn parse_init<T>(expr: &Expression, ctx: &mut T) -> Result<syn::Expr, ParserError>
+fn parse_init<T>(expr: &Expression, ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -461,7 +433,7 @@ where
 }
 
 /// Parses [TupleItem] into an expression `(e1, e2, .., eN)`
-fn parse_tuple<T>(items: &[TupleItem], ctx: &mut T) -> Result<syn::Expr, ParserError>
+fn parse_tuple<T>(items: &[TupleItem], ctx: &mut T) -> ParserResult<syn::Expr>
 where
     T: StorageInfo
         + TypeInfo
@@ -477,7 +449,7 @@ where
             TupleItem::Expr(i) => parse(i, ctx),
             _ => formatted_invalid_expr!("tuple parsing failed"),
         })
-        .collect::<Result<Vec<syn::Expr>, ParserError>>()?;
+        .collect::<ParserResult<Vec<syn::Expr>>>()?;
 
     Ok(parse_quote!( ( #(#items),* ) ))
 }
@@ -500,7 +472,7 @@ where
         + FnContext
         + ErrorInfo,
 {
-    let f = ctx.find_fn(&class_name, &utils::to_snake_case(fn_name));
+    let f = ctx.find_fn(class_name, &utils::to_snake_case(fn_name));
     let mut parsed_args = vec![];
     if let Some(func) = f {
         let params = func.params();

@@ -3,6 +3,7 @@ use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
+    error::ParserResult,
     model::ir::{BaseCall, FnImplementations, Func, Type},
     parser::{
         context::{
@@ -11,13 +12,13 @@ use crate::{
         },
         odra::expr,
     },
-    utils, ParserError,
+    utils,
 };
 
 use super::common;
 
 /// Transforms [Var] into a c3 ast [FnDef].
-pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> Result<FnDef, ParserError>
+pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<FnDef>
 where
     T: StorageInfo
         + TypeInfo
@@ -63,7 +64,7 @@ where
 }
 
 /// Transforms [Var] into a c3 ast [FnDef].
-pub(super) fn def2<T>(impls: &FnImplementations, ctx: &mut T) -> Result<FnDef, ParserError>
+pub(super) fn library_def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<FnDef>
 where
     T: StorageInfo
         + TypeInfo

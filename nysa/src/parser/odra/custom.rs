@@ -1,11 +1,14 @@
 use itertools::Itertools;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
-    model::ir::Package,
-    parser::{context::TypeInfo, odra::ty},
+    model::{ir::Package, Named},
+    parser::{
+        context::TypeInfo,
+        odra::{syn_utils::attr, ty},
+    },
     utils, ParserError,
 };
 
@@ -15,20 +18,21 @@ pub(crate) fn enums_def(package: &Package) -> Vec<syn::Item> {
     enums
         .iter()
         .map(|e| {
-            let name = format_ident!("{}", e.name);
+            let name = utils::to_ident(e.name());
             let variants = e
                 .variants
                 .iter()
                 .enumerate()
                 .map(|(idx, v)| {
-                    let variant = format_ident!("{}", v);
+                    let attr = (idx == 0).then(|| attr::default());
+                    let variant = utils::to_ident(v);
                     let idx = idx as u8;
-                    let attr = (idx == 0).then(|| quote!(#[default]));
                     quote!(#attr #variant = #idx)
                 })
                 .collect::<Punctuated<TokenStream, Token![,]>>();
+            let derive_attr = attr::derive_odra_ty();
             parse_quote!(
-                #[derive(odra::OdraType, PartialEq, Eq, Debug, Default)]
+                #derive_attr
                 pub enum #name { #variants }
             )
         })
@@ -48,7 +52,8 @@ pub(crate) fn struct_def<T: TypeInfo>(
 
         let items = group
             .map(|s| {
-                let name = format_ident!("{}", s.name);
+                let derive_attr = attr::derive_odra_ty();
+                let name = utils::to_ident(s.name());
                 let fields = s
                     .fields
                     .iter()
@@ -59,7 +64,7 @@ pub(crate) fn struct_def<T: TypeInfo>(
                     })
                     .collect::<Result<Punctuated<TokenStream, Token![,]>, _>>()?;
                 let struct_def: syn::Item = parse_quote!(
-                    #[derive(odra::OdraType, PartialEq, Eq, Debug, Default)]
+                    #derive_attr
                     pub struct #name { #fields }
                 );
                 Ok(struct_def)

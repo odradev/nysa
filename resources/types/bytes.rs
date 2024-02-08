@@ -1,5 +1,7 @@
 pub mod errors {}
-pub mod events {}
+pub mod events {
+    use odra::prelude::*;
+}
 pub mod enums {}
 pub mod structs {}
 pub mod a {
@@ -14,10 +16,10 @@ pub mod a {
     #[odra::module]
     pub struct A {
         __stack: PathStack,
-        a: odra::Variable<nysa_types::FixedBytes<1usize>>,
-        b: odra::Variable<nysa_types::FixedBytes<2usize>>,
-        c: odra::Variable<nysa_types::FixedBytes<4usize>>,
-        d: odra::Variable<nysa_types::FixedBytes<4usize>>,
+        a: odra::Var<nysa_types::FixedBytes<1usize>>,
+        b: odra::Var<nysa_types::FixedBytes<2usize>>,
+        c: odra::Var<nysa_types::FixedBytes<4usize>>,
+        d: odra::Var<nysa_types::FixedBytes<4usize>>,
     }
     #[odra::module]
     impl A {

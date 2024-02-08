@@ -4,9 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-odra = {  path = "../../../../odra/core", default-features = false }
+odra = { version = "0.8.0", path = "../../../../odra/odra" }
 
-[features]
-default = ["mock-vm"]
-mock-vm = ["odra/mock-vm"]
-casper = ["odra/casper"]
+[dev-dependencies]
+odra-test = { version = "0.8.0", path = "../../../../odra/odra-test" }

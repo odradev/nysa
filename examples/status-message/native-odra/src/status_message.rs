@@ -1,5 +1,5 @@
-use odra::{contract_env, types::Address, Mapping};
-use odra::prelude::string::String;
+use odra::{Address, Mapping};
+use odra::prelude::*;
 
 #[odra::module]
 pub struct StatusMessage {
@@ -9,7 +9,7 @@ pub struct StatusMessage {
 #[odra::module]
 impl StatusMessage {
     pub fn set_status(&mut self, message: String) {
-        let account_id = contract_env::caller();
+        let account_id = self.env().caller();
         self.records.set(&account_id, message);
     }
 

@@ -1,9 +1,10 @@
 pub mod errors {
-    odra::execution_error! {
-        pub enum Error { CannotUpdateEmptyPosition => 0u16, }
-    }
+    #[derive(odra::Error, PartialEq, Eq, Debug)]
+    pub enum Error { CannotUpdateEmptyPosition = 0u16, }
 }
-pub mod events {}
+pub mod events {
+    use odra::prelude::*;
+}
 pub mod enums {}
 pub mod structs {
     pub mod position {
@@ -17,7 +18,7 @@ pub mod structs {
     pub mod pool {
         #[derive(odra::OdraType, PartialEq, Eq, Debug, Default)]
         pub struct ModifyPositionParams {
-            pub owner: Option<odra::types::Address>,
+            pub owner: Option<odra::Address>,
             pub tick_lower: nysa_types::I24,
             pub tick_upper: nysa_types::I24,
             pub liquidity_delta: nysa_types::I128,
@@ -173,20 +174,20 @@ pub mod position {
         const PATH: &'static [ClassName; 1usize] = &[ClassName::Position];
         pub(crate) fn get(
             _self: odra::Mapping<nysa_types::FixedBytes<32usize>, position::Info>,
-            owner: Option<odra::types::Address>,
+            owner: Option<odra::Address>,
             tick_lower: nysa_types::I24,
             tick_upper: nysa_types::I24,
         ) -> position::Info {
             let mut position = Default::default();
             position = odra::UnwrapOrRevert::unwrap_or_revert(_self.get(
-                &nysa_types::FixedBytes::try_from(odra::contract_env::hash({
+                &nysa_types::FixedBytes::try_from(self.env().hash({
                     let mut result = Vec::new();
-                    result.extend(odra::UnwrapOrRevert::unwrap_or_revert(odra::types::casper_types::bytesrepr::ToBytes::to_bytes(&owner)));
-                    result.extend(odra::UnwrapOrRevert::unwrap_or_revert(odra::types::casper_types::bytesrepr::ToBytes::to_bytes(&tick_lower)));
-                    result.extend(odra::UnwrapOrRevert::unwrap_or_revert(odra::types::casper_types::bytesrepr::ToBytes::to_bytes(&tick_upper)));
+                    result.extend(odra::UnwrapOrRevert::unwrap_or_revert(odra::casper_types::bytesrepr::ToBytes::to_bytes(&owner), &self.env()));
+                    result.extend(odra::UnwrapOrRevert::unwrap_or_revert(odra::casper_types::bytesrepr::ToBytes::to_bytes(&tick_lower), &self.env()));
+                    result.extend(odra::UnwrapOrRevert::unwrap_or_revert(odra::casper_types::bytesrepr::ToBytes::to_bytes(&tick_upper), &self.env()));
                     result
                 }).as_slice()).unwrap_or_default()
-            ));
+            ), &self.env());
             return (position);
         }
         pub(crate) fn update(
@@ -201,7 +202,7 @@ pub mod position {
             let mut liquidity_next = Default::default();
             if liquidity_delta == nysa_types::I128::ZERO {
                 if _self.liquidity == nysa_types::U128::ZERO {
-                    odra::contract_env::revert(Error::CannotUpdateEmptyPosition);
+                    self.env().revert(Error::CannotUpdateEmptyPosition);
                 }
                 liquidity_next = _self.liquidity;
             } else {

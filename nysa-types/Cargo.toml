@@ -5,11 +5,11 @@ edition = "2021"
 
 [dependencies]
 ruint = { version = "1.10.1", default-features = false, features = ["alloc"] }
-odra-types = { path = "../../odra/types", optional = true }
+odra-core = { version = "0.8.0", path = "../../odra/core", optional = true }
 num-bigint = { version = "0.4.4", default-features = false }
 derive_more = "0.99.17"
 const-hex = "1.9.1"
 
 [features]
 default = ["odra"]
-odra = ["odra-types"]
+odra = ["odra-core"]

@@ -1,10 +1,12 @@
 use syn::parse_quote;
 
-use crate::{model::ir::Function, parser::context::TypeInfo, utils, ParserError};
+use crate::{
+    error::ParserResult, model::ir::Function, parser::context::TypeInfo, utils, ParserError,
+};
 
 use super::common;
 
-pub fn def<T: TypeInfo>(f: &Function, ctx: &T) -> Result<syn::TraitItem, ParserError> {
+pub fn def<T: TypeInfo>(f: &Function, ctx: &T) -> ParserResult<syn::TraitItem> {
     if let Function::Function(function) = f {
         let args = common::args(&function.params, function.is_mutable, ctx)?;
         let ret = common::parse_ret_type(&function.ret, ctx)?;
@@ -13,7 +15,7 @@ pub fn def<T: TypeInfo>(f: &Function, ctx: &T) -> Result<syn::TraitItem, ParserE
         Ok(parse_quote!(fn #ident( #(#args),* ) #ret;))
     } else {
         Err(ParserError::InvalidFunctionType(
-            String::from("NysaFunction::Function"),
+            "NysaFunction::Function",
             f.clone(),
         ))
     }
