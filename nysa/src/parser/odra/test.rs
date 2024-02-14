@@ -153,36 +153,36 @@ use super::structs::*;
 const STACK_DEF: &str = r#"
 use odra::prelude::*;
 
-impl odra::module::ModuleComponent for PathStack {
-    fn instance(_env: Rc<odra::ContractEnv>, _index: u8) -> Self {
-        Self::default()
-    }
-}
-impl odra::module::ModulePrimitive for PathStack {}
-
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct PathStack {
-    stack: alloc::rc::Rc<core::cell::RefCell<Vec<Vec<ClassName>>>>
+    path: [ClassName; MAX_PATH_LENGTH],
+    stack_pointer: usize,
+    path_pointer: usize,
 }
 
 impl PathStack {
-    pub fn push_path_on_stack(&self, path: &[ClassName]) {
-        let mut stack = self.stack.take();
-        stack.push(path.to_vec());
-        self.stack.replace(stack);
+    pub fn push_path_on_stack(&mut self) {
+        self.path_pointer = 0;
+        if self.stack_pointer < MAX_STACK_SIZE {
+            self.stack_pointer += 1;
+        }
     }
-    pub fn drop_one_from_stack(&self) {
-        let mut stack = self.stack.take();
-        stack.pop().unwrap();
-        self.stack.replace(stack);
+    pub fn drop_one_from_stack(&mut self) {
+        if self.stack_pointer > 0 {
+            self.stack_pointer -= 1;
+        }
     }
-    pub fn pop_from_top_path(&self) -> ClassName {
-        let mut stack = self.stack.take();
-        let mut path = stack.pop().unwrap();
-        let class = path.pop().unwrap();
-        stack.push(path);
-        self.stack.replace(stack);
-        class
+    pub fn pop_from_top_path(&mut self) -> Option<ClassName> {
+        if self.path_pointer < MAX_PATH_LENGTH {
+            let class = self.path[MAX_PATH_LENGTH - self.path_pointer - 1];
+            self.path_pointer += 1;
+            Some(class)
+        } else {
+            None
+        }
     }
 }
+
+static mut STACK: PathStack = PathStack::new();
 "#;
+

@@ -19,35 +19,43 @@ pub mod my_contract {
     
     {{STACK_DEF}}
 
-    #[derive(Clone)]
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 1usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::MyContract],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+
+    #[derive(Clone, Copy)]
     enum ClassName {
         MyContract,
     }
 
     #[odra::module] 
     pub struct MyContract { 
-        __stack: PathStack,
     } 
 
     #[odra::module] 
     impl MyContract { 
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::MyContract];
-
-        #[odra(init)]
         pub fn init(&mut self) {
         }
 
         pub fn read_external_contract_value(&self, _addr: Option<odra::Address>) -> nysa_types::U256 {
-            self.__stack.push_path_on_stack(Self::PATH);
+            unsafe { STACK.push_path_on_stack(); }
             let result = self.super_read_external_contract_value(_addr);
-            self.__stack.drop_one_from_stack();
+            unsafe { STACK.drop_one_from_stack(); }
             result
         }
 
         fn super_read_external_contract_value(&self, _addr: Option<odra::Address>) -> nysa_types::U256 {
-            let __class = self.__stack.pop_from_top_path();
+            let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
-                ClassName::MyContract => {
+                Some(ClassName::MyContract) => {
                     let mut external_contract = ExternalContractContractRef::new(self.env(), odra::UnwrapOrRevert::unwrap_or_revert(_addr, &self.env()));
                     return external_contract.get_value()
                 }
@@ -57,16 +65,16 @@ pub mod my_contract {
         }
 
         pub fn write_external_contract_value(&mut self, _addr: Option<odra::Address>, new_value: nysa_types::U256) {
-            self.__stack.push_path_on_stack(Self::PATH);
+            unsafe { STACK.push_path_on_stack(); }
             let result = self.super_write_external_contract_value(_addr, new_value);
-            self.__stack.drop_one_from_stack();
+            unsafe { STACK.drop_one_from_stack(); }
             result
         }
 
         fn super_write_external_contract_value(&mut self, _addr: Option<odra::Address>, new_value: nysa_types::U256) {
-            let __class = self.__stack.pop_from_top_path();
+            let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
-                ClassName::MyContract => {
+                Some(ClassName::MyContract) => {
                     let mut external_contract = ExternalContractContractRef::new(self.env(), odra::UnwrapOrRevert::unwrap_or_revert(_addr, &self.env()));
                     external_contract.set_value(new_value);
                 }

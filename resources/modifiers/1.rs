@@ -5,15 +5,24 @@ pub mod function_modifier {
     {{DEFAULT_IMPORTS}}
     
     {{STACK_DEF}}
-
-    #[derive(Clone)]
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 1usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::FunctionModifier],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+    #[derive(Clone, Copy)]
     enum ClassName {
         FunctionModifier,
     }
 
     #[odra::module] 
     pub struct FunctionModifier { 
-        __stack: PathStack, 
         owner: odra::Var<Option<odra::Address>>,
         x: odra::Var<nysa_types::U32>,
         locked: odra::Var<bool>
@@ -21,19 +30,17 @@ pub mod function_modifier {
 
     #[odra::module] 
     impl FunctionModifier { 
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::FunctionModifier];
-
         pub fn change_owner(&mut self, _new_owner: Option<odra::Address>) {
-            self.__stack.push_path_on_stack(Self::PATH);
+            unsafe { STACK.push_path_on_stack(); }
             let result = self.super_change_owner(_new_owner);
-            self.__stack.drop_one_from_stack();
+            unsafe { STACK.drop_one_from_stack(); }
             result
         }
 
         fn super_change_owner(&mut self, _new_owner: Option<odra::Address>) {
-            let __class = self.__stack.pop_from_top_path();
+            let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
-                ClassName::FunctionModifier => {
+                Some(ClassName::FunctionModifier) => {
                     self.modifier_before_only_owner();
                     self.modifier_before_valid_address(_new_owner);
                     self.owner.set(_new_owner);
@@ -46,16 +53,16 @@ pub mod function_modifier {
         }
 
         pub fn decrement(&mut self, i: nysa_types::U32)  {
-            self.__stack.push_path_on_stack(Self::PATH);
+            unsafe { STACK.push_path_on_stack(); }
             let result = self.super_decrement(i);
-            self.__stack.drop_one_from_stack();
+            unsafe { STACK.drop_one_from_stack(); }
             result
         }
 
         fn super_decrement(&mut self, i: nysa_types::U32)  {
-            let __class = self.__stack.pop_from_top_path();
+            let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
-                ClassName::FunctionModifier => {
+                Some(ClassName::FunctionModifier) => {
                     self.modifier_before_no_reentrancy();
 
                     self.x.set(self.x.get_or_default() - i);
@@ -71,7 +78,6 @@ pub mod function_modifier {
             }
         }
 
-        #[odra(init)]
         pub fn init(&mut self) {
             self.owner.set(Some(self.env().caller()));
             self.x.set(nysa_types::U32::from_limbs_slice(&[10u64]));

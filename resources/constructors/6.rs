@@ -6,22 +6,31 @@ pub mod d {
     
     {{STACK_DEF}}
 
-    #[derive(Clone)]
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 3usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::X, ClassName::Y, ClassName::D],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+
+    #[derive(Clone, Copy)]
     enum ClassName {
         D, Y, X
     }
 
     #[odra::module] 
     pub struct D { 
-        __stack: PathStack, 
         name: odra::Var<odra::prelude::string::String>,
         text: odra::Var<odra::prelude::string::String>
     } 
 
     #[odra::module] 
     impl D { 
-        const PATH: &'static [ClassName; 3usize] = &[ClassName::X, ClassName::Y, ClassName::D];
-
         fn _x_init(&mut self) {
             self.name.set(odra::prelude::string::String::from("X"));
         }
@@ -30,7 +39,6 @@ pub mod d {
             self.text.set(_text);
         } 
 
-        #[odra(init)]
         pub fn init(&mut self) {
             self._x_init();
             self._y_init(odra::prelude::string::String::from("Input to Y"));

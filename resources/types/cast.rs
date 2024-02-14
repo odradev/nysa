@@ -8,15 +8,24 @@ pub mod erc_20 {
     #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
     {{DEFAULT_IMPORTS}}
     {{STACK_DEF}}
-
-    #[derive(Clone)]
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 1usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::ERC20],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+    #[derive(Clone, Copy)]
     enum ClassName {
         ERC20,
     }
     
     #[odra::module]
     pub struct ERC20 {
-        __stack: PathStack,
         name: odra::Var<odra::prelude::string::String>,
         symbol: odra::Var<odra::prelude::string::String>,
         decimals: odra::Var<nysa_types::U8>,
@@ -25,9 +34,6 @@ pub mod erc_20 {
     }
     #[odra::module]
     impl ERC20 {
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::ERC20];
-
-        #[odra(init)]
         pub fn init(
             &mut self, 
             _name: odra::prelude::string::String, 

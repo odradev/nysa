@@ -24,14 +24,25 @@ pub mod simple_uniswap_v_3_pool {
     
     {{STACK_DEF}}
 
-    #[derive(Clone)]
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 1usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::SimpleUniswapV3Pool],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+
+    #[derive(Clone, Copy)]
     enum ClassName {
         SimpleUniswapV3Pool,
     }
 
     #[odra::module] 
     pub struct SimpleUniswapV3Pool { 
-        __stack: PathStack,
         token_0: odra::Var<Option<odra::Address>>, 
         token_1: odra::Var<Option<odra::Address>>, 
         fee: odra::Var<nysa_types::U24>, 
@@ -40,17 +51,15 @@ pub mod simple_uniswap_v_3_pool {
 
     #[odra::module] 
     impl SimpleUniswapV3Pool { 
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::SimpleUniswapV3Pool];
-
         pub fn deposit(
             &mut self,
             liquidity: nysa_types::U128,
             amount_0_min: nysa_types::U256,
             amount_1_min: nysa_types::U256
         ) {
-            self.__stack.push_path_on_stack(Self::PATH);
+            unsafe { STACK.push_path_on_stack(); }
             let result = self.super_deposit(liquidity, amount_0_min, amount_1_min);
-            self.__stack.drop_one_from_stack();
+            unsafe { STACK.drop_one_from_stack(); }
             result
         }
 
@@ -60,9 +69,9 @@ pub mod simple_uniswap_v_3_pool {
             amount_0_min: nysa_types::U256,
             amount_1_min: nysa_types::U256
         ) {
-            let __class = self.__stack.pop_from_top_path();
+            let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
-                ClassName::SimpleUniswapV3Pool => {
+                Some(ClassName::SimpleUniswapV3Pool) => {
                     IUniswapV3PoolContractRef::new(self.env(), odra::UnwrapOrRevert::unwrap_or_revert(self.pool.get().unwrap_or(None), &self.env()))
                         .deposit(
                             nysa_types::U256::ZERO, 
@@ -76,7 +85,6 @@ pub mod simple_uniswap_v_3_pool {
             }
         }
 
-        #[odra(init)]
         pub fn init(
             &mut self, 
             _token_0: Option<odra::Address>, 

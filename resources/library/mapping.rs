@@ -49,17 +49,28 @@ pub mod fixed_point_128 {
     {{DEFAULT_IMPORTS}}
     
     {{STACK_DEF}}
-    #[derive(Clone)]
+
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 1usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::FixedPoint128],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+
+    #[derive(Clone, Copy)]
     enum ClassName {
         FixedPoint128,
     }
     #[odra::module]
     pub struct FixedPoint128 {
-        __stack: PathStack,
     }
     #[odra::module]
     impl FixedPoint128 {
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::FixedPoint128];
         pub const Q128: nysa_types::U256 = nysa_types::U256::from_limbs([
             0u64,
             0u64,
@@ -75,18 +86,26 @@ pub mod full_math {
     {{DEFAULT_IMPORTS}}
     
     {{STACK_DEF}}
-    #[derive(Clone)]
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 1usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::FullMath],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+    #[derive(Clone, Copy)]
     enum ClassName {
         FullMath,
     }
     #[odra::module]
     pub struct FullMath {
-        __stack: PathStack,
     }
     #[odra::module]
     impl FullMath {
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::FullMath];
-
         pub(crate) fn mul_div(a: nysa_types::U256, b: nysa_types::U256, denominator: nysa_types::U256) -> nysa_types::U256 {
             let mut result = Default::default();
             return (result);
@@ -105,17 +124,26 @@ pub mod pool {
     {{DEFAULT_IMPORTS}}
     
     {{STACK_DEF}}
-    #[derive(Clone)]
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 1usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::Pool],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+    #[derive(Clone, Copy)]
     enum ClassName {
         Pool,
     }
     #[odra::module]
     pub struct Pool {
-        __stack: PathStack,
     }
     #[odra::module]
     impl Pool {
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::Pool];
         pub(crate) fn get_swap_fee(fees_storage: nysa_types::U24) -> nysa_types::U16 {
             return nysa_types::U16::from(
                 *(fees_storage >> nysa_types::U24::from_limbs_slice(&[12u64])),
@@ -161,17 +189,26 @@ pub mod position {
     {{DEFAULT_IMPORTS}}
     
     {{STACK_DEF}}
-    #[derive(Clone)]
+    const MAX_STACK_SIZE: usize = 8; // Maximum number of paths in the stack
+    const MAX_PATH_LENGTH: usize = 1usize; // Maximum length of each path
+    impl PathStack {
+        pub const fn new() -> Self {
+            Self {
+                path: [ClassName::Position],
+                stack_pointer: 0,
+                path_pointer: 0,
+            }
+        }
+    }
+    #[derive(Clone, Copy)]
     enum ClassName {
         Position,
     }
     #[odra::module]
     pub struct Position {
-        __stack: PathStack,
     }
     #[odra::module]
     impl Position {
-        const PATH: &'static [ClassName; 1usize] = &[ClassName::Position];
         pub(crate) fn get(
             _self: odra::Mapping<nysa_types::FixedBytes<32usize>, position::Info>,
             owner: Option<odra::Address>,

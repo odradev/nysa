@@ -1,16 +1,15 @@
 pub mod errors {}
 pub mod events {
-    use odra::prelude::*;
-    #[derive(odra::Event, PartialEq, Eq, Debug)]
+    #[soroban_sdk::contracttype]
     pub struct OwnershipTransferred {
-        previous_owner: Option<odra::Address>,
-        new_owner: Option<odra::Address>,
+        previous_owner: Option<soroban_sdk::Address>,
+        new_owner: Option<soroban_sdk::Address>,
     }
 
     impl OwnershipTransferred {
         pub fn new(
-            previous_owner: Option<odra::Address>,
-            new_owner: Option<odra::Address>,
+            previous_owner: Option<soroban_sdk::Address>,
+            new_owner: Option<soroban_sdk::Address>,
         ) -> Self {
             Self { previous_owner, new_owner }
         }
@@ -21,43 +20,32 @@ pub mod structs {}
 pub mod owner {
     #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
 
-    {{DEFAULT_IMPORTS}}
-
     {{STACK_DEF}}
-
-    const MAX_STACK_SIZE: usize = 8;
-    const MAX_PATH_LENGTH: usize = 1usize;
-    
-    impl PathStack {
-        pub const fn new() -> Self {
-            Self {
-                path: [ClassName::Owner],
-                stack_pointer: 0,
-                path_pointer: 0,
-            }
-        }
-    }
 
     #[derive(Clone, Copy)]
     enum ClassName {
         Owner
     }
 
-    #[odra::module(events = [OwnershipTransferred])] 
-    pub struct Owner { 
-        owner: odra::Var<Option<odra::Address>>
-    } 
+    const OWNER: soroban_sdk::Symbol = soroban_sdk::symbol_short!("OWNER");
 
-    #[odra::module] 
-    impl Owner { 
-        pub fn get_owner(&self) -> Option<odra::Address> {
+    #[soroban_sdk::contract]
+    pub struct Owner {
+        : PathStack,
+    }
+
+    #[soroban_sdk::contractimpl]
+    impl Owner {
+        const PATH: &'static [ClassName; 1usize] = &[ClassName::Owner];
+
+        pub fn get_owner(env: soroban_sdk::Env) -> Option<soroban_sdk::Address> {
             unsafe { STACK.push_path_on_stack(); }
             let result = self.super_get_owner();
             unsafe { STACK.drop_one_from_stack(); }
             result
         }
 
-        fn super_get_owner(&self) -> Option<odra::Address> {
+        fn super_get_owner(env: soroban_sdk::Env) -> Option<soroban_sdk::Address> {
             let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
                 Some(ClassName::Owner) => {
@@ -68,27 +56,29 @@ pub mod owner {
             }
         }
 
-        pub fn init(&mut self) {
-            self.owner.set(Some(self.env().caller()));
+        pub fn init(env: soroban_sdk::Env, caller: soroban_sdk::Address) {
+            env.storage().persistent().has(&OWNER).then(|| {
+                panic!("Owner already set");
+            });
+
+            env.storage().persistent().set(&OWNER, &caller);
         }
 
-        fn modifier_before_only_owner(&mut self) {
-            if !(Some(self.env().caller()) == self.owner.get().unwrap_or(None)) {
-                self.env().revert(odra::ExecutionError::User(1u16))
-            };
+        fn modifier_before_only_owner(env: soroban_sdk::Env, caller: soroban_sdk::Address) {
+            caller.require_auth();
         }
 
-        fn modifier_after_only_owner(&mut self) {
+        fn modifier_after_only_owner(env: soroban_sdk::Env, caller: soroban_sdk::Address) {
         }
 
-        pub fn transfer_ownership(&mut self, new_owner: Option<odra::Address>) {
+        pub fn transfer_ownership(&mut self, new_owner: Option<soroban_sdk::Address>) {
             unsafe { STACK.push_path_on_stack(); }
             let result = self.super_transfer_ownership(new_owner);
             unsafe { STACK.drop_one_from_stack(); }
             result
         }
 
-        fn super_transfer_ownership(&mut self, new_owner: Option<odra::Address>) {
+        fn super_transfer_ownership(&mut self, new_owner: Option<soroban_sdk::Address>) {
             let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
                 Some(ClassName::Owner) => {

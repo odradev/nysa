@@ -53,17 +53,5 @@ pub(super) fn imports_code<T: ExternalCallsRegister + TypeInfo>(ctx: &T) -> Vec<
 
 /// Generates Odra-specific implementations for PathStack.
 pub(super) fn path_stack_default_impl() -> Vec<syn::Item> {
-    vec![
-        parse_quote! {
-            impl odra::module::ModuleComponent for PathStack {
-                fn instance(_env: Rc<odra::ContractEnv>, _index: u8) -> Self {
-                    Self::default()
-                }
-            }
-        },
-        parse_quote! {
-            impl odra::module::ModulePrimitive for PathStack {
-            }
-        },
-    ]
+    vec![]
 }
