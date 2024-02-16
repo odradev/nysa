@@ -10,7 +10,7 @@ mod parser;
 mod utils;
 
 pub use error::ParserError;
-pub use parser::{odra::OdraParser, Parser};
+pub use parser::{odra::OdraParser, soroban::SorobanParser, Parser};
 use proc_macro2::TokenStream;
 
 /// Parses solidity code into a [TokenStream], [Parser] compatible ast (eg. Odra)

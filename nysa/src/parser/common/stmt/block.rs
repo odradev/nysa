@@ -2,11 +2,8 @@ use syn::parse_quote;
 
 use crate::error::ParserResult;
 use crate::model::ir::Stmt;
-use crate::parser::context::{
-    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-    TypeInfo,
-};
-use crate::ParserError;
+use crate::parser::common::stmt::StatementParserContext;
+use crate::{Parser, ParserError};
 
 /// Parses a block of statements and returns a `syn::Stmt`.
 ///
@@ -18,19 +15,14 @@ use crate::ParserError;
 /// # Returns
 ///
 /// A `ParserResult` containing the parsed `syn::Stmt`.
-pub(super) fn block<T>(stmts: &[Stmt], ctx: &mut T) -> ParserResult<syn::Stmt>
+pub(super) fn block<T, P>(stmts: &[Stmt], ctx: &mut T) -> ParserResult<syn::Stmt>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
+    P: Parser,
 {
     let stmts = stmts
         .iter()
-        .map(|stmt| super::parse_statement(stmt, true, ctx))
+        .map(|stmt| super::parse_statement::<T, P>(stmt, true, ctx))
         .collect::<ParserResult<Vec<syn::Stmt>>>()?;
     Ok(parse_quote!({ #(#stmts)* }))
 }
@@ -46,26 +38,21 @@ where
 /// # Returns
 ///
 /// A `ParserResult` containing the parsed `syn::Stmt`.
-pub(super) fn ret_block<T>(stmts: &[Stmt], ctx: &mut T) -> ParserResult<syn::Stmt>
+pub(super) fn ret_block<T, P>(stmts: &[Stmt], ctx: &mut T) -> ParserResult<syn::Stmt>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
+    P: Parser,
 {
     let last_stmt = stmts
         .last()
-        .map(|stmt| super::parse_statement(stmt, false, ctx))
+        .map(|stmt| super::parse_statement::<T, P>(stmt, false, ctx))
         .ok_or(ParserError::InvalidStatement(
             "A statement expected but not found",
         ))??;
     let stmts = stmts
         .iter()
         .take(stmts.len() - 1)
-        .map(|stmt| super::parse_statement(stmt, true, ctx))
+        .map(|stmt| super::parse_statement::<T, P>(stmt, true, ctx))
         .collect::<ParserResult<Vec<syn::Stmt>>>()?;
 
     Ok(parse_quote!({
@@ -78,10 +65,10 @@ where
 mod tests {
     use super::*;
     use crate::model::ir::{Expression, Type};
-    use crate::parser::odra::stmt::test::{
-        parse_with_empty_context, unsafe_parse_with_empty_context,
+    use crate::parser::test_utils::{
+        parse_with_empty_context, unsafe_parse_with_empty_context
     };
-    use crate::parser::odra::test::assert_tokens_eq;
+    use crate::parser::test_utils::assert_tokens_eq;
     use quote::quote;
 
     #[test]

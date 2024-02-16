@@ -1,71 +1,3 @@
-use quote::ToTokens;
-use syn::parse_quote;
-
-use crate::{
-    model::ir::Expression,
-    parser::context::{
-        ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-        TypeInfo,
-    },
-};
-
-pub trait AsSelfField {
-    fn as_self_field(self) -> syn::Expr;
-}
-
-impl AsSelfField for syn::Ident {
-    fn as_self_field(self) -> syn::Expr {
-        parse_quote!(self.#self)
-    }
-}
-
-pub trait AsExpression {
-    fn as_expression(self) -> syn::Expr;
-}
-
-pub trait AsType {
-    fn as_type(self) -> syn::Type;
-}
-
-pub trait AsStatement {
-    fn as_statement(self) -> syn::Stmt;
-}
-
-impl<T: ToTokens> AsExpression for T {
-    fn as_expression(self) -> syn::Expr {
-        syn::parse_quote!(#self)
-    }
-}
-
-impl<T: ToTokens> AsType for T {
-    fn as_type(self) -> syn::Type {
-        syn::parse_quote!(#self)
-    }
-}
-
-impl AsStatement for syn::Expr {
-    fn as_statement(self) -> syn::Stmt {
-        syn::parse_quote!(#self;)
-    }
-}
-
-pub fn in_context<T, F, R>(ctx_expr: &Expression, ctx: &mut T, f: F) -> R
-where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
-    F: FnOnce(&mut T) -> R,
-{
-    ctx.push_contextual_expr(ctx_expr.clone());
-    let result = f(ctx);
-    ctx.drop_contextual_expr();
-    result
-}
-
 pub mod ty {
     use quote::ToTokens;
     use syn::parse_quote;
@@ -136,5 +68,23 @@ pub mod attr {
 
     pub fn payable() -> syn::Attribute {
         syn::parse_quote!(#[odra(payable)])
+    }
+}
+
+pub mod stmt {
+    use proc_macro2::Ident;
+    use quote::ToTokens;
+    use syn::parse_quote;
+
+    use crate::parser::{self, odra::expr};
+
+    pub fn contract_ref(var_name: &str, contract_name: &str) -> syn::Stmt {
+        let ident = crate::utils::to_ident(var_name);
+        let contract_ref = expr::syn_utils::contract_ref(contract_name, &ident);
+        parser::syn_utils::definition(ident, contract_ref)
+    }
+
+    pub fn emit_event<T: ToTokens>(event_ident: Ident, args: &[T]) -> syn::Stmt {
+        parse_quote!(self.env().emit_event(#event_ident::new(#(#args),*));)
     }
 }

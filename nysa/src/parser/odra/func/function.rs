@@ -5,14 +5,8 @@ use syn::{parse_quote, punctuated::Punctuated, Token};
 use crate::{
     error::ParserResult,
     model::ir::{BaseCall, FnImplementations, Func, Type},
-    parser::{
-        context::{
-            ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-            TypeInfo,
-        },
-        odra::expr,
-    },
-    utils,
+    parser::common::StatementParserContext,
+    utils, OdraParser,
 };
 
 use super::common;
@@ -20,13 +14,7 @@ use super::common;
 /// Transforms [Var] into a c3 ast [FnDef].
 pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<FnDef>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
     let definitions = impls.as_functions();
 
@@ -66,13 +54,7 @@ where
 /// Transforms [Var] into a c3 ast [FnDef].
 pub(super) fn library_def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<FnDef>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
     let functions = impls.as_functions();
     // only one impl expected
@@ -104,13 +86,7 @@ where
 
 fn parse_body<T>(def: &Func, ctx: &mut T) -> syn::Block
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
     def.ret
         .iter()
@@ -162,7 +138,8 @@ where
         .modifiers
         .iter()
         .filter_map(|BaseCall { class_name, args }| {
-            let args = expr::parse_many(args, ctx).unwrap_or(vec![]);
+            let args = crate::parser::common::expr::parse_many::<_, OdraParser>(args, ctx)
+                .unwrap_or(vec![]);
             if ctx
                 .current_contract()
                 .has_function(&utils::to_snake_case(class_name))
@@ -182,7 +159,8 @@ where
         .iter()
         .rev()
         .filter_map(|BaseCall { class_name, args }| {
-            let args = expr::parse_many(&args, ctx).unwrap_or(vec![]);
+            let args = crate::parser::common::expr::parse_many::<_, OdraParser>(&args, ctx)
+                .unwrap_or(vec![]);
             if ctx
                 .current_contract()
                 .has_function(&utils::to_snake_case(class_name))

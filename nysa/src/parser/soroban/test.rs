@@ -1,4 +1,5 @@
 use crate::parse;
+use quote::ToTokens;
 use std::{fs::File, io::Read, path::Path};
 
 use super::*;
@@ -88,17 +89,17 @@ fn test_bitwise_ops() {
 fn test_many(count: usize, base_path: &str) {
     for i in 1..=count {
         let path = read_file(format!("../resources/{}/{}.sol", base_path, i));
-        let result = parse::<OdraParser, _>(path.as_str());
+        let result = parse::<SorobanParser, _>(path.as_str());
         assert_impl(result, format!("../resources/{}/{}.rs", base_path, i));
     }
 }
 
 fn test_single(base_path: &str, test_case: &str) {
     let path = read_file(format!("../resources/{}/{}.sol", base_path, test_case));
-    let result = parse::<OdraParser, _>(path.as_str());
+    let result = parse::<SorobanParser, _>(path.as_str());
     assert_impl(
         result,
-        format!("../resources/{}/{}.rs", base_path, test_case),
+        format!("../resources/{}/{}_soroban.rs", base_path, test_case),
     );
 }
 
@@ -116,6 +117,17 @@ fn assert_impl<P: AsRef<Path>>(result: TokenStream, file_path: P) {
     pretty_assertions::assert_eq!(parse(result.to_string().as_str()), parse(content.as_str()));
 }
 
+pub(crate) fn assert_tokens_eq<L, R>(left: L, right: R)
+where
+    L: ToTokens,
+    R: ToTokens,
+{
+    assert_eq!(
+        left.into_token_stream().to_string(),
+        right.into_token_stream().to_string()
+    )
+}
+
 fn read_file<P: AsRef<Path>>(file_path: P) -> String {
     let mut file = File::open(file_path).unwrap();
     let mut content = String::new();
@@ -125,9 +137,7 @@ fn read_file<P: AsRef<Path>>(file_path: P) -> String {
 
 const DEFAULT_MODULES: &str = r#"
 pub mod errors {}
-pub mod events {
-    use odra::prelude::*;
-}
+pub mod events {}
 pub mod enums {}
 pub mod structs {}
 "#;
@@ -139,8 +149,6 @@ use super::structs::*;
 "#;
 
 const STACK_DEF: &str = r#"
-use odra::prelude::*;
-
 #[derive(Clone)]
 struct PathStack {
     path: [ClassName; MAX_PATH_LENGTH],

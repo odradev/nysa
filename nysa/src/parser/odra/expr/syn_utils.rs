@@ -11,10 +11,6 @@ pub fn string_from<T: ToTokens>(expr: T) -> syn::Expr {
     parse_quote!(#ty::from(#expr))
 }
 
-pub fn none() -> syn::Expr {
-    parse_quote!(None)
-}
-
 pub fn try_fixed_bytes<T: ToTokens>(args: &[T]) -> syn::Expr {
     parse_quote!(nysa_types::FixedBytes::try_from(&self.env().hash(#(#args),*)).unwrap_or_default())
 }
@@ -43,10 +39,6 @@ pub fn serialize<T: ToTokens>(args: &[T]) -> syn::Expr {
         #(result.extend(#unwrap_or_revert::unwrap_or_revert(#to_bytes::to_bytes(&#args), &self.env()));)*
         result
     })
-}
-
-pub fn default() -> syn::Expr {
-    parse_quote!(Default::default())
 }
 
 pub fn if_not<T: ToTokens, F: ToTokens>(condition: T, expr: F) -> syn::Expr {

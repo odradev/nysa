@@ -1,38 +1,29 @@
 use crate::error::ParserResult;
 use crate::model::ir::Expression;
-use crate::parser::context::{
-    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-    TypeInfo,
-};
-use crate::parser::odra::expr;
-use crate::{utils, ParserError};
-
-use super::syn_utils;
+use crate::parser::common::expr::var;
+use crate::parser::common::stmt::StatementParserContext;
+use crate::parser::common::EventEmitParser;
+use crate::{utils, Parser, ParserError};
 
 /// Parses a statement emitting an event into a `syn::Stmt`.
 ///
 /// # Solidity example
 /// `emit OwnershipTransferred(oldOwner, newOwner);`
-pub(super) fn emit<T>(expr: &Expression, ctx: &mut T) -> ParserResult<syn::Stmt>
+pub(super) fn emit<T, P>(expr: &Expression, ctx: &mut T) -> ParserResult<syn::Stmt>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
+    P: Parser,
 {
     match expr {
         Expression::Func(name, args) => {
             let event_ident = TryInto::<String>::try_into(*name.to_owned()).map(utils::to_ident)?;
             let args: Vec<syn::Expr> = args
                 .iter()
-                .map(|e| expr::primitives::get_var_or_parse(e, ctx))
+                .map(|e| var::parse_or_default::<_, P>(e, ctx))
                 .collect::<ParserResult<_>>()?;
             ctx.register_event(&event_ident);
 
-            Ok(syn_utils::emit_event(event_ident, &args))
+            <P::EventEmitParser as EventEmitParser>::parse_emit_stmt(event_ident, args)
         }
         _ => Err(ParserError::InvalidExpression(String::from(
             "Invalid Emit statement",
@@ -45,12 +36,11 @@ mod tests {
     use super::*;
     use crate::model::ir::{Stmt, Type, Var};
     use crate::model::ContractData;
+    use crate::parser::common::stmt::parse_statement;
     use crate::parser::context::{ContractContext, GlobalContext, LocalContext};
-    use crate::parser::odra::stmt::parse_statement;
-    use crate::parser::odra::stmt::test::{
-        parse_with_empty_context, unsafe_parse_with_empty_context,
+    use crate::parser::test_utils::{
+        assert_tokens_eq, parse_with_empty_context, unsafe_parse_with_empty_context, TestParser,
     };
-    use crate::parser::odra::test::assert_tokens_eq;
     use quote::quote;
 
     #[test]
@@ -101,7 +91,7 @@ mod tests {
             ],
         ));
 
-        let result = parse_statement(&stmt, true, &mut ctx).expect("Couldn't parse statement");
+        let result = parse_statement::<_, TestParser>(&stmt, true, &mut ctx).expect("Couldn't parse statement");
 
         assert_tokens_eq(
             result,

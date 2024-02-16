@@ -1,19 +1,18 @@
 use syn::{parse_quote, FnArg};
 
-use super::syn_utils;
 use crate::error::ParserResult;
-use crate::parser::context::{ErrorInfo, ItemType};
-use crate::parser::odra::stmt::ext::ext_contract_stmt;
+use crate::parser::common::StatementParserContext;
+use crate::parser::context::ItemType;
 use crate::{
     model::ir::{Expression, Param, Stmt, Type, Visibility},
     parser::{
-        context::{
-            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
-        },
+        context::{ContractInfo, ExternalCallsRegister, FnContext, TypeInfo},
         odra::{stmt, ty},
+        syn_utils,
     },
     utils,
 };
+use crate::{parser, OdraParser};
 
 pub(super) fn parse_visibility(vis: &Visibility) -> syn::Visibility {
     match vis {
@@ -84,13 +83,7 @@ pub(super) fn parse_ret_type<T: TypeInfo>(
 
 pub(super) fn parse_statements<T>(statements: &[Stmt], ctx: &mut T) -> Vec<syn::Stmt>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
     statements
         .iter()
@@ -113,7 +106,13 @@ pub(super) fn parse_external_contract_statements<
         })
         .filter_map(|(name, param_name)| {
             if let Some(ItemType::Contract(contract_name)) = ctx.type_from_string(name) {
-                Some(ext_contract_stmt(param_name, &contract_name, ctx))
+                Some(
+                    parser::common::stmt::ext::ext_contract_stmt::<_, OdraParser>(
+                        param_name,
+                        &contract_name,
+                        ctx,
+                    ),
+                )
             } else {
                 None
             }

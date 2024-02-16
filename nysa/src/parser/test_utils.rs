@@ -1,14 +1,25 @@
-use crate::parser::odra::stmt::parse_statement;
-use crate::{
-    model::ir::{Stmt, Type},
-    parser::{
-        context::{test::EmptyContext, with_context, FnContext, LocalContext},
-        odra::test::assert_tokens_eq,
-    },
-    ParserError,
-};
+#![cfg(test)]
+
 use quote::ToTokens;
+use crate::{
+    model::ir::{Stmt, Type}, parser::context::{test::EmptyContext, with_context, FnContext, LocalContext}, OdraParser, ParserError
+};
 use solidity_parser::pt::{SourceUnitPart, Statement};
+
+use super::common::stmt::parse_statement;
+
+pub type TestParser = OdraParser;
+
+pub(crate) fn assert_tokens_eq<L, R>(left: L, right: R)
+where
+    L: ToTokens,
+    R: ToTokens,
+{
+    assert_eq!(
+        left.into_token_stream().to_string(),
+        right.into_token_stream().to_string()
+    )
+}
 
 #[test]
 #[should_panic]
@@ -21,7 +32,7 @@ pub(super) fn unsafe_parse_with_empty_context(stmt: Stmt) -> syn::Stmt {
 }
 
 pub(super) fn parse_with_empty_context(stmt: Stmt) -> Result<syn::Stmt, ParserError> {
-    parse_statement(&stmt, true, &mut EmptyContext)
+    parse_statement::<_, TestParser>(&stmt, true, &mut EmptyContext)
 }
 
 #[test]
@@ -62,7 +73,7 @@ fn assert_stmt<T: AsRef<str>, R: ToTokens>(solidity_expr: T, expected: R, ctx: &
         {
             if let Some(s) = statements.first() {
                 let stmt = s.into();
-                let expr = parse_statement(&stmt, true, ctx).expect("Should be a valid statement");
+                let expr = parse_statement::<_, TestParser>(&stmt, true, ctx).expect("Should be a valid statement");
                 assert_tokens_eq(expr, expected);
                 return;
             }

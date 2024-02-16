@@ -5,11 +5,14 @@ use syn::parse_quote;
 use crate::{
     error::ParserResult,
     model::ir::{Expression, Type},
-    parser::context::{ItemType, TypeInfo},
+    parser::{
+        context::{ItemType, TypeInfo},
+        syn_utils::AsType,
+    },
     utils, ParserError,
 };
 
-use super::syn_utils::{ty::*, AsType};
+use super::syn_utils::ty::*;
 
 /// Parses solidity statement into a syn type.
 ///

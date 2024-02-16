@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::model::ir::Package;
+use crate::utils::AsStringVec;
 use crate::{
     model::{
         ir::{Expression, FnImplementations, Function, InterfaceData, Stmt, Struct, Type, Var},
@@ -7,6 +9,8 @@ use crate::{
     },
     utils,
 };
+
+use super::common::StatementParserContext;
 
 #[derive(Debug)]
 pub enum ItemType {
@@ -227,6 +231,20 @@ impl ErrorInfo for GlobalContext {
     }
 }
 
+impl Into<GlobalContext> for &Package {
+    fn into(self) -> GlobalContext {
+        GlobalContext::new(
+            self.events().as_string_vec(),
+            self.interfaces().to_vec(),
+            self.libraries().to_vec(),
+            self.enums().as_string_vec(),
+            self.errors().as_string_vec(),
+            self.contracts().to_vec(),
+            self.structs().to_vec(),
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct ContractContext<'a> {
     global: &'a mut GlobalContext,
@@ -323,6 +341,8 @@ pub struct LocalContext<'a> {
     local_vars: Vec<Var>,
     contextual_expressions: Vec<Expression>,
 }
+
+impl StatementParserContext for LocalContext<'_> {}
 
 impl<'a> LocalContext<'a> {
     pub fn new(ctx: ContractContext<'a>) -> Self {
@@ -460,7 +480,10 @@ pub fn with_context<F: Fn(&mut LocalContext) -> ()>(f: F) {
 #[allow(unused_variables)]
 #[cfg(test)]
 pub mod test {
-    use crate::model::{ir::Expression, ContractData};
+    use crate::{
+        model::{ir::Expression, ContractData},
+        parser::common::StatementParserContext,
+    };
 
     use super::{
         ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
@@ -469,6 +492,8 @@ pub mod test {
 
     #[derive(Debug)]
     pub struct EmptyContext;
+
+    impl StatementParserContext for EmptyContext {}
 
     impl StorageInfo for EmptyContext {
         fn storage(&self) -> Vec<crate::model::ir::Var> {

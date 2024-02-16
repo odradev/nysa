@@ -6,12 +6,12 @@ use crate::{
     model::ir::{Expression, Type, Var},
     parser::{
         context::{ContractInfo, TypeInfo},
-        odra::expr,
+        syn_utils::AsType,
     },
     utils, ParserError,
 };
 
-use super::{syn_utils::AsType, ty};
+use super::ty;
 
 /// Pareses mutable [Var]s into a vector of c3 ast [VarDef].
 pub fn variables_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<VarDef>, ParserError> {
@@ -58,7 +58,7 @@ pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Ite
                         let num = words_to_number(words, &ty);
                         Ok(parse_quote!(pub const #const_ident: #ty = #num;))
                     } else if let Type::Bytes(b) = v.ty {
-                        let value = expr::parse_bytes_lit(bytes)?;
+                        let value = crate::parser::common::expr::parse_bytes_lit(bytes)?;
                         Ok(parse_quote!(pub const #const_ident: #ty = #value;))
                     } else {
                         Err(ParserError::InvalidType)

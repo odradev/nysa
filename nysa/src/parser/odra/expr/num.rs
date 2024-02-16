@@ -3,14 +3,15 @@ use crate::{
     formatted_invalid_expr,
     model::ir::{eval_expression_type, Expression},
     parser::{
-        context::{
-            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
-        },
+        common::{self, NumberParser, StatementParserContext},
         odra::{syn_utils::ty::u256, ty},
     },
+    OdraParser,
 };
 use proc_macro2::TokenStream;
 use syn::{parse_quote, punctuated::Punctuated, Token};
+
+use super::syn_utils;
 
 macro_rules! to_uint {
     ($value:expr, $t:ty) => {
@@ -18,37 +19,41 @@ macro_rules! to_uint {
     };
 }
 
-pub(crate) fn to_typed_int_expr<
-    T: StorageInfo + TypeInfo + EventsRegister + ExternalCallsRegister + ContractInfo + FnContext,
->(
-    value: &[u64],
-    ctx: &mut T,
-) -> ParserResult<syn::Expr> {
-    let arr = value
-        .iter()
-        .map(|v| quote::quote!(#v))
-        .collect::<Punctuated<TokenStream, Token![,]>>();
-    let ty = ctx
-        .contextual_expr()
-        .map(|e| eval_expression_type(e, ctx))
-        .map(|t| t.map(|t| ty::parse_type_from_ty(&t, ctx).ok()))
-        .flatten()
-        .flatten()
-        .unwrap_or(u256());
+impl NumberParser for OdraParser {
+    fn parse_typed_number<T: StatementParserContext>(
+        values: &[u64],
+        ctx: &mut T,
+    ) -> ParserResult<syn::Expr> {
+        let arr = values
+            .iter()
+            .map(|v| quote::quote!(#v))
+            .collect::<Punctuated<TokenStream, Token![,]>>();
+        let ty = ctx
+            .contextual_expr()
+            .map(|e| eval_expression_type(e, ctx))
+            .map(|t| t.map(|t| ty::parse_type_from_ty(&t, ctx).ok()))
+            .flatten()
+            .flatten()
+            .unwrap_or(u256());
 
-    if value.is_empty() {
-        Ok(parse_quote!(#ty::ZERO))
-    } else if value.len() == 1 && value[0] == 1 {
-        Ok(parse_quote!(#ty::ONE))
-    } else {
-        Ok(parse_quote!(#ty::from_limbs_slice(&[#arr])))
+        if values.is_empty() {
+            Ok(parse_quote!(#ty::ZERO))
+        } else if values.len() == 1 && values[0] == 1 {
+            Ok(parse_quote!(#ty::ONE))
+        } else {
+            Ok(parse_quote!(#ty::from_limbs_slice(&[#arr])))
+        }
     }
-}
 
-pub(crate) fn try_to_generic_int_expr(expr: &Expression) -> ParserResult<syn::Expr> {
-    match expr {
-        Expression::NumberLiteral(value) => to_generic_int_expr(value),
-        _ => formatted_invalid_expr!("NumLiteral expected but found {:?}", expr),
+    fn parse_generic_number(expr: &Expression) -> ParserResult<syn::Expr> {
+        match expr {
+            Expression::NumberLiteral(value) => to_generic_int_expr(value),
+            _ => formatted_invalid_expr!("NumLiteral expected but found {:?}", expr),
+        }
+    }
+
+    fn unsigned_one() -> syn::Expr {
+        syn_utils::unsigned_one()
     }
 }
 
@@ -58,15 +63,8 @@ fn to_generic_int_expr(value: &[u64]) -> ParserResult<syn::Expr> {
         .map(|v| v.to_le_bytes())
         .flatten()
         .collect::<Vec<_>>();
-    Ok(to_generic_lit_expr(to_uint!(&bytes[0..4], u32)))
-}
-
-fn to_generic_lit_expr<N: num_traits::Num + ToString>(num: N) -> syn::Expr {
-    syn::Expr::Lit(syn::ExprLit {
-        attrs: vec![],
-        lit: syn::Lit::Int(syn::LitInt::new(
-            &num.to_string(),
-            proc_macro2::Span::call_site(),
-        )),
-    })
+    Ok(common::expr::num::to_generic_lit_expr(to_uint!(
+        &bytes[0..4],
+        u32
+    )))
 }

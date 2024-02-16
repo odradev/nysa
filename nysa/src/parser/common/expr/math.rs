@@ -1,18 +1,10 @@
-use super::num;
+use super::{num, var};
 use crate::error::ParserResult;
 use crate::model::ir::MathOp;
-use crate::parser::context::ErrorInfo;
-use crate::parser::odra::syn_utils::in_context;
-use crate::{
-    model::ir::Expression,
-    parser::{
-        context::{
-            ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
-        },
-        odra::expr::primitives,
-    },
-    utils,
-};
+use crate::parser::common::StatementParserContext;
+use crate::parser::syn_utils::in_context;
+use crate::Parser;
+use crate::{model::ir::Expression, utils};
 use ::syn::parse_quote;
 
 /// Parses a binary mathematical operation and returns a `syn::Expr` representing the operation.
@@ -20,26 +12,18 @@ use ::syn::parse_quote;
 /// This function takes the left and right expressions, the mathematical operation, and the context.
 /// If the operation is a power operation, it calls the `pow` function.
 /// Otherwise, it converts the operation into a `syn::BinOp` and evaluates the left and right expressions in the context.
-pub(crate) fn parse_op<
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
->(
+pub(crate) fn parse_op<T: StatementParserContext, P: Parser>(
     left: &Expression,
     right: &Expression,
     op: &MathOp,
     ctx: &mut T,
 ) -> ParserResult<::syn::Expr> {
     if *op == MathOp::Pow {
-        return pow(left, right, ctx);
+        return pow::<_, P>(left, right, ctx);
     }
     let op: syn::BinOp = op.into();
-    let left_expr = eval_in_context(left, right, ctx)?;
-    let right_expr = eval_in_context(right, left, ctx)?;
+    let left_expr = eval_in_context::<_, P>(left, right, ctx)?;
+    let right_expr = eval_in_context::<_, P>(right, left, ctx)?;
     Ok(parse_quote!( (#left_expr #op #right_expr) ))
 }
 
@@ -57,25 +41,17 @@ pub(crate) fn parse_op<
 /// y -= x
 /// x *= 2
 /// z /= 1
-pub(crate) fn eval<
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
->(
+pub(crate) fn eval<T: StatementParserContext, P: Parser>(
     expr: &Expression,
     ctx: &mut T,
 ) -> ParserResult<::syn::Expr> {
     let eval_or_parse = |e: &Expression, ctx: &mut T| {
         if let Expression::Variable(name) = e {
-            let expr = primitives::get_var_or_parse(expr, ctx)?;
+            let expr = var::parse_or_default::<_, P>(expr, ctx)?;
             let ident = utils::to_snake_case_ident(name);
             Ok(parse_quote!({#expr; #ident}))
         } else {
-            primitives::get_var_or_parse(expr, ctx)
+            var::parse_or_default::<_, P>(expr, ctx)
         }
     };
 
@@ -84,8 +60,10 @@ pub(crate) fn eval<
         Expression::AssignAnd(left, _, _) => eval_or_parse(left, ctx),
         Expression::Increment(expr) => eval_or_parse(expr, ctx),
         Expression::Decrement(expr) => eval_or_parse(expr, ctx),
-        Expression::NumberLiteral(values) => num::to_typed_int_expr(values, ctx),
-        _ => primitives::get_var_or_parse(expr, ctx),
+        Expression::NumberLiteral(values) => {
+            num::to_typed_int_expr::<_, P::ExpressionParser>(values, ctx)
+        }
+        _ => var::parse_or_default::<_, P>(expr, ctx),
     }
 }
 
@@ -100,36 +78,20 @@ pub(crate) fn eval<
 ///
 /// In this example let's assume `y` and `x` are of `nysa_type::256` then, the subtraction result
 /// is the same type and finally the `123` literal should be parsed to`nysa_types::U256::from_limbs_slice(&[123u64])`
-pub(crate) fn eval_in_context<
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
->(
+pub(crate) fn eval_in_context<T: StatementParserContext, P: Parser>(
     expr: &Expression,
     context_expr: &Expression,
     ctx: &mut T,
 ) -> ParserResult<::syn::Expr> {
-    in_context(context_expr, ctx, |ctx| eval(expr, ctx))
+    in_context(context_expr, ctx, |ctx| eval::<_, P>(expr, ctx))
 }
 
-fn pow<
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
->(
+fn pow<T: StatementParserContext, P: Parser>(
     left: &Expression,
     right: &Expression,
     ctx: &mut T,
 ) -> ParserResult<::syn::Expr> {
-    let left_expr = eval_in_context(left, right, ctx)?;
-    let right_expr = eval_in_context(right, left, ctx)?;
+    let left_expr = eval_in_context::<_, P>(left, right, ctx)?;
+    let right_expr = eval_in_context::<_, P>(right, left, ctx)?;
     Ok(parse_quote!(#left_expr.pow(#right_expr)))
 }

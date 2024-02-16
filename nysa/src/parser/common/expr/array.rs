@@ -1,12 +1,7 @@
-use super::{parse, parse_many, primitives};
+use super::{parse, parse_many, var};
 use crate::{
-    error::ParserResult,
-    model::ir::Expression,
-    parser::context::{
-        ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-        TypeInfo,
-    },
-    utils,
+    error::ParserResult, model::ir::Expression, parser::common::StatementParserContext, utils,
+    Parser,
 };
 use proc_macro2::Ident;
 use syn::parse_quote;
@@ -19,20 +14,12 @@ const PROPERTY_LENGTH: &str = "length";
 /// ```ignore
 /// arr.length;
 /// ````
-pub fn read_property<
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
->(
+pub fn read_property<T: StatementParserContext, P: Parser>(
     property_name: &str,
     expr: &Expression,
     ctx: &mut T,
 ) -> ParserResult<syn::Expr> {
-    let array = primitives::get_var_or_parse(expr, ctx)?;
+    let array = var::parse_or_default::<_, P>(expr, ctx)?;
     if property_name == PROPERTY_LENGTH {
         Ok(parse_quote!(#array.len().into()))
     } else {
@@ -47,25 +34,20 @@ pub fn read_property<
 /// ```ignore
 /// arr.push(i);
 /// ```
-pub fn fn_call<T>(
+pub fn fn_call<T, P>(
     array_name: &str,
     fn_ident: Ident,
     args: &[Expression],
     ctx: &mut T,
 ) -> ParserResult<syn::Expr>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
+    P: Parser,
 {
     let result_expr: syn::Expr = parse_quote!(result);
-    let array = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
-    let args = parse_many(args, ctx)?;
-    let update_array = primitives::set_var(array_name, result_expr.clone(), ctx)?;
+    let array = var::parse_or_default::<_, P>(&Expression::from(array_name), ctx)?;
+    let args = parse_many::<_, P>(args, ctx)?;
+    let update_array = var::parse_set::<_, P>(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
         let mut #result_expr = #array;
         #result_expr.#fn_ident(#(#args),*);
@@ -80,24 +62,16 @@ where
 /// // uint[] memory a = new uint[](5);
 /// a[1] = 123;
 /// ```
-pub fn replace_value<
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
->(
+pub fn replace_value<T: StatementParserContext, P: Parser>(
     array_name: &str,
     index: &Expression,
     value: syn::Expr,
     ctx: &mut T,
 ) -> ParserResult<syn::Expr> {
     let result_expr: syn::Expr = parse_quote!(result);
-    let index = parse(index, ctx)?;
-    let array = primitives::get_var_or_parse(&Expression::from(array_name), ctx)?;
-    let update_array = primitives::set_var(array_name, result_expr.clone(), ctx)?;
+    let index = parse::<_, P>(index, ctx)?;
+    let array = var::parse_or_default::<_, P>(&Expression::from(array_name), ctx)?;
+    let update_array = var::parse_set::<_, P>(array_name, result_expr.clone(), ctx)?;
     Ok(parse_quote!({
         let mut #result_expr = #array;
         #result_expr[#index] = #value;

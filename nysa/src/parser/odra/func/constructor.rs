@@ -2,13 +2,10 @@ use crate::{
     error::ParserResult,
     model::ir::{BaseCall, Constructor, Expression, FnImplementations, Stmt, Type},
     parser::{
-        context::{
-            ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-            TypeInfo,
-        },
-        odra::{expr, stmt, syn_utils::attr},
+        common::StatementParserContext,
+        odra::{stmt, syn_utils::attr},
     },
-    utils, ParserError,
+    utils, OdraParser, ParserError,
 };
 use c3_lang_linearization::Class;
 use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, PlainFnDef};
@@ -18,13 +15,7 @@ use super::common;
 
 pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<Vec<FnDef>>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
     let impls = impls.as_constructors();
 
@@ -51,8 +42,6 @@ where
             let name = parse_constructor_name(id, c, c == primary_constructor);
 
             if c == primary_constructor {
-                attrs.push(parse_quote!(#[odra(init)]));
-
                 Ok(FnDef::Plain(PlainFnDef {
                     attrs,
                     name: name.clone(),
@@ -85,13 +74,7 @@ where
 
 fn init_storage_fields<T>(ctx: &mut T) -> ParserResult<Vec<syn::Stmt>>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
     ctx.storage()
         .iter()
@@ -117,13 +100,7 @@ fn parse_base_calls<T>(
     ctx: &mut T,
 ) -> Vec<syn::Stmt>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
     let mut stmts = vec![];
     let find_base_class = |class: &Class| {
@@ -145,15 +122,9 @@ where
 
 fn parse_base_args<T>(base: &BaseCall, ctx: &mut T) -> Vec<syn::Expr>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
-    expr::parse_many(&base.args, ctx).unwrap_or_default()
+    crate::parser::common::expr::parse_many::<_, OdraParser>(&base.args, ctx).unwrap_or_default()
 }
 
 fn parse_base_ident(base: &BaseCall) -> Ident {

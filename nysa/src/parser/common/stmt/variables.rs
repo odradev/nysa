@@ -1,13 +1,10 @@
 use crate::error::ParserResult;
 use crate::model::ir::{eval_expression_type, Expression, Type};
-use crate::parser::context::{
-    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-    TypeInfo,
-};
-use crate::parser::odra::expr::{self, primitives};
-use crate::utils;
+use crate::parser::common::{expr, StatementParserContext};
+use crate::parser::context::{ContractInfo, FnContext, TypeInfo};
+use crate::{utils, Parser};
 
-use super::syn_utils;
+use crate::parser::syn_utils;
 
 /// A variable declaration. Creates a syn::Stmt which creates a mutable variable with a given
 /// name assigning its default value.
@@ -21,13 +18,13 @@ use super::syn_utils;
 /// * name - variable name
 /// * ty - variable type
 /// * ctx - parser context
-pub(super) fn declaration<T>(name: &str, ty: &Type, ctx: &mut T) -> ParserResult<syn::Stmt>
+pub fn declaration<T>(name: &str, ty: &Type, ctx: &mut T) -> ParserResult<syn::Stmt>
 where
     T: FnContext,
 {
     let name = utils::to_snake_case_ident(name);
     ctx.register_local_var(&name, ty);
-    Ok(syn_utils::definition(name, expr::syn_utils::default()))
+    Ok(syn_utils::definition(name, syn_utils::default()))
 }
 
 /// A variable definition. Creates a syn::Stmt which creates a mutable variable with a given
@@ -43,23 +40,18 @@ where
 /// * ty - variable type
 /// * init - an expression that initializes the variable
 /// * ctx - parser context
-pub(super) fn definition<T>(
+pub fn definition<T, P>(
     name: &str,
     ty: &Type,
     init: &Expression,
     ctx: &mut T,
 ) -> ParserResult<syn::Stmt>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
+    P: Parser,
 {
     let name = utils::to_snake_case_ident(name);
-    let expr = primitives::get_var_or_parse(init, ctx)?;
+    let expr = expr::var::parse_or_default::<_, P>(init, ctx)?;
     register_var(&name, ty, init, ctx);
     Ok(syn_utils::definition(name, expr))
 }
@@ -79,12 +71,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::model::ir::Stmt;
+    use crate::{model::ir::Stmt, parser::test_utils::{assert_tokens_eq, unsafe_parse_with_empty_context}};
     use quote::quote;
-
-    use crate::parser::odra::stmt::test::unsafe_parse_with_empty_context;
-    use crate::parser::odra::test::assert_tokens_eq;
-
     use super::*;
 
     #[test]

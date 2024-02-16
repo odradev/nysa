@@ -1,14 +1,11 @@
-use crate::{
-    model::ir::Package,
-    utils::{self, AsStringVec},
-    ParserError,
-};
+use crate::{model::ir::Package, utils, ParserError};
 use c3_lang_parser::c3_ast::{ClassDef, PackageDef};
 use proc_macro2::TokenStream;
 
 use self::syn_utils::attr;
 
 use super::{
+    common::ContractReferenceParser,
     context::{ContractContext, ContractInfo, EventsRegister, GlobalContext, LocalContext},
     Parser,
 };
@@ -20,7 +17,7 @@ mod expr;
 mod ext;
 mod func;
 mod other;
-mod stmt;
+pub(crate) mod stmt;
 mod syn_utils;
 mod ty;
 mod var;
@@ -29,17 +26,14 @@ mod var;
 pub struct OdraParser;
 
 impl Parser for OdraParser {
+    type EventEmitParser = Self;
+    type ContractReferenceParser = Self;
+    type ContractErrorParser = Self;
+    type ExpressionParser = Self;
+
     fn parse(package: Package) -> Result<TokenStream, ParserError> {
         // register all metadata in the global context.
-        let mut ctx = GlobalContext::new(
-            package.events().as_string_vec(),
-            package.interfaces().to_vec(),
-            package.libraries().to_vec(),
-            package.enums().as_string_vec(),
-            package.errors().as_string_vec(),
-            package.contracts().to_vec(),
-            package.structs().to_vec(),
-        );
+        let mut ctx: GlobalContext = (&package).into();
 
         let events = event::events_def(&package, &ctx)?;
         let errors = errors::errors_def(&package);
@@ -150,3 +144,13 @@ fn contract_def(ctx: &mut LocalContext) -> Result<ClassDef, ParserError> {
 
 #[cfg(test)]
 mod test;
+
+impl ContractReferenceParser for OdraParser {
+    fn parse_contract_ref(variable_name: &str, contract_name: &str) -> syn::Stmt {
+        syn_utils::stmt::contract_ref(variable_name, contract_name)
+    }
+
+    fn parse_contract_ref_expr(contract_name: &str, address: syn::Expr) -> syn::Expr {
+        expr::syn_utils::contract_ref(contract_name, address)
+    }
+}

@@ -11,6 +11,11 @@ pub(crate) fn to_snake_case_ident<T: AsRef<str>>(name: T) -> proc_macro2::Ident 
     format_ident!("{}", to_snake_case(name.as_ref()))
 }
 
+/// Converts a &str into upper-snake-cased Ident preserving the heading `_`
+pub(crate) fn to_upper_snake_case_ident<T: AsRef<str>>(name: T) -> proc_macro2::Ident {
+    format_ident!("{}", to_upper_snake_case(name.as_ref()))
+}
+
 /// Converts a &str into snake-cased Ident starting with a `prefix ` and preserving the heading `_`
 pub(crate) fn to_prefixed_snake_case_ident<T: AsRef<str>>(
     prefix: &str,
@@ -26,6 +31,16 @@ pub(crate) fn to_snake_case(input: &str) -> String {
         format!("_{}", input.to_case(Case::Snake))
     } else {
         format!("{}", input.to_case(Case::Snake))
+    }
+}
+
+/// Converts a &str into upper-snake-cased String preserving the heading `_`
+pub(crate) fn to_upper_snake_case(input: &str) -> String {
+    if input.starts_with('_') {
+        // `to_case()` consumes the heading `_`
+        format!("_{}", input.to_case(Case::UpperSnake))
+    } else {
+        format!("{}", input.to_case(Case::UpperSnake))
     }
 }
 

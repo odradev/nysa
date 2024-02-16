@@ -1,11 +1,8 @@
 use crate::error::ParserResult;
 use crate::model::ir::Expression;
-use crate::parser::context::{
-    ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-    TypeInfo,
-};
-use crate::parser::odra::expr;
-use crate::parser::odra::syn_utils::AsStatement;
+use crate::parser::common::stmt::StatementParserContext;
+use crate::parser::common::ContractErrorParser;
+use crate::parser::syn_utils::AsStatement;
 
 /// Generates a `revert` statement with an error message.
 ///
@@ -16,8 +13,8 @@ use crate::parser::odra::syn_utils::AsStatement;
 /// # Returns
 ///
 /// Returns a `ParserResult` containing the generated `revert` statement as a `syn::Stmt`.
-pub(crate) fn revert_with_msg(error_msg: &str) -> ParserResult<syn::Stmt> {
-    Ok(expr::error::revert_with_err(error_msg).as_statement())
+pub(crate) fn revert_with_msg<T: ContractErrorParser>(error_msg: &str) -> ParserResult<syn::Stmt> {
+    Ok(T::revert_with_err(error_msg).as_statement())
 }
 
 /// Generates a `revert` statement with an optional error message.
@@ -30,31 +27,25 @@ pub(crate) fn revert_with_msg(error_msg: &str) -> ParserResult<syn::Stmt> {
 /// # Returns
 ///
 /// Returns a `ParserResult` containing the generated `revert` statement as a `syn::Stmt`.
-pub(crate) fn revert<T>(msg: &Option<Expression>, ctx: &mut T) -> ParserResult<syn::Stmt>
+pub(crate) fn revert<T, P>(msg: &Option<Expression>, ctx: &mut T) -> ParserResult<syn::Stmt>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
+    P: ContractErrorParser,
 {
-    let revert_expr = match msg {
-        Some(msg) => expr::error::revert(None, msg, ctx),
-        None => expr::error::revert_with_str(None, "", ctx),
-    }?;
-    Ok(revert_expr.as_statement())
+    match msg {
+        Some(msg) => P::revert(None, msg, ctx),
+        None => P::revert(None, &Expression::StringLiteral(String::from("")), ctx),
+    }
+    .map(AsStatement::as_statement)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::ir::Stmt;
-    use crate::parser::odra::stmt::test::{
-        parse_with_empty_context, unsafe_parse_with_empty_context,
+    use crate::parser::test_utils::{
+        parse_with_empty_context, unsafe_parse_with_empty_context, assert_tokens_eq
     };
-    use crate::parser::odra::test::assert_tokens_eq;
     use quote::quote;
 
     #[test]

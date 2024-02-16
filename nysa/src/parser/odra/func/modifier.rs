@@ -3,12 +3,7 @@ use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, PlainFnDef};
 use syn::parse_quote;
 
 use crate::{
-    error::ParserResult,
-    model::ir::FnImplementations,
-    parser::context::{
-        ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo,
-        TypeInfo,
-    },
+    error::ParserResult, model::ir::FnImplementations, parser::common::StatementParserContext,
     ParserError,
 };
 
@@ -23,13 +18,7 @@ use super::common;
 /// take the remaining statements.
 pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<(FnDef, FnDef)>
 where
-    T: StorageInfo
-        + TypeInfo
-        + EventsRegister
-        + ExternalCallsRegister
-        + ContractInfo
-        + FnContext
-        + ErrorInfo,
+    T: StatementParserContext,
 {
     let modifiers = impls.as_modifiers();
 

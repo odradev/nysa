@@ -4,7 +4,8 @@ use solidity_parser::pt;
 use crate::model::ir::{eval_expression_type, Expression, Type, Var};
 use crate::model::ContractData;
 use crate::parser::context::*;
-use crate::parser::odra::test::assert_tokens_eq;
+use crate::parser::test_utils::assert_tokens_eq;
+use crate::{OdraParser, Parser};
 
 #[test]
 fn assign_and_compare() {
@@ -21,7 +22,7 @@ fn assign_and_compare() {
             } <= nysa_types::U32::from_limbs_slice(&[256u64])
         );
 
-        assert_expression(solidity_expr, expected_rust_code, ctx);
+        assert_expression::<_, _, OdraParser>(solidity_expr, expected_rust_code, ctx);
     });
 }
 
@@ -40,7 +41,7 @@ fn complex_stmt() {
                     == x)
         );
 
-        assert_expression(solidity_expr, expected_rust_code, ctx);
+        assert_expression::<_, _, OdraParser>(solidity_expr, expected_rust_code, ctx);
     })
 }
 
@@ -97,13 +98,13 @@ fn eval_math() {
     })
 }
 
-fn assert_expression<T: AsRef<str>, R: ToTokens>(
+fn assert_expression<T: AsRef<str>, R: ToTokens, P: Parser>(
     solidity_expr: T,
     expected: R,
     ctx: &mut LocalContext,
 ) {
     let expr = parse_expression(solidity_expr);
-    let expr = super::parse(&expr, ctx).unwrap();
+    let expr = super::parse::<_, P>(&expr, ctx).unwrap();
     assert_tokens_eq(expr, expected);
 }
 

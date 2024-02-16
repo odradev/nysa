@@ -4,6 +4,7 @@ members = [
     "nysa-macro",
     "nysa-types",
     "solidity-parser"
+
 ]
 
 exclude = [ 
@@ -11,8 +12,12 @@ exclude = [
     "examples/owned-token/native-odra", 
     "examples/owned-token/nysa", 
     "examples/status-message/native-odra", 
-    "examples/status-message/nysa", 
+    "examples/status-message/native-soroban", 
+    "examples/status-message/nysa",
+    "examples/status-message/soroban"
 ]
+
+resolver = "2"
 
 [profile.release]
 codegen-units = 1
