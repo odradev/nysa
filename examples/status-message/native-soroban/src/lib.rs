@@ -1,11 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, U256};
-
-#[soroban_sdk::contracttype]
-pub struct OwnershipTransferred {
-    previous_owner: Option<soroban_sdk::Address>,
-    new_owner: soroban_sdk::Address,
-}
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String};
 
 #[derive(Clone)]
 #[contracttype]
@@ -16,6 +10,9 @@ pub struct StatusMessage;
 
 #[contractimpl]
 impl StatusMessage {
+    pub const NAME: &'static str = "my name";
+    pub const FLAG: bool = false;
+
     pub fn set_status(env: Env, account_id: Address, message: String) {
         account_id.require_auth();
         env.storage().instance().set(&DataKey(account_id), &message);
@@ -30,36 +27,21 @@ impl StatusMessage {
 }
 
 // pub mod errors {}
-// pub mod events {
-//     #[soroban_sdk::contracttype]
-//     pub struct OwnershipTransferred {
-//         previous_owner: Option<soroban_sdk::Address>,
-//         new_owner: Option<soroban_sdk::Address>,
-//     }
-//
-//     impl OwnershipTransferred {
-//         pub fn new(
-//             previous_owner: Option<soroban_sdk::Address>,
-//             new_owner: Option<soroban_sdk::Address>,
-//         ) -> Self {
-//             Self { previous_owner, new_owner }
-//         }
-//     }
-// }
+// pub mod events {}
 // pub mod enums {}
 // pub mod structs {}
-// pub mod owner {
-//     #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
-//
+// pub mod status_message {
+//     use super::errors::*;
 //     use super::events::*;
-//
+//     use super::structs::*;
+//     #[soroban_sdk::contracttype]
+//     pub struct Records(pub soroban_sdk::Address);
 //     #[derive(Clone)]
 //     struct PathStack {
 //         path: [ClassName; MAX_PATH_LENGTH],
 //         stack_pointer: usize,
 //         path_pointer: usize,
 //     }
-//
 //     impl PathStack {
 //         pub fn push_path_on_stack(&mut self) {
 //             self.path_pointer = 0;
@@ -82,97 +64,88 @@ impl StatusMessage {
 //             }
 //         }
 //     }
-//
 //     static mut STACK: PathStack = PathStack::new();
-//
 //     const MAX_STACK_SIZE: usize = 8;
 //     const MAX_PATH_LENGTH: usize = 1usize;
-//
 //     impl PathStack {
 //         pub const fn new() -> Self {
 //             Self {
-//                 path: [ClassName::Owner],
+//                 path: [ClassName::StatusMessage],
 //                 stack_pointer: 0,
 //                 path_pointer: 0,
 //             }
 //         }
 //     }
-//
 //     #[derive(Clone, Copy)]
 //     enum ClassName {
-//         Owner
+//         StatusMessage,
 //     }
-//
-//     const OWNER: soroban_sdk::Symbol = soroban_sdk::symbol_short!("OWNER");
-//
 //     #[soroban_sdk::contract]
-//     pub struct Owner {
-//     }
-//
+//     pub struct StatusMessage {}
 //     #[soroban_sdk::contractimpl]
-//     impl Owner {
-//         pub fn get_owner(env: soroban_sdk::Env) -> Option<soroban_sdk::Address> {
-//             unsafe { STACK.push_path_on_stack(); }
-//             let result = Self::super_get_owner(env);
-//             unsafe { STACK.drop_one_from_stack(); }
+//     impl StatusMessage {
+//         pub fn get_status(
+//             env: soroban_sdk::Env,
+//             caller: soroban_sdk::Address,
+//             account_id: soroban_sdk::Address,
+//         ) -> soroban_sdk::String {
+//             unsafe {
+//                 STACK.push_path_on_stack();
+//             }
+//             let result = Self::super_get_status(env, caller, account_id);
+//             unsafe {
+//                 STACK.drop_one_from_stack();
+//             }
 //             result
 //         }
-//
-//         fn super_get_owner(env: soroban_sdk::Env) -> Option<soroban_sdk::Address> {
+//         fn super_get_status(
+//             env: soroban_sdk::Env,
+//             caller: soroban_sdk::Address,
+//             account_id: soroban_sdk::Address,
+//         ) -> soroban_sdk::String {
 //             let __class = unsafe { STACK.pop_from_top_path() };
 //             match __class {
-//                 Some(ClassName::Owner) => {
-//                     return env.storage().persistent().get::<_, Option<soroban_sdk::Address>>(&OWNER).unwrap_or(None);
+//                 Some(ClassName::StatusMessage) => {
+//                     return env.storage().persistent().get(&Records(account_id)).unwrap();
 //                 }
 //                 #[allow(unreachable_patterns)]
-//                 _ => Self::super_get_owner(env),
+//                 _ => Self::super_get_status(env, caller, account_id),
 //             }
 //         }
-//
-//         pub fn init(env: soroban_sdk::Env, caller: soroban_sdk::Address) {
-//             env.storage().persistent().has(&OWNER).then(|| {
-//                 panic!("Owner already set");
-//             });
-//
-//             env.storage().persistent().set(&OWNER, &caller);
-//         }
-//
-//         fn modifier_before_only_owner(env: soroban_sdk::Env) {
-//             match env.storage().persistent().get::<_, Option<soroban_sdk::Address>>(&OWNER) {
-//                 Some(Some(owner)) => {
-//                     owner.require_auth();
-//                 }
-//                 _ => {
-//                     panic!("Owner not set");
-//                 }
+//         pub fn init(env: soroban_sdk::Env, caller: soroban_sdk::Address) {}
+//         pub fn set_status(
+//             env: soroban_sdk::Env,
+//             caller: soroban_sdk::Address,
+//             status: soroban_sdk::String,
+//         ) {
+//             unsafe {
+//                 STACK.push_path_on_stack();
 //             }
-//         }
-//
-//         fn modifier_after_only_owner(env: soroban_sdk::Env) {
-//         }
-//
-//         pub fn transfer_ownership(env: soroban_sdk::Env, new_owner: Option<soroban_sdk::Address>) {
-//             unsafe { STACK.push_path_on_stack(); }
-//             let result = Self::super_transfer_ownership(env, new_owner);
-//             unsafe { STACK.drop_one_from_stack(); }
+//             let result = Self::super_set_status(env, caller, status);
+//             unsafe {
+//                 STACK.drop_one_from_stack();
+//             }
 //             result
 //         }
-//
-//         fn super_transfer_ownership(env: soroban_sdk::Env, new_owner: Option<soroban_sdk::Address>) {
+//         fn super_set_status(
+//             env: soroban_sdk::Env,
+//             caller: soroban_sdk::Address,
+//             status: soroban_sdk::String,
+//         ) {
 //             let __class = unsafe { STACK.pop_from_top_path() };
 //             match __class {
-//                 Some(ClassName::Owner) => {
-//                     Self::modifier_before_only_owner(env.clone());
-//                     let mut old_owner = env.storage().persistent().get(&OWNER).unwrap_or(None);
-//                     env.storage().persistent().set(&OWNER, &new_owner);
-//                     env.events().publish((), OwnershipTransferred::new(old_owner, new_owner));
-//                     Self::modifier_after_only_owner(env);
+//                 Some(ClassName::StatusMessage) => {
+//                     let mut account_id = caller;
+//                     env.storage()
+//                         .persistent()
+//                         .set(&Records(account_id), &status);
 //                 }
 //                 #[allow(unreachable_patterns)]
-//                 _ => Self::super_transfer_ownership(env, new_owner),
+//                 _ => Self::super_set_status(env, caller, status),
 //             }
 //         }
 //     }
 // }
+
 
 mod test;

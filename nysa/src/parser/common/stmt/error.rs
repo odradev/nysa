@@ -44,7 +44,7 @@ mod tests {
     use super::*;
     use crate::model::ir::Stmt;
     use crate::parser::test_utils::{
-        parse_with_empty_context, unsafe_parse_with_empty_context, assert_tokens_eq
+        assert_tokens_eq, parse_with_empty_context, unsafe_parse_with_empty_context,
     };
     use quote::quote;
 

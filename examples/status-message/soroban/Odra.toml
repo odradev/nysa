@@ -1,3 +1,0 @@
-[[contracts]]
-name = "status_message"
-fqn = "nysa_example_status::StatusMessage"

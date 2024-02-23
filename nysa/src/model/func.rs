@@ -65,6 +65,14 @@ impl Function {
             Function::Modifier(m) => m.params.as_ref(),
         }
     }
+
+    pub fn stmts(&self) -> Vec<Stmt> {
+        match self {
+            Function::Function(f) => f.stmts.clone(),
+            Function::Constructor(c) => c.stmts.clone(),
+            Function::Modifier(m) => [m.before_stmts.clone(), m.after_stmts.clone()].concat(),
+        }
+    }
 }
 
 /// Represents a regular function.

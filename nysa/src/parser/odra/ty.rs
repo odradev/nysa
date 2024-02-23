@@ -6,13 +6,32 @@ use crate::{
     error::ParserResult,
     model::ir::{Expression, Type},
     parser::{
+        common::{ty::parse_type_from_expr, TypeParser},
         context::{ItemType, TypeInfo},
         syn_utils::AsType,
     },
-    utils, ParserError,
+    utils, OdraParser, ParserError,
 };
 
-use super::syn_utils::ty::*;
+use super::{expr::syn_utils, syn_utils::ty::*};
+
+impl TypeParser for OdraParser {
+    fn parse_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type> {
+        super::ty::parse_type_from_ty(ty, ctx)
+    }
+
+    fn parse_fixed_bytes(args: Vec<syn::Expr>) -> ParserResult<syn::Expr> {
+        Ok(syn_utils::try_fixed_bytes(&args))
+    }
+
+    fn parse_serialize(args: Vec<syn::Expr>) -> ParserResult<syn::Expr> {
+        Ok(syn_utils::serialize(&args))
+    }
+
+    fn parse_state_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type> {
+        super::ty::parse_state_ty(ty, ctx)
+    }
+}
 
 /// Parses solidity statement into a syn type.
 ///
@@ -20,7 +39,7 @@ use super::syn_utils::ty::*;
 pub fn parse_state_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type> {
     match ty {
         Type::Mapping(key, value) => {
-            let key = parse_type_from_expr(key, ctx)?;
+            let key = parse_type_from_expr::<_, OdraParser>(key, ctx)?;
             let (key, value) = compose_key(vec![key], value, ctx)?;
             let key = match key.len() {
                 1 => key[0].clone(),
@@ -54,27 +73,7 @@ pub fn parse_state_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type
     }
 }
 
-pub fn parse_type_from_expr<T: TypeInfo>(
-    expr: &Expression,
-    ctx: &T,
-) -> Result<syn::Type, ParserError> {
-    let err = || ParserError::UnexpectedExpression("Expression::Type", expr.clone());
-    match expr {
-        Expression::Type(ty) => parse_type_from_ty(ty, ctx),
-        Expression::MemberAccess(f, box Expression::Variable(name)) => {
-            let p = utils::to_snake_case_ident(name);
-            let ident = utils::to_ident(f);
-            Ok(parse_quote!(#p::#ident))
-        }
-        Expression::Variable(name) => match ctx.type_from_string(name) {
-            Some(ItemType::Enum(_) | ItemType::Struct(_)) => Ok(utils::to_ident(name).as_type()),
-            _ => Err(err()),
-        },
-        _ => Err(err()),
-    }
-}
-
-pub fn parse_type_from_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, ParserError> {
+pub fn parse_type_from_ty<T: TypeInfo>(ty: &Type, t: &T) -> ParserResult<syn::Type> {
     match ty {
         Type::Address => Ok(option(address())),
         Type::String => Ok(string()),
@@ -82,8 +81,8 @@ pub fn parse_type_from_ty<T: TypeInfo>(ty: &Type, t: &T) -> Result<syn::Type, Pa
         Type::Int(size) => Ok(build_int(*size).as_type()),
         Type::Uint(size) => Ok(build_uint(*size).as_type()),
         Type::Mapping(key, value) => {
-            let key = parse_type_from_expr(key, t)?;
-            let value = parse_type_from_expr(value, t)?;
+            let key = parse_type_from_expr::<_, OdraParser>(key, t)?;
+            let value = parse_type_from_expr::<_, OdraParser>(value, t)?;
             Ok(map(key, value))
         }
         Type::Bytes(len) => Ok(fixed_bytes(*len as usize)),
@@ -125,11 +124,14 @@ fn compose_key<T: TypeInfo>(
     parts: Vec<syn::Type>,
     value: &Expression,
     ctx: &T,
-) -> Result<(Vec<syn::Type>, syn::Type), ParserError> {
+) -> ParserResult<(Vec<syn::Type>, syn::Type)> {
     if let Expression::Type(Type::Mapping(key, value)) = value {
-        let key = parse_type_from_expr(key, ctx)?;
+        let key = parse_type_from_expr::<_, OdraParser>(key, ctx)?;
         compose_key(parts.into_iter().chain(vec![key]).collect(), value, ctx)
     } else {
-        Ok((parts.to_vec(), parse_type_from_expr(value, ctx)?))
+        Ok((
+            parts.to_vec(),
+            parse_type_from_expr::<_, OdraParser>(value, ctx)?,
+        ))
     }
 }

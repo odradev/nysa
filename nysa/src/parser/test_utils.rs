@@ -1,9 +1,11 @@
 #![cfg(test)]
 
-use quote::ToTokens;
 use crate::{
-    model::ir::{Stmt, Type}, parser::context::{test::EmptyContext, with_context, FnContext, LocalContext}, OdraParser, ParserError
+    model::ir::{Stmt, Type},
+    parser::context::{test::EmptyContext, with_context, FnContext, LocalContext},
+    OdraParser, ParserError,
 };
+use quote::ToTokens;
 use solidity_parser::pt::{SourceUnitPart, Statement};
 
 use super::common::stmt::parse_statement;
@@ -73,7 +75,8 @@ fn assert_stmt<T: AsRef<str>, R: ToTokens>(solidity_expr: T, expected: R, ctx: &
         {
             if let Some(s) = statements.first() {
                 let stmt = s.into();
-                let expr = parse_statement::<_, TestParser>(&stmt, true, ctx).expect("Should be a valid statement");
+                let expr = parse_statement::<_, TestParser>(&stmt, true, ctx)
+                    .expect("Should be a valid statement");
                 assert_tokens_eq(expr, expected);
                 return;
             }

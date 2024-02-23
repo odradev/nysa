@@ -4,6 +4,8 @@ extern crate alloc;
 
 #[cfg(feature = "odra")]
 mod odra;
+#[cfg(feature = "soroban")]
+mod soroban;
 
 mod bytes;
 mod signed;

@@ -58,6 +58,7 @@ pub trait TypeInfo {
     }
     fn has_enums(&self) -> bool;
     fn find_fn(&self, class: &str, name: &str) -> Option<Function>;
+    fn call_list(&self, path: Vec<String>, name: &str) -> Vec<String>;
 }
 
 /// Provides information about the currently processing contract.
@@ -210,6 +211,54 @@ impl TypeInfo for GlobalContext {
 
         None
     }
+
+    fn call_list(&self, path: Vec<String>, name: &str) -> Vec<String> {
+        let result = path
+            .iter()
+            .map(|class| {
+                let f = self.find_fn(class, name);
+                let stmts = match f.clone() {
+                    Some(Function::Function(f)) => f.stmts,
+                    Some(Function::Constructor(f)) => f.stmts,
+                    Some(Function::Modifier(f)) => [f.after_stmts, f.before_stmts].concat(),
+                    _ => vec![],
+                };
+
+                let base = match f {
+                    Some(Function::Function(f)) => f.modifiers,
+                    Some(Function::Constructor(f)) => f.base,
+                    Some(Function::Modifier(f)) => vec![],
+                    _ => vec![],
+                };
+
+                let base_calls = base
+                    .iter()
+                    .map(|m| utils::to_snake_case(&m.class_name))
+                    .collect::<Vec<_>>();
+
+                let sub_base_calls = base_calls
+                    .iter()
+                    .map(|fn_name| self.call_list(path.clone(), fn_name))
+                    .flatten()
+                    .collect::<Vec<_>>();
+                let calls = stmts
+                    .iter()
+                    .map(Stmt::function_calls)
+                    .flatten()
+                    .collect::<Vec<_>>();
+                let sub_calls = calls
+                    .iter()
+                    .map(|fn_name| self.call_list(path.clone(), fn_name))
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                [calls, sub_calls, base_calls, sub_base_calls].concat()
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+        let set: HashSet<_> = result.into_iter().collect();
+        set.into_iter().collect()
+    }
 }
 
 impl ErrorInfo for GlobalContext {
@@ -319,6 +368,7 @@ impl TypeInfo for ContractContext<'_> {
         to self.global {
             fn has_enums(&self) -> bool;
             fn find_fn(&self, class: &str, name: &str) -> Option<Function>;
+            fn call_list(&self, path: Vec<String>, name: &str) -> Vec<String>;
         }
     }
 }
@@ -371,6 +421,7 @@ impl TypeInfo for LocalContext<'_> {
         to self.contract {
             fn has_enums(&self) -> bool;
             fn find_fn(&self, class: &str, name: &str) -> Option<Function>;
+            fn call_list(&self, path: Vec<String>, name: &str) -> Vec<String>;
         }
     }
 }
@@ -512,6 +563,10 @@ pub mod test {
 
         fn find_fn(&self, class: &str, name: &str) -> Option<crate::model::ir::Function> {
             None
+        }
+
+        fn call_list(&self, path: Vec<String>, name: &str) -> Vec<String> {
+            vec![]
         }
     }
 

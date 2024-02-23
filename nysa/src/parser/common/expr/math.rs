@@ -1,7 +1,7 @@
 use super::{num, var};
 use crate::error::ParserResult;
 use crate::model::ir::MathOp;
-use crate::parser::common::StatementParserContext;
+use crate::parser::common::{ExpressionParser, StatementParserContext};
 use crate::parser::syn_utils::in_context;
 use crate::Parser;
 use crate::{model::ir::Expression, utils};
@@ -18,13 +18,14 @@ pub(crate) fn parse_op<T: StatementParserContext, P: Parser>(
     op: &MathOp,
     ctx: &mut T,
 ) -> ParserResult<::syn::Expr> {
-    if *op == MathOp::Pow {
-        return pow::<_, P>(left, right, ctx);
-    }
-    let op: syn::BinOp = op.into();
-    let left_expr = eval_in_context::<_, P>(left, right, ctx)?;
-    let right_expr = eval_in_context::<_, P>(right, left, ctx)?;
-    Ok(parse_quote!( (#left_expr #op #right_expr) ))
+    // if *op == MathOp::Pow {
+    //     return pow::<_, P>(left, right, ctx);
+    // }
+    // let op: syn::BinOp = op.into();
+    // let left_expr = eval_in_context::<_, P>(left, right, ctx)?;
+    // let right_expr = eval_in_context::<_, P>(right, left, ctx)?;
+
+    <P::ExpressionParser as ExpressionParser>::parse_math_op(left, right, op, ctx)
 }
 
 /// Parses an expression to `syn::Expr` that returns a value.
@@ -86,7 +87,7 @@ pub(crate) fn eval_in_context<T: StatementParserContext, P: Parser>(
     in_context(context_expr, ctx, |ctx| eval::<_, P>(expr, ctx))
 }
 
-fn pow<T: StatementParserContext, P: Parser>(
+pub(crate) fn pow<T: StatementParserContext, P: Parser>(
     left: &Expression,
     right: &Expression,
     ctx: &mut T,

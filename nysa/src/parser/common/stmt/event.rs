@@ -91,7 +91,8 @@ mod tests {
             ],
         ));
 
-        let result = parse_statement::<_, TestParser>(&stmt, true, &mut ctx).expect("Couldn't parse statement");
+        let result = parse_statement::<_, TestParser>(&stmt, true, &mut ctx)
+            .expect("Couldn't parse statement");
 
         assert_tokens_eq(
             result,

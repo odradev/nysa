@@ -62,6 +62,10 @@ pub mod attr {
         syn::parse_quote!(#[derive(odra::Event, PartialEq, Eq, Debug)])
     }
 
+    pub fn derive_ext_contract() -> syn::Attribute {
+        syn::parse_quote!(#[odra::external_contract])
+    }
+
     pub fn default() -> syn::Attribute {
         syn::parse_quote!(#[default])
     }

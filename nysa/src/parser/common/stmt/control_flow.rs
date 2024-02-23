@@ -55,10 +55,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use quote::quote;
     use crate::parser::test_utils::{
-        parse_with_empty_context, unsafe_parse_with_empty_context, assert_tokens_eq
+        assert_tokens_eq, parse_with_empty_context, unsafe_parse_with_empty_context,
     };
+    use quote::quote;
 
     use super::*;
 

@@ -4,13 +4,13 @@ members = [
     "nysa-macro",
     "nysa-types",
     "solidity-parser"
-
 ]
 
 exclude = [ 
     "examples/capped-erc20", 
     "examples/owned-token/native-odra", 
     "examples/owned-token/nysa", 
+    "examples/owned-token/soroban", 
     "examples/status-message/native-odra", 
     "examples/status-message/native-soroban", 
     "examples/status-message/nysa",

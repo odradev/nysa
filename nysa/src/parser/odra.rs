@@ -5,7 +5,7 @@ use proc_macro2::TokenStream;
 use self::syn_utils::attr;
 
 use super::{
-    common::ContractReferenceParser,
+    common::{self, ContractReferenceParser},
     context::{ContractContext, ContractInfo, EventsRegister, GlobalContext, LocalContext},
     Parser,
 };
@@ -17,10 +17,8 @@ mod expr;
 mod ext;
 mod func;
 mod other;
-pub(crate) mod stmt;
 mod syn_utils;
 mod ty;
-mod var;
 
 /// Implementation of [Parser]. Generates code compatible with the Odra Framework.
 pub struct OdraParser;
@@ -30,16 +28,19 @@ impl Parser for OdraParser {
     type ContractReferenceParser = Self;
     type ContractErrorParser = Self;
     type ExpressionParser = Self;
+    type FnParser = Self;
+    type ElementsParser = Self;
+    type TypeParser = Self;
 
     fn parse(package: Package) -> Result<TokenStream, ParserError> {
         // register all metadata in the global context.
         let mut ctx: GlobalContext = (&package).into();
 
-        let events = event::events_def(&package, &ctx)?;
-        let errors = errors::errors_def(&package);
-        let enums = custom::enums_def(&package);
-        let structs = custom::struct_def(&package, &ctx)?;
-        let ext = ext::ext_contracts_def(&package, &ctx)?;
+        let events = common::event::events_def::<_, Self>(&package, &ctx)?;
+        let errors = common::errors::errors_def::<Self>(&package);
+        let enums = common::custom::enums_def::<Self>(&package);
+        let structs = common::custom::struct_def::<_, Self>(&package, &ctx)?;
+        let ext = common::ext::ext_contracts_def::<_, Self>(&package, &ctx)?;
 
         let packages = parse_packages(&package, &mut ctx)?;
 
@@ -100,14 +101,10 @@ fn parse_packages(
 
             let classes = vec![contract_def(&mut ctx)?];
 
-            let mut other_code = vec![];
-            other_code.extend(other::imports_code(&ctx));
-            other_code.extend(other::other_code());
-
             Ok(PackageDef {
                 no_std: true,
-                attrs: other::attrs(),
-                other_code,
+                attrs: common::other::attrs(),
+                other_code: common::other::imports_code::<_, OdraParser>(&ctx),
                 class_name,
                 classes,
             })
@@ -117,9 +114,9 @@ fn parse_packages(
 
 /// Builds a c3 contract class definition
 fn contract_def(ctx: &mut LocalContext) -> Result<ClassDef, ParserError> {
-    let variables = var::variables_def(ctx)?;
-    let constants = var::const_def(ctx)?;
-    let functions = func::functions_def(ctx)?;
+    let variables = common::var::variables_def::<_, OdraParser>(ctx)?;
+    let constants = common::var::const_def::<_, OdraParser>(ctx)?;
+    let functions = common::func::functions_def::<_, OdraParser>(ctx)?;
 
     let events = ctx
         .emitted_events()

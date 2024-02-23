@@ -1,39 +1,27 @@
+use proc_macro2::Ident;
 use syn::parse_quote;
 
-use crate::{
-    model::{ir::Package, Named},
-    parser::{context::TypeInfo, odra::func},
-    utils, ParserError,
-};
+use crate::{error::ParserResult, parser::common::ExtContractParser, OdraParser};
 
-pub(crate) fn ext_contracts_def<T: TypeInfo>(
-    package: &Package,
-    ctx: &T,
-) -> Result<Vec<syn::ItemMod>, ParserError> {
-    let interfaces = package.interfaces();
+use super::syn_utils;
 
-    interfaces
-        .iter()
-        .map(|i| {
-            let ident = utils::to_ident(i.name());
-            let fns: Vec<syn::TraitItem> = i
-                .fns()
-                .iter()
-                .map(|f| func::interface::def(f, ctx))
-                .collect::<Result<Vec<_>, _>>()?;
+impl ExtContractParser for OdraParser {
+    fn parse_ext_contract(
+        mod_ident: Ident,
+        contract_ident: Ident,
+        items: Vec<syn::TraitItem>,
+    ) -> ParserResult<syn::ItemMod> {
+        let derive_attr = syn_utils::attr::derive_ext_contract();
+        Ok(parse_quote!(
+            pub mod #mod_ident {
+                #![allow(unused_imports)]
+                use odra::prelude::*;
 
-            let mod_ident = utils::to_snake_case_ident(i.name());
-            Ok(parse_quote!(
-                pub mod #mod_ident {
-                    #![allow(unused_imports)]
-                    use odra::prelude::*;
-
-                    #[odra::external_contract]
-                    pub trait #ident {
-                        #(#fns)*
-                    }
+                #derive_attr
+                pub trait #contract_ident {
+                    #(#items)*
                 }
-            ))
-        })
-        .collect()
+            }
+        ))
+    }
 }

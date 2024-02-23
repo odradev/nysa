@@ -11,6 +11,11 @@ pub(crate) fn to_snake_case_ident<T: AsRef<str>>(name: T) -> proc_macro2::Ident 
     format_ident!("{}", to_snake_case(name.as_ref()))
 }
 
+/// Converts a &str into pascal-cased Ident.
+pub(crate) fn to_pascal_case_ident<T: AsRef<str>>(name: T) -> proc_macro2::Ident {
+    format_ident!("{}", name.as_ref().to_case(Case::Pascal))
+}
+
 /// Converts a &str into upper-snake-cased Ident preserving the heading `_`
 pub(crate) fn to_upper_snake_case_ident<T: AsRef<str>>(name: T) -> proc_macro2::Ident {
     format_ident!("{}", to_upper_snake_case(name.as_ref()))

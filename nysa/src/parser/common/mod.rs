@@ -1,18 +1,25 @@
-use proc_macro2::Ident;
-use quote::ToTokens;
-
-use crate::{
-    error::ParserResult,
-    model::ir::{Expression, Type},
-};
+use proc_macro2::{Ident, TokenStream};
+use syn::{punctuated::Punctuated, FnArg, Token};
 
 use super::context::{
     ContractInfo, ErrorInfo, EventsRegister, ExternalCallsRegister, FnContext, ItemType,
     StorageInfo, TypeInfo,
 };
+use crate::{
+    error::ParserResult,
+    model::ir::{Constructor, Enum, Expression, Func, MathOp, Struct, Type},
+};
 
+pub(crate) mod custom;
+pub(crate) mod errors;
+pub(crate) mod event;
 pub(crate) mod expr;
+pub(crate) mod ext;
+pub(crate) mod func;
+pub(crate) mod other;
 pub(crate) mod stmt;
+pub(super) mod ty;
+pub(crate) mod var;
 
 pub trait StatementParserContext:
     StorageInfo
@@ -104,17 +111,13 @@ pub trait ContractErrorParser {
 }
 
 pub trait ExpressionParser {
-    fn parse_set_var_expression(
-        var_expr: syn::Expr,
-        value_expr: syn::Expr,
-        item_type: Option<ItemType>,
-    ) -> ParserResult<syn::Expr>;
-    fn parse_read_values_expression<F: ToTokens, T: StorageInfo + TypeInfo>(
-        field: F,
+    fn parse_set_storage_expression(name: &str, value_expr: syn::Expr) -> ParserResult<syn::Expr>;
+    fn parse_storage_value_expression<T: StorageInfo + TypeInfo>(
+        name: &str,
         key_expr: Option<syn::Expr>,
         ty: &Type,
         ctx: &mut T,
-    ) -> syn::Expr;
+    ) -> ParserResult<syn::Expr>;
     fn parse_local_collection<T: StatementParserContext>(
         var_ident: Ident,
         keys_expr: Vec<syn::Expr>,
@@ -129,6 +132,15 @@ pub trait ExpressionParser {
         ty: &Type,
         ctx: &mut T,
     ) -> ParserResult<syn::Expr>;
+    fn parse_var_type(name: Ident, item_type: &Option<ItemType>) -> ParserResult<syn::Expr>;
+    fn caller() -> syn::Expr;
+
+    fn parse_math_op<T: StatementParserContext>(
+        left: &Expression,
+        right: &Expression,
+        op: &MathOp,
+        ctx: &mut T,
+    ) -> ParserResult<syn::Expr>;
 }
 
 pub trait NumberParser {
@@ -141,6 +153,7 @@ pub trait NumberParser {
     fn parse_generic_number(expr: &Expression) -> ParserResult<syn::Expr>;
     /// Returns a `syn::Expr`representing the value of the number `1`.
     fn unsigned_one() -> syn::Expr;
+    fn words_to_number(words: Vec<u64>, ty: &syn::Type) -> syn::Expr;
 }
 
 pub trait StringParser {
@@ -149,7 +162,63 @@ pub trait StringParser {
 }
 
 pub trait TypeParser {
-    fn parse_ty<T: StatementParserContext>(ty: &Type, ctx: &mut T) -> ParserResult<syn::Type>;
+    fn parse_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type>;
+    fn parse_state_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type>;
     fn parse_fixed_bytes(args: Vec<syn::Expr>) -> ParserResult<syn::Expr>;
     fn parse_serialize(args: Vec<syn::Expr>) -> ParserResult<syn::Expr>;
+}
+
+pub trait FunctionParser {
+    fn parse_args(
+        args: Vec<syn::FnArg>,
+        is_mutable: bool,
+        uses_sender: bool,
+    ) -> ParserResult<Vec<FnArg>>;
+
+    fn parse_modifier_args(
+        args: Vec<syn::FnArg>,
+        is_mutable: bool,
+        uses_sender: bool,
+    ) -> ParserResult<Vec<FnArg>>;
+
+    fn attrs(f: &Func) -> Vec<syn::Attribute>;
+
+    fn constructor_attrs(f: &Constructor) -> Vec<syn::Attribute>;
+
+    fn parse_modifier_call(modifier: Ident, args: Vec<syn::Expr>) -> syn::Stmt;
+
+    fn parse_base_call(base: Ident, args: Vec<syn::Expr>) -> syn::Stmt;
+
+    fn parse_super_call(fn_name: Ident, args: Vec<syn::Expr>) -> syn::Expr;
+
+    fn parse_module_fn_call(fn_name: syn::Expr, args: Vec<syn::Expr>) -> syn::Expr;
+}
+
+pub trait CustomElementParser {
+    fn parse_custom_struct<T: TypeInfo>(
+        namespace: &Option<Ident>,
+        model: &Struct,
+        ctx: &T,
+    ) -> ParserResult<syn::Item>;
+    fn parse_custom_enum(name: Ident, model: &Enum) -> syn::Item;
+}
+
+pub trait ErrorParser {
+    fn errors_def(variants: Punctuated<TokenStream, Token![,]>) -> Option<syn::Item>;
+}
+
+pub trait EventParser {
+    fn derive_attrs() -> Vec<syn::Attribute>;
+}
+
+pub trait ExtContractParser {
+    fn parse_ext_contract(
+        mod_ident: Ident,
+        contract_ident: Ident,
+        items: Vec<syn::TraitItem>,
+    ) -> ParserResult<syn::ItemMod>;
+}
+
+pub trait CustomImports {
+    fn import_items() -> Vec<syn::Item>;
 }

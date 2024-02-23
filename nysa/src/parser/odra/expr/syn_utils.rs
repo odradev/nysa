@@ -1,4 +1,7 @@
-use crate::parser::odra::{expr, syn_utils::ty};
+use crate::{
+    error::ParserResult,
+    parser::odra::{expr, syn_utils::ty},
+};
 use quote::ToTokens;
 use syn::parse_quote;
 
@@ -41,10 +44,6 @@ pub fn serialize<T: ToTokens>(args: &[T]) -> syn::Expr {
     })
 }
 
-pub fn if_not<T: ToTokens, F: ToTokens>(condition: T, expr: F) -> syn::Expr {
-    parse_quote!(if !(#condition) { #expr })
-}
-
 pub fn contract_ref<T: ToTokens>(contract_name: &str, address_var: T) -> syn::Expr {
     let ref_ident = crate::utils::to_ref_ident(contract_name);
     let address = expr::syn_utils::unwrap_or_revert(address_var);
@@ -53,38 +52,38 @@ pub fn contract_ref<T: ToTokens>(contract_name: &str, address_var: T) -> syn::Ex
 }
 
 pub trait ReadValue {
-    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> syn::Expr;
+    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> ParserResult<syn::Expr>;
 }
 
 pub struct DefaultValue;
 
 impl ReadValue for DefaultValue {
-    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> syn::Expr {
-        parse_quote!(#field.get_or_default(#key))
+    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> ParserResult<syn::Expr> {
+        Ok(parse_quote!(#field.get_or_default(#key)))
     }
 }
 
 pub struct UnwrapOrNone;
 
 impl ReadValue for UnwrapOrNone {
-    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> syn::Expr {
-        parse_quote!(#field.get(#key).unwrap_or(None))
+    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> ParserResult<syn::Expr> {
+        Ok(parse_quote!(#field.get(#key).unwrap_or(None)))
     }
 }
 
 pub struct UnwrapOrRevert;
 
 impl ReadValue for UnwrapOrRevert {
-    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> syn::Expr {
+    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> ParserResult<syn::Expr> {
         let get_expr = quote::quote!(#field.get(#key));
-        unwrap_or_revert(get_expr)
+        Ok(unwrap_or_revert(get_expr))
     }
 }
 
 pub struct ArrayReader;
 
 impl ReadValue for ArrayReader {
-    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> syn::Expr {
-        parse_quote!(#field.get_or_default()#key)
+    fn expr<F: ToTokens, K: ToTokens>(field: F, key: K) -> ParserResult<syn::Expr> {
+        Ok(parse_quote!(#field.get_or_default()#key))
     }
 }

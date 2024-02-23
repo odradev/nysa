@@ -1,33 +1,18 @@
 use proc_macro2::TokenStream;
-use quote::quote;
-use syn::parse_quote;
+use syn::{parse_quote, punctuated::Punctuated, Token};
 
-use crate::{
-    model::{ir::Package, Named},
-    utils,
-};
+use crate::{parser::common::ErrorParser, OdraParser};
 
 use super::syn_utils::attr;
 
-pub(crate) fn errors_def(package: &Package) -> Option<syn::Item> {
-    let execution_error_body = package
-        .errors()
-        .iter()
-        .enumerate()
-        .map(|(idx, e)| {
-            let name = utils::to_ident(e.name());
-            let idx = idx as isize;
-            quote!(#name = #idx,)
+impl ErrorParser for OdraParser {
+    fn errors_def(variants: Punctuated<TokenStream, Token![,]>) -> Option<syn::Item> {
+        let derive_attr = attr::derive_odra_err();
+        Some(parse_quote! {
+            #derive_attr
+            pub enum Error {
+                #variants
+            }
         })
-        .collect::<TokenStream>();
-    if execution_error_body.is_empty() {
-        return None;
     }
-    let derive_attr = attr::derive_odra_err();
-    Some(parse_quote! {
-        #derive_attr
-        pub enum Error {
-            #execution_error_body
-        }
-    })
 }

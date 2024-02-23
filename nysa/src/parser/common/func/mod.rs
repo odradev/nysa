@@ -7,50 +7,54 @@ use crate::{
             ContractInfo, EventsRegister, ExternalCallsRegister, FnContext, StorageInfo, TypeInfo,
         },
     },
+    Parser,
 };
 use c3_lang_parser::c3_ast::FnDef;
 
 mod common;
 mod constructor;
 mod function;
-pub(super) mod interface;
+pub(crate) mod interface;
 mod modifier;
 
 /// Parses currently processed function from the context into a vector of c3 ast [FnDef].
-pub fn functions_def<'a, T>(ctx: &mut T) -> ParserResult<Vec<FnDef>>
+pub fn functions_def<'a, T, P>(ctx: &mut T) -> ParserResult<Vec<FnDef>>
 where
     T: StatementParserContext,
+    P: Parser,
 {
     match ctx.current_contract().is_library() {
-        true => parse_library_functions(ctx),
-        false => parse_contract_functions(ctx),
+        true => parse_library_functions::<_, P>(ctx),
+        false => parse_contract_functions::<_, P>(ctx),
     }
 }
 
-fn parse_contract_functions<'a, T>(ctx: &mut T) -> ParserResult<Vec<FnDef>>
+fn parse_contract_functions<'a, T, P>(ctx: &mut T) -> ParserResult<Vec<FnDef>>
 where
     T: StatementParserContext,
+    P: Parser,
 {
     in_fn_context(ctx, |i, ctx| {
         if i.is_modifier() {
-            modifier::def(i, ctx).map(|(before, after)| vec![before, after])
+            modifier::def::<_, P>(i, ctx).map(|(before, after)| vec![before, after])
         } else if i.is_constructor() {
-            constructor::def(i, ctx)
+            constructor::def::<_, P>(i, ctx)
         } else {
-            function::def(i, ctx).map(|f| vec![f])
+            function::def::<_, P>(i, ctx).map(|f| vec![f])
         }
     })
 }
 
-fn parse_library_functions<'a, T>(ctx: &mut T) -> ParserResult<Vec<FnDef>>
+fn parse_library_functions<'a, T, P>(ctx: &mut T) -> ParserResult<Vec<FnDef>>
 where
     T: StatementParserContext,
+    P: Parser,
 {
     in_fn_context(ctx, |i, ctx| {
         if i.is_constructor() {
             Ok(vec![])
         } else {
-            function::library_def(i, ctx).map(|f| vec![f])
+            function::library_def::<_, P>(i, ctx).map(|f| vec![f])
         }
     })
 }

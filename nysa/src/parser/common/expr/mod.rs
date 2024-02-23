@@ -1,5 +1,5 @@
 use crate::error::ParserResult;
-use crate::model::ir::{eval_expression_type, Expression, Op, Stmt, TupleItem, Type, Var};
+use crate::model::ir::{eval_expression_type, Expression, Message, Op, Stmt, TupleItem, Type, Var};
 use crate::model::Named;
 use crate::parser::common::StatementParserContext;
 use crate::parser::context::{ItemType, TypeInfo};
@@ -11,7 +11,8 @@ use quote::quote;
 use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use super::{
-    stmt, ContractErrorParser, ContractReferenceParser, NumberParser, StringParser, TypeParser,
+    stmt, ContractErrorParser, ContractReferenceParser, ExpressionParser, FunctionParser,
+    NumberParser, StringParser, TypeParser,
 };
 
 mod array;
@@ -35,7 +36,11 @@ where
         }
         Expression::Placeholder => formatted_invalid_expr!("Placeholder"),
         Expression::ZeroAddress => Ok(syn_utils::none()),
-        Expression::Message(msg) => msg.try_into(),
+        Expression::Message(msg) => match msg {
+            Message::Sender => Ok(<P::ExpressionParser as ExpressionParser>::caller()),
+            Message::Value => todo!(),
+            Message::Data => todo!(),
+        },
         Expression::Collection(name, keys) => collection::parse::<_, P>(name, keys, None, ctx),
         Expression::Variable(name) => parse_variable(name, ctx),
         Expression::Assign(left, right) => {
@@ -70,7 +75,7 @@ where
         }
         Expression::TypeInfo(ty, property) => parse_type_info::<_, P>(ty, property, ctx),
         Expression::Type(ty) => {
-            <P::ExpressionParser as TypeParser>::parse_ty(ty, ctx).map(AsExpression::as_expression)
+            <P::TypeParser as TypeParser>::parse_ty(ty, ctx).map(AsExpression::as_expression)
         }
         Expression::BoolLiteral(b) => Ok(parse_quote!(#b)),
         Expression::Not(expr) => {
@@ -88,11 +93,11 @@ where
         Expression::Fail => formatted_invalid_expr!("Fail"),
         Expression::Keccak256(args) => {
             let args = parse_many::<_, P>(&args, ctx)?;
-            <P::ExpressionParser as TypeParser>::parse_fixed_bytes(args)
+            <P::TypeParser as TypeParser>::parse_fixed_bytes(args)
         }
         Expression::AbiEncodePacked(args) => {
             let args = parse_many::<_, P>(&args, ctx)?;
-            <P::ExpressionParser as TypeParser>::parse_serialize(args)
+            <P::TypeParser as TypeParser>::parse_serialize(args)
         }
     }
 }
@@ -132,7 +137,7 @@ where
 {
     if let Expression::Type(ty) = fn_name {
         // cast expression
-        let ty = <P::ExpressionParser as TypeParser>::parse_ty(ty, ctx)?;
+        let ty = <P::TypeParser as TypeParser>::parse_ty(ty, ctx)?;
         let arg = var::parse_or_default::<_, P>(args.first().unwrap(), ctx)?;
         return Ok(parse_quote!(#ty::from(*#arg)));
     }
@@ -180,7 +185,9 @@ where
             Ok(parse_quote!(#lib_ident::#fn_ident(#first_arg, #(#args),*)))
         }
         _ => match parse::<_, P>(fn_name, ctx) {
-            Ok(name) => Ok(parse_quote!(self.#name(#(#args),*))),
+            Ok(name) => Ok(<P::FnParser as FunctionParser>::parse_module_fn_call(
+                name, args,
+            )),
             Err(err) => Err(err),
         },
     }
@@ -287,7 +294,9 @@ where
 {
     let fn_name = utils::to_prefixed_snake_case_ident("super_", fn_name);
     let args = parse_many::<_, P>(&args, ctx)?;
-    Ok(parse_quote!(self.#fn_name(#(#args),*)))
+    Ok(<P::FnParser as FunctionParser>::parse_super_call(
+        fn_name, args,
+    ))
 }
 
 fn parse_member_access<T, P>(

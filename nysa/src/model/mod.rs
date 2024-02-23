@@ -23,13 +23,13 @@ use self::misc::{ContractMetadata, Enum, Error, Event, Struct};
 pub(super) const RESERVED_NAMES: [&str; 1] = ["self"];
 
 pub mod ir {
-    pub use super::expr::{eval_expression_type, Expression, TupleItem};
+    pub use super::expr::{eval_expression_type, Expression, Message, TupleItem};
     pub use super::func::*;
     pub use super::interface::InterfaceData;
     pub use super::misc::*;
     pub use super::op::{BitwiseOp, LogicalOp, MathOp, Op, UnaryOp};
     pub use super::package::Package;
-    pub use super::stmt::Stmt;
+    pub use super::stmt::{contains_sender_expr, Stmt};
 }
 
 /// A type that has a name.

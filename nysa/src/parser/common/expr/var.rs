@@ -46,9 +46,14 @@ pub(super) fn parse_set<T: StorageInfo + TypeInfo + FnContext, P: Parser>(
     ctx: &mut T,
 ) -> ParserResult<syn::Expr> {
     let item_type = ctx.type_from_string(id);
-    let var = var(&item_type, id)?;
+    let var = var::<P::ExpressionParser>(&item_type, id)?;
 
-    <P::ExpressionParser as ExpressionParser>::parse_set_var_expression(var, value_expr, item_type)
+    match item_type {
+        Some(ItemType::Storage(v)) => {
+            <P::ExpressionParser as ExpressionParser>::parse_set_storage_expression(id, value_expr)
+        }
+        _ => Ok(parse_quote!(#var = #value_expr)),
+    }
 }
 
 /// Parses a single get value interactions.
@@ -69,14 +74,14 @@ pub(super) fn parse_get<T: StorageInfo + TypeInfo + FnContext, P: Parser>(
     ctx: &mut T,
 ) -> ParserResult<syn::Expr> {
     let item_type = ctx.type_from_string(id);
-    let var = var(&item_type, id)?;
+    let var = var::<P::ExpressionParser>(&item_type, id)?;
 
     match item_type {
-        Some(ItemType::Storage(v)) => Ok(
-            <P::ExpressionParser as ExpressionParser>::parse_read_values_expression(
-                var, None, &v.ty, ctx,
-            ),
-        ),
+        Some(ItemType::Storage(v)) => {
+            <P::ExpressionParser as ExpressionParser>::parse_storage_value_expression(
+                id, None, &v.ty, ctx,
+            )
+        }
         _ => Ok(var),
     }
 }
@@ -107,7 +112,7 @@ where
     }
 }
 
-fn var(item_type: &Option<ItemType>, id: &str) -> ParserResult<syn::Expr> {
+fn var<P: ExpressionParser>(item_type: &Option<ItemType>, id: &str) -> ParserResult<syn::Expr> {
     let ident = to_snake_case_ident(id);
 
     match item_type {

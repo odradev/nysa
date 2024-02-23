@@ -65,10 +65,8 @@ where
 mod tests {
     use super::*;
     use crate::model::ir::{Expression, Type};
-    use crate::parser::test_utils::{
-        parse_with_empty_context, unsafe_parse_with_empty_context
-    };
     use crate::parser::test_utils::assert_tokens_eq;
+    use crate::parser::test_utils::{parse_with_empty_context, unsafe_parse_with_empty_context};
     use quote::quote;
 
     #[test]

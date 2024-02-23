@@ -9,8 +9,9 @@ use crate::{
 use crate::{model::ir::Package, ParserError};
 
 use self::common::{
-    ContractErrorParser, ContractReferenceParser, EventEmitParser, ExpressionParser, NumberParser,
-    StringParser, TypeParser,
+    ContractErrorParser, ContractReferenceParser, CustomElementParser, CustomImports, ErrorParser,
+    EventEmitParser, EventParser, ExpressionParser, ExtContractParser, FunctionParser,
+    NumberParser, StringParser, TypeParser,
 };
 
 pub mod common;
@@ -26,7 +27,14 @@ pub trait Parser {
     type EventEmitParser: EventEmitParser;
     type ContractReferenceParser: ContractReferenceParser;
     type ContractErrorParser: ContractErrorParser;
-    type ExpressionParser: ExpressionParser + TypeParser + StringParser + NumberParser;
+    type ExpressionParser: ExpressionParser + StringParser + NumberParser;
+    type FnParser: FunctionParser;
+    type TypeParser: TypeParser;
+    type ElementsParser: CustomElementParser
+        + ExtContractParser
+        + EventParser
+        + ErrorParser
+        + CustomImports;
 
     /// Parses pre-processed data into [TokenStream]. If an error occurs, the first encountered [ParserError] error is returned.
     fn parse(package: Package) -> Result<TokenStream, ParserError>;

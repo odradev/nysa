@@ -1,8 +1,8 @@
 use c3_lang_parser::c3_ast::VarDef;
-use proc_macro2::TokenStream;
-use syn::{parse_quote, punctuated::Punctuated, Token};
+use syn::parse_quote;
 
 use crate::{
+    error::ParserResult,
     model::ir::{Expression, Type, Var},
     parser::{
         context::{ContractInfo, TypeInfo},
@@ -11,20 +11,24 @@ use crate::{
     utils, ParserError,
 };
 
-use super::ty;
+use super::{expr, NumberParser, TypeParser};
 
 /// Pareses mutable [Var]s into a vector of c3 ast [VarDef].
-pub fn variables_def<T: TypeInfo + ContractInfo>(t: &mut T) -> Result<Vec<VarDef>, ParserError> {
+pub fn variables_def<T: TypeInfo + ContractInfo, P: TypeParser>(
+    t: &mut T,
+) -> ParserResult<Vec<VarDef>> {
     t.current_contract()
         .vars()
         .iter()
         .filter(|v| !v.is_immutable)
-        .map(|v| variable_def(v, t))
+        .map(|v| variable_def::<_, P>(v, t))
         .collect()
 }
 
 /// Pareses immutable [Var]s into a vector of c3 ast [VarDef].
-pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Item>, ParserError> {
+pub fn const_def<T: TypeInfo + ContractInfo, P: TypeParser + NumberParser>(
+    ctx: &mut T,
+) -> ParserResult<Vec<syn::Item>> {
     ctx.current_contract()
         .vars()
         .iter()
@@ -32,7 +36,7 @@ pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Ite
         .map(|v| {
             let const_ident = utils::to_ident(&v.name);
 
-            let ty = ty::parse_type_from_ty(&v.ty, ctx)?;
+            let ty = P::parse_ty(&v.ty, ctx)?;
             let expr = v
                 .initializer
                 .as_ref()
@@ -45,7 +49,7 @@ pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Ite
                 Expression::NumberLiteral(n) => {
                     if let Type::Uint(size) | Type::Int(size) = v.ty {
                         let words = to_sized_u64_words(n, size.div_ceil(64) as usize);
-                        let num = words_to_number(words, &ty);
+                        let num = P::words_to_number(words, &ty);
                         Ok(parse_quote!(pub const #const_ident: #ty = #num;))
                     } else {
                         Err(ParserError::InvalidType)
@@ -55,10 +59,10 @@ pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Ite
                     if let Type::Uint(size) | Type::Int(size) = v.ty {
                         let bytes = bytes.iter().rev().map(|u| *u).collect::<Vec<_>>();
                         let words = to_bytes_u64_words(&bytes, size.div_ceil(64) as usize);
-                        let num = words_to_number(words, &ty);
+                        let num = P::words_to_number(words, &ty);
                         Ok(parse_quote!(pub const #const_ident: #ty = #num;))
                     } else if let Type::Bytes(b) = v.ty {
-                        let value = crate::parser::common::expr::parse_bytes_lit(bytes)?;
+                        let value = expr::parse_bytes_lit(bytes)?;
                         Ok(parse_quote!(pub const #const_ident: #ty = #value;))
                     } else {
                         Err(ParserError::InvalidType)
@@ -72,9 +76,9 @@ pub fn const_def<T: TypeInfo + ContractInfo>(ctx: &mut T) -> Result<Vec<syn::Ite
 }
 
 /// Transforms [Var] into a c3 ast [VarDef].
-fn variable_def<T: TypeInfo>(v: &Var, t: &T) -> Result<VarDef, ParserError> {
+fn variable_def<T: TypeInfo, P: TypeParser>(v: &Var, t: &T) -> ParserResult<VarDef> {
     let ident = utils::to_snake_case_ident(&v.name);
-    let ty = ty::parse_state_ty(&v.ty, t)?.as_type();
+    let ty = P::parse_state_ty(&v.ty, t)?.as_type();
     Ok(VarDef { ident, ty })
 }
 
@@ -104,12 +108,4 @@ fn to_sized_u64_words(input: &[u64], size: usize) -> Vec<u64> {
         output[i] = input[i];
     }
     output
-}
-
-fn words_to_number(words: Vec<u64>, ty: &syn::Type) -> TokenStream {
-    let arr = words
-        .iter()
-        .map(|v| quote::quote!(#v))
-        .collect::<Punctuated<TokenStream, Token![,]>>();
-    quote::quote!(#ty::from_limbs([#arr]))
 }

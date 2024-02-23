@@ -1,4 +1,4 @@
-use proc_macro2::Ident;
+use proc_macro2::{Ident, TokenStream};
 use quote::ToTokens;
 use syn::parse_quote;
 
@@ -43,8 +43,20 @@ pub fn if_else_stmt<T: ToTokens, F: ToTokens>(
     parse_quote!(if #assertion #if_body else #else_body)
 }
 
+pub fn if_not<T: ToTokens, F: ToTokens>(condition: T, expr: F) -> syn::Expr {
+    parse_quote!(if !(#condition) { #expr })
+}
+
+pub fn default_value(ident: Ident) -> TokenStream {
+    quote::quote!(let mut #ident = Default::default();)
+}
+
 pub fn while_loop<T: ToTokens>(assertion: syn::Expr, block: T) -> syn::Stmt {
     parse_quote!(while #assertion #block)
+}
+
+pub fn as_ref(expr: Option<syn::Expr>) -> Option<syn::Expr> {
+    expr.map(|k| parse_quote!(&#k))
 }
 
 pub trait AsSelfField {

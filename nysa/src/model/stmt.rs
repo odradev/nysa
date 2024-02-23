@@ -47,6 +47,84 @@ pub enum Stmt {
     Fail,
 }
 
+pub fn contains_sender_expr(stmts: &[Stmt]) -> bool {
+    stmts.iter().any(Stmt::contains_sender_expr)
+}
+
+impl Stmt {
+    /// Returns true if the statement contains Expression::Message.
+    pub fn contains_sender_expr(&self) -> bool {
+        match self {
+            Stmt::Return(expr) => expr.is_sender_expr(),
+            Stmt::VarDefinition(_, _, expr) => expr.is_sender_expr(),
+            Stmt::VarDeclaration(_, _) => false,
+            Stmt::If(cond, if_body) => cond.is_sender_expr() || if_body.contains_sender_expr(),
+            Stmt::IfElse(cond, if_body, else_body) => {
+                cond.is_sender_expr()
+                    || if_body.contains_sender_expr()
+                    || else_body.contains_sender_expr()
+            }
+            Stmt::Block(statements) => statements.iter().any(Stmt::contains_sender_expr),
+            Stmt::ReturningBlock(statements) => statements.iter().any(Stmt::contains_sender_expr),
+            Stmt::Emit(expr) => expr.is_sender_expr(),
+            Stmt::RevertWithError(_) => false,
+            Stmt::Revert(Some(expr)) => expr.is_sender_expr(),
+            Stmt::Revert(None) => false,
+            Stmt::Placeholder => false,
+            Stmt::While(cond, body) => cond.is_sender_expr() || body.contains_sender_expr(),
+            Stmt::DocComment(_) => false,
+            Stmt::Unknown => false,
+            #[cfg(test)]
+            Stmt::Fail => false,
+            Stmt::ReturnVoid => false,
+            Stmt::Expression(expr) => expr.is_sender_expr(),
+        }
+    }
+
+    pub fn function_calls(&self) -> Vec<String> {
+        match self {
+            Stmt::Return(expr) => expr.func_call(),
+            Stmt::VarDefinition(_, _, expr) => expr.func_call(),
+            Stmt::VarDeclaration(_, _) => vec![],
+            Stmt::If(cond, if_body) => [cond.func_call(), if_body.function_calls()].concat(),
+            Stmt::IfElse(cond, if_body, else_body) => [
+                cond.func_call(),
+                if_body.function_calls(),
+                else_body.function_calls(),
+            ]
+            .concat(),
+            Stmt::Block(statements) => statements
+                .iter()
+                .map(Stmt::function_calls)
+                .flatten()
+                .collect(),
+            Stmt::ReturningBlock(statements) => statements
+                .iter()
+                .map(Stmt::function_calls)
+                .flatten()
+                .collect(),
+            Stmt::Emit(expr) => {
+                if let Expression::Func(_, args) = expr {
+                    args.iter().map(Expression::func_call).flatten().collect()
+                } else {
+                    expr.func_call()
+                }
+            }
+            Stmt::RevertWithError(_) => vec![],
+            Stmt::Revert(Some(expr)) => expr.func_call(),
+            Stmt::Revert(None) => vec![],
+            Stmt::Placeholder => vec![],
+            Stmt::While(cond, body) => [cond.func_call(), body.function_calls()].concat(),
+            Stmt::DocComment(_) => vec![],
+            Stmt::Unknown => vec![],
+            #[cfg(test)]
+            Stmt::Fail => vec![],
+            Stmt::ReturnVoid => vec![],
+            Stmt::Expression(expr) => expr.func_call(),
+        }
+    }
+}
+
 impl From<&pt::Statement> for Stmt {
     fn from(value: &pt::Statement) -> Self {
         match value {

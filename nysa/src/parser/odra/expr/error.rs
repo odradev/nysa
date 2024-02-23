@@ -1,8 +1,8 @@
-use super::{parse, syn_utils};
+use super::syn_utils;
 use crate::{
     error::ParserResult,
     model::ir::Expression,
-    parser::common::{ContractErrorParser, StatementParserContext},
+    parser::common::{expr::parse, ContractErrorParser, StatementParserContext},
     utils, OdraParser, ParserError,
 };
 
@@ -39,7 +39,7 @@ impl ContractErrorParser for OdraParser {
         match condition {
             Some(condition) => {
                 let condition = parse::<_, OdraParser>(condition, ctx)?;
-                Ok(syn_utils::if_not(condition, error))
+                Ok(crate::parser::syn_utils::if_not(condition, error))
             }
             None => Ok(error),
         }

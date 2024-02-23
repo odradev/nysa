@@ -13,12 +13,6 @@ use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use super::syn_utils;
 
-macro_rules! to_uint {
-    ($value:expr, $t:ty) => {
-        <$t>::from_le_bytes(crate::utils::convert_to_array($value))
-    };
-}
-
 impl NumberParser for OdraParser {
     fn parse_typed_number<T: StatementParserContext>(
         values: &[u64],
@@ -55,6 +49,20 @@ impl NumberParser for OdraParser {
     fn unsigned_one() -> syn::Expr {
         syn_utils::unsigned_one()
     }
+
+    fn words_to_number(words: Vec<u64>, ty: &syn::Type) -> syn::Expr {
+        let arr = words
+            .iter()
+            .map(|v| quote::quote!(#v))
+            .collect::<Punctuated<TokenStream, Token![,]>>();
+        parse_quote!(#ty::from_limbs([#arr]))
+    }
+}
+
+macro_rules! to_uint {
+    ($value:expr, $t:ty) => {
+        <$t>::from_le_bytes(crate::utils::convert_to_array($value))
+    };
 }
 
 fn to_generic_int_expr(value: &[u64]) -> ParserResult<syn::Expr> {

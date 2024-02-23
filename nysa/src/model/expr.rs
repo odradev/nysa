@@ -1,5 +1,4 @@
 use solidity_parser::pt::{self, Parameter};
-use syn::parse_quote;
 
 use crate::{formatted_invalid_expr, parser::context::*, ParserError};
 
@@ -84,6 +83,141 @@ pub enum Expression {
     Fail,
 }
 
+impl Expression {
+    /// Returns true if the expression is Message::Sender.
+    pub fn is_sender_expr(&self) -> bool {
+        match self {
+            Expression::Message(Message::Sender) => true,
+            Expression::Require(cond, err) => cond.is_sender_expr() || err.is_sender_expr(),
+            Expression::Placeholder => false,
+            Expression::ZeroAddress => false,
+            Expression::Keccak256(args) => args.iter().any(Expression::is_sender_expr),
+            Expression::AbiEncodePacked(args) => args.iter().any(Expression::is_sender_expr),
+            Expression::Collection(_, keys) => keys.iter().any(Expression::is_sender_expr),
+            Expression::Variable(_) => false,
+            Expression::BoolLiteral(_) => false,
+            Expression::StringLiteral(_) => false,
+            Expression::Assign(l, r) => {
+                l.is_sender_expr()
+                    || r.clone()
+                        .and_then(|e| Some(e.is_sender_expr()))
+                        .unwrap_or(false)
+            }
+            Expression::LogicalOp(l, r, _) => l.is_sender_expr() || r.is_sender_expr(),
+            Expression::MathOp(l, r, _) => l.is_sender_expr() || r.is_sender_expr(),
+            Expression::AssignAnd(l, r, _) => l.is_sender_expr() || r.is_sender_expr(),
+            Expression::Increment(e) => e.is_sender_expr(),
+            Expression::Decrement(e) => e.is_sender_expr(),
+            Expression::MemberAccess(_, e) => e.is_sender_expr(),
+            Expression::NumberLiteral(_) => false,
+            Expression::Func(f, args) => {
+                f.is_sender_expr() || args.iter().any(Expression::is_sender_expr)
+            }
+            Expression::SuperCall(_, args) => args.iter().any(Expression::is_sender_expr),
+            Expression::ExternalCall(_, _, args) => args.iter().any(Expression::is_sender_expr),
+            Expression::TypeInfo(ty, _) => ty.is_sender_expr(),
+            Expression::Type(_) => false,
+            Expression::Not(e) => e.is_sender_expr(),
+            Expression::BytesLiteral(_) => false,
+            Expression::ArrayLiteral(args) => args.iter().any(Expression::is_sender_expr),
+            Expression::Initializer(e) => e.is_sender_expr(),
+            Expression::Statement(s) => s.contains_sender_expr(),
+            Expression::BitwiseOp(l, r, _) => l.is_sender_expr() || r.is_sender_expr(),
+            Expression::UnaryOp(l, _) => l.is_sender_expr(),
+            Expression::Tuple(t) => todo!(),
+            #[cfg(test)]
+            Expression::Fail => false,
+            _ => false,
+        }
+    }
+
+    pub fn func_call(&self) -> Vec<String> {
+        match self {
+            Expression::Func(f, args) => {
+                let mut result = args
+                    .iter()
+                    .map(Self::func_call)
+                    .flatten()
+                    .collect::<Vec<_>>();
+                if let Expression::Variable(name) = &**f {
+                    result.push(name.to_owned());
+                }
+                result
+            }
+            Expression::SuperCall(f, args) => {
+                let mut result = args
+                    .iter()
+                    .map(Self::func_call)
+                    .flatten()
+                    .collect::<Vec<_>>();
+                result.push(f.to_owned());
+                result
+            }
+            Expression::ExternalCall(var, fn_name, args) => {
+                let mut result = args
+                    .iter()
+                    .map(Self::func_call)
+                    .flatten()
+                    .collect::<Vec<_>>();
+                result.push(fn_name.to_owned());
+                result
+            }
+            Expression::Require(cond, err) => [cond.func_call(), err.func_call()].concat(),
+            Expression::Keccak256(args) => args
+                .iter()
+                .map(Self::func_call)
+                .flatten()
+                .collect::<Vec<_>>(),
+            Expression::AbiEncodePacked(args) => args
+                .iter()
+                .map(Self::func_call)
+                .flatten()
+                .collect::<Vec<_>>(),
+            Expression::Collection(_, keys) => keys
+                .iter()
+                .map(Self::func_call)
+                .flatten()
+                .collect::<Vec<_>>(),
+            Expression::Variable(_) => vec![],
+            Expression::BoolLiteral(_) => vec![],
+            Expression::StringLiteral(_) => vec![],
+            Expression::Assign(l, r) => [
+                l.func_call(),
+                r.clone()
+                    .and_then(|e| Some(e.func_call()))
+                    .unwrap_or_default(),
+            ]
+            .concat(),
+            Expression::LogicalOp(l, r, _) => [l.func_call(), r.func_call()].concat(),
+            Expression::MathOp(l, r, _) => [l.func_call(), r.func_call()].concat(),
+            Expression::AssignAnd(l, r, _) => [l.func_call(), r.func_call()].concat(),
+            Expression::Increment(e) => e.func_call(),
+            Expression::Decrement(e) => e.func_call(),
+            Expression::MemberAccess(_, e) => e.func_call(),
+            Expression::NumberLiteral(_) => vec![],
+            Expression::TypeInfo(ty, _) => ty.func_call(),
+            Expression::Type(_) => vec![],
+            Expression::Not(e) => e.func_call(),
+            Expression::BytesLiteral(_) => vec![],
+            Expression::ArrayLiteral(args) => args
+                .iter()
+                .map(Self::func_call)
+                .flatten()
+                .collect::<Vec<_>>(),
+            Expression::Initializer(e) => e.func_call(),
+            Expression::Statement(s) => s.function_calls(),
+            Expression::BitwiseOp(l, r, _) => [l.func_call(), r.func_call()].concat(),
+            Expression::UnaryOp(l, _) => l.func_call(),
+            #[cfg(test)]
+            Expression::Fail => vec![],
+            Expression::Placeholder => vec![],
+            Expression::ZeroAddress => vec![],
+            Expression::Message(_) => vec![],
+            Expression::Tuple(_) => vec![],
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum TupleItem {
     Expr(Expression),
@@ -123,18 +257,6 @@ pub enum Message {
     Sender,
     Value,
     Data,
-}
-
-impl TryInto<syn::Expr> for &Message {
-    type Error = ParserError;
-
-    fn try_into(self) -> Result<syn::Expr, Self::Error> {
-        match self {
-            Message::Sender => Ok(parse_quote!(Some(self.env().caller()))),
-            Message::Value => todo!(),
-            Message::Data => todo!(),
-        }
-    }
 }
 
 fn try_to_zero_address(name: &pt::Expression) -> Option<Expression> {

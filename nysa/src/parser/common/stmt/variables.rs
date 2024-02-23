@@ -71,9 +71,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{model::ir::Stmt, parser::test_utils::{assert_tokens_eq, unsafe_parse_with_empty_context}};
-    use quote::quote;
     use super::*;
+    use crate::{
+        model::ir::Stmt,
+        parser::test_utils::{assert_tokens_eq, unsafe_parse_with_empty_context},
+    };
+    use quote::quote;
 
     #[test]
     fn var_declaration() {

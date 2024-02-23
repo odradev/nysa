@@ -1,18 +1,20 @@
-use syn::{parse_quote, FnArg};
+use syn::parse_quote;
+use syn::punctuated::Punctuated;
 
 use crate::error::ParserResult;
-use crate::parser::common::StatementParserContext;
+use crate::parser::common::{
+    stmt, ty, ContractReferenceParser, StatementParserContext, TypeParser,
+};
 use crate::parser::context::ItemType;
+use crate::Parser;
 use crate::{
     model::ir::{Expression, Param, Stmt, Type, Visibility},
     parser::{
         context::{ContractInfo, ExternalCallsRegister, FnContext, TypeInfo},
-        odra::{stmt, ty},
         syn_utils,
     },
     utils,
 };
-use crate::{parser, OdraParser};
 
 pub(super) fn parse_visibility(vis: &Visibility) -> syn::Visibility {
     match vis {
@@ -22,45 +24,32 @@ pub(super) fn parse_visibility(vis: &Visibility) -> syn::Visibility {
     }
 }
 
-pub(super) fn parse_parameter<T: TypeInfo>(param: &Param, info: &T) -> ParserResult<syn::FnArg> {
-    let ty = ty::parse_type_from_ty(&param.ty, info)?;
+pub(super) fn parse_parameter<T: TypeInfo, P: TypeParser>(
+    param: &Param,
+    info: &T,
+) -> ParserResult<syn::FnArg> {
+    let ty = P::parse_ty(&param.ty, info)?;
     let name = utils::to_snake_case_ident(&param.name);
     Ok(syn_utils::fn_arg(name, ty))
 }
 
-pub(super) fn context_args<T: TypeInfo + FnContext>(
+pub(super) fn parse_params<T: TypeInfo, P: Parser>(
     params: &[Param],
-    is_mutable: bool,
-    ctx: &mut T,
-) -> ParserResult<Vec<FnArg>> {
-    let mut args = params
+    ctx: &T,
+) -> ParserResult<Vec<syn::FnArg>> {
+    params
         .iter()
-        .map(|p| parse_parameter(p, ctx))
-        .collect::<ParserResult<Vec<_>>>()?;
-    args.insert(0, syn_utils::self_arg(is_mutable));
+        .map(|p| parse_parameter::<_, P::TypeParser>(p, ctx))
+        .collect::<ParserResult<Vec<_>>>()
+}
 
+pub(super) fn register_local_vars<T: TypeInfo + FnContext>(params: &[Param], ctx: &mut T) {
     params
         .iter()
         .for_each(|p| ctx.register_local_var(&p.name, &p.ty));
-
-    Ok(args)
 }
 
-pub(super) fn args<T: TypeInfo>(
-    params: &[Param],
-    is_mutable: bool,
-    ctx: &T,
-) -> ParserResult<Vec<FnArg>> {
-    let mut args = params
-        .iter()
-        .map(|p| parse_parameter(p, ctx))
-        .collect::<ParserResult<Vec<_>>>()?;
-    args.insert(0, syn_utils::self_arg(is_mutable));
-
-    Ok(args)
-}
-
-pub(super) fn parse_ret_type<T: TypeInfo>(
+pub(super) fn parse_ret_type<T: TypeInfo, P: TypeParser>(
     returns: &[(Option<String>, Expression)],
     ctx: &T,
 ) -> ParserResult<syn::ReturnType> {
@@ -68,32 +57,34 @@ pub(super) fn parse_ret_type<T: TypeInfo>(
         0 => parse_quote!(),
         1 => {
             let (_, e) = returns.get(0).unwrap().clone();
-            let ty = ty::parse_type_from_expr(&e, ctx)?;
+            let ty = ty::parse_type_from_expr::<_, P>(&e, ctx)?;
             parse_quote!(-> #ty)
         }
         _ => {
             let types = returns
                 .iter()
-                .map(|(_, e)| ty::parse_type_from_expr(e, ctx))
-                .collect::<Result<syn::punctuated::Punctuated<syn::Type, syn::Token![,]>, _>>()?;
+                .map(|(_, e)| ty::parse_type_from_expr::<_, P>(e, ctx))
+                .collect::<ParserResult<Punctuated<syn::Type, syn::Token![,]>>>()?;
             parse_quote!(-> (#types))
         }
     })
 }
 
-pub(super) fn parse_statements<T>(statements: &[Stmt], ctx: &mut T) -> Vec<syn::Stmt>
+pub(super) fn parse_statements<T, P>(statements: &[Stmt], ctx: &mut T) -> Vec<syn::Stmt>
 where
     T: StatementParserContext,
+    P: Parser,
 {
     statements
         .iter()
-        .map(|stmt| stmt::parse_statement(&stmt, true, ctx))
+        .map(|stmt| stmt::parse_statement::<_, P>(&stmt, true, ctx))
         .filter_map(Result::ok)
         .collect::<Vec<_>>()
 }
 
 pub(super) fn parse_external_contract_statements<
     T: ExternalCallsRegister + ContractInfo + FnContext + TypeInfo,
+    P: ContractReferenceParser,
 >(
     params: &[Param],
     ctx: &mut T,
@@ -106,13 +97,11 @@ pub(super) fn parse_external_contract_statements<
         })
         .filter_map(|(name, param_name)| {
             if let Some(ItemType::Contract(contract_name)) = ctx.type_from_string(name) {
-                Some(
-                    parser::common::stmt::ext::ext_contract_stmt::<_, OdraParser>(
-                        param_name,
-                        &contract_name,
-                        ctx,
-                    ),
-                )
+                Some(stmt::ext::ext_contract_stmt::<_, P>(
+                    param_name,
+                    &contract_name,
+                    ctx,
+                ))
             } else {
                 None
             }

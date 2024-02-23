@@ -1,5 +1,4 @@
 use crate::parse;
-use quote::ToTokens;
 use std::{fs::File, io::Read, path::Path};
 
 use super::*;
@@ -90,7 +89,10 @@ fn test_many(count: usize, base_path: &str) {
     for i in 1..=count {
         let path = read_file(format!("../resources/{}/{}.sol", base_path, i));
         let result = parse::<SorobanParser, _>(path.as_str());
-        assert_impl(result, format!("../resources/{}/{}.rs", base_path, i));
+        assert_impl(
+            result,
+            format!("../resources/{}/soroban/{}.rs", base_path, i),
+        );
     }
 }
 
@@ -99,7 +101,7 @@ fn test_single(base_path: &str, test_case: &str) {
     let result = parse::<SorobanParser, _>(path.as_str());
     assert_impl(
         result,
-        format!("../resources/{}/{}_soroban.rs", base_path, test_case),
+        format!("../resources/{}/soroban/{}.rs", base_path, test_case),
     );
 }
 
@@ -115,17 +117,6 @@ fn assert_impl<P: AsRef<Path>>(result: TokenStream, file_path: P) {
     let content = content.replace("{{DEFAULT_IMPORTS}}", DEFAULT_IMPORTS);
 
     pretty_assertions::assert_eq!(parse(result.to_string().as_str()), parse(content.as_str()));
-}
-
-pub(crate) fn assert_tokens_eq<L, R>(left: L, right: R)
-where
-    L: ToTokens,
-    R: ToTokens,
-{
-    assert_eq!(
-        left.into_token_stream().to_string(),
-        right.into_token_stream().to_string()
-    )
 }
 
 fn read_file<P: AsRef<Path>>(file_path: P) -> String {

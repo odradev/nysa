@@ -4,17 +4,24 @@ use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
     error::ParserResult,
-    model::ir::{BaseCall, FnImplementations, Func, Type},
-    parser::common::StatementParserContext,
-    utils, OdraParser,
+    model::{
+        ir::{BaseCall, FnImplementations, Func, Function, Stmt, Type},
+        Named,
+    },
+    parser::{
+        common::{expr, FunctionParser, StatementParserContext},
+        syn_utils,
+    },
+    utils, Parser,
 };
 
 use super::common;
 
 /// Transforms [Var] into a c3 ast [FnDef].
-pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<FnDef>
+pub(super) fn def<T, P>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<FnDef>
 where
     T: StatementParserContext,
+    P: Parser,
 {
     let definitions = impls.as_functions();
 
@@ -25,19 +32,22 @@ where
         .expect("At least one implementation expected")
         .clone();
 
-    let mut attrs = vec![];
-    if top_lvl_func.is_payable {
-        attrs.push(parse_quote!(#[odra(payable)]));
-    }
+    let attrs = <P::FnParser as FunctionParser>::attrs(top_lvl_func);
 
-    let args = common::context_args(&top_lvl_func.params, top_lvl_func.is_mutable, ctx)?;
+    let base_args = common::parse_params::<_, P>(&top_lvl_func.params, ctx)?;
+    common::register_local_vars(&top_lvl_func.params, ctx);
+
+    // let all_stmts = all_stmts(Function::Function(top_lvl_func.clone()), ctx);
+
+    let args =
+        <P::FnParser as FunctionParser>::parse_args(base_args, top_lvl_func.is_mutable, true)?;
 
     let implementations = definitions
         .iter()
         .map(|(class, def)| ClassFnImpl {
             class: Some(class.to_owned().clone()),
             fun: def.name.clone().into(),
-            implementation: parse_body(def, ctx),
+            implementation: parse_body::<_, P>(def, ctx),
             visibility: common::parse_visibility(&def.vis),
         })
         .collect();
@@ -46,32 +56,31 @@ where
         attrs,
         name: top_lvl_func.name.as_str().into(),
         args,
-        ret: common::parse_ret_type(&top_lvl_func.ret, ctx)?,
+        ret: common::parse_ret_type::<_, P::TypeParser>(&top_lvl_func.ret, ctx)?,
         implementations,
     }))
 }
 
 /// Transforms [Var] into a c3 ast [FnDef].
-pub(super) fn library_def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<FnDef>
+pub(super) fn library_def<T, P>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<FnDef>
 where
     T: StatementParserContext,
+    P: Parser,
 {
     let functions = impls.as_functions();
     // only one impl expected
     let (id, func) = functions.first().unwrap();
 
-    let mut attrs = vec![];
-    if func.is_payable {
-        attrs.push(parse_quote!(#[odra(payable)]));
-    }
+    let attrs = <P::FnParser as FunctionParser>::attrs(func);
 
-    let mut args = common::context_args(&func.params, func.is_mutable, ctx)?;
-    args.remove(0);
+    let args = common::parse_params::<_, P>(&func.params, ctx)?;
+    common::register_local_vars(&func.params, ctx);
+    // let args = <P::FnParser as FunctionParser>::parse_args(params, func.is_mutable)?;
 
     let implementation = ClassFnImpl {
         class: None,
         fun: func.name.clone().into(),
-        implementation: parse_body(func, ctx),
+        implementation: parse_body::<_, P>(func, ctx),
         visibility: common::parse_visibility(&func.vis),
     };
 
@@ -79,14 +88,15 @@ where
         attrs,
         name: func.name.as_str().into(),
         args,
-        ret: common::parse_ret_type(&func.ret, ctx)?,
+        ret: common::parse_ret_type::<_, P::TypeParser>(&func.ret, ctx)?,
         implementation,
     }))
 }
 
-fn parse_body<T>(def: &Func, ctx: &mut T) -> syn::Block
+fn parse_body<T, P>(def: &Func, ctx: &mut T) -> syn::Block
 where
     T: StatementParserContext,
+    P: Parser,
 {
     def.ret
         .iter()
@@ -110,7 +120,7 @@ where
             None => None,
         })
         .map(utils::to_snake_case_ident)
-        .map(|i| quote::quote!(let mut #i = Default::default();))
+        .map(syn_utils::default_value)
         .collect::<Vec<_>>();
 
     let ret = def
@@ -127,9 +137,12 @@ where
     let ret = (!ret.is_empty()).then(|| quote::quote!(return (#ret);));
 
     // parse solidity function body
-    let stmts: Vec<syn::Stmt> = common::parse_statements(&def.stmts, ctx);
+    let stmts: Vec<syn::Stmt> = common::parse_statements::<_, P>(&def.stmts, ctx);
 
-    let ext = common::parse_external_contract_statements(&def.params, ctx);
+    let ext = common::parse_external_contract_statements::<_, P::ContractReferenceParser>(
+        &def.params,
+        ctx,
+    );
 
     // handle constructor of modifiers calls;
     // Eg `constructor(string memory _name) Named(_name) {}`
@@ -138,15 +151,17 @@ where
         .modifiers
         .iter()
         .filter_map(|BaseCall { class_name, args }| {
-            let args = crate::parser::common::expr::parse_many::<_, OdraParser>(args, ctx)
-                .unwrap_or(vec![]);
+            let args = expr::parse_many::<_, P>(args, ctx).unwrap_or_default();
             if ctx
                 .current_contract()
                 .has_function(&utils::to_snake_case(class_name))
             {
                 // modifier call
                 let ident = utils::to_prefixed_snake_case_ident("modifier_before_", class_name);
-                Some(parse_quote!(self.#ident( #(#args),* );))
+
+                Some(<P::FnParser as FunctionParser>::parse_modifier_call(
+                    ident, args,
+                ))
             } else {
                 // super constructor call but handled already
                 None
@@ -159,15 +174,16 @@ where
         .iter()
         .rev()
         .filter_map(|BaseCall { class_name, args }| {
-            let args = crate::parser::common::expr::parse_many::<_, OdraParser>(&args, ctx)
-                .unwrap_or(vec![]);
+            let args = expr::parse_many::<_, P>(&args, ctx).unwrap_or_default();
             if ctx
                 .current_contract()
                 .has_function(&utils::to_snake_case(class_name))
             {
                 // modifier call
                 let ident = utils::to_prefixed_snake_case_ident("modifier_after_", class_name);
-                Some(parse_quote!(self.#ident( #(#args),* );))
+                Some(<P::FnParser as FunctionParser>::parse_modifier_call(
+                    ident, args,
+                ))
             } else {
                 // super constructor call but handled already
                 None
@@ -182,4 +198,30 @@ where
         #(#after_stmts)*
         #ret
     })
+}
+
+#[allow(dead_code)]
+fn all_stmts<T: StatementParserContext>(f: Function, ctx: &T) -> Vec<Stmt> {
+    let path = ctx
+        .current_contract()
+        .c3_path()
+        .iter()
+        .map(|i| i.to_string())
+        .collect::<Vec<_>>();
+    let calls = ctx.call_list(path.clone(), &f.name());
+
+    let all_stmts = path
+        .iter()
+        .map(|class| {
+            calls
+                .iter()
+                .filter_map(|name| ctx.find_fn(class, name))
+                .map(|f| f.stmts())
+                .collect::<Vec<_>>()
+        })
+        .flatten()
+        .flatten()
+        .chain(f.stmts())
+        .collect::<Vec<_>>();
+    all_stmts
 }

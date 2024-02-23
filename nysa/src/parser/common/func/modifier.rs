@@ -3,8 +3,10 @@ use c3_lang_parser::c3_ast::{ClassFnImpl, FnDef, PlainFnDef};
 use syn::parse_quote;
 
 use crate::{
-    error::ParserResult, model::ir::FnImplementations, parser::common::StatementParserContext,
-    ParserError,
+    error::ParserResult,
+    model::ir::{contains_sender_expr, FnImplementations},
+    parser::common::{FunctionParser, StatementParserContext},
+    Parser, ParserError,
 };
 
 use super::common;
@@ -16,9 +18,10 @@ use super::common;
 /// Both functions have the same definition, except the implementation:
 /// the  first function takes statements before the `_`, and the second
 /// take the remaining statements.
-pub(super) fn def<T>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<(FnDef, FnDef)>
+pub(super) fn def<T, P>(impls: &FnImplementations, ctx: &mut T) -> ParserResult<(FnDef, FnDef)>
 where
     T: StatementParserContext,
+    P: Parser,
 {
     let modifiers = impls.as_modifiers();
 
@@ -27,10 +30,16 @@ where
     }
 
     let (_, def) = modifiers[0];
-    let before_stmts = common::parse_statements(&def.before_stmts, ctx);
-    let after_stmts = common::parse_statements(&def.after_stmts, ctx);
+    let before_stmts = common::parse_statements::<_, P>(&def.before_stmts, ctx);
+    let after_stmts = common::parse_statements::<_, P>(&def.after_stmts, ctx);
 
-    let args = common::context_args(&def.params, def.is_mutable, ctx)?;
+    let params = common::parse_params::<_, P>(&def.params, ctx)?;
+    common::register_local_vars(&def.params, ctx);
+
+    let uses_sender =
+        contains_sender_expr(&def.after_stmts) || contains_sender_expr(&def.before_stmts);
+    let args =
+        <P::FnParser as FunctionParser>::parse_modifier_args(params, def.is_mutable, uses_sender)?;
     let before_fn: Class = format!("modifier_before_{}", def.base_name).into();
     let after_fn: Class = format!("modifier_after_{}", def.base_name).into();
     Ok((
