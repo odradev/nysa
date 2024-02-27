@@ -79,7 +79,7 @@ fn parse_packages(package: &Package, ctx: &mut GlobalContext) -> ParserResult<Ve
                 .collect();
             Ok(PackageDef {
                 no_std: true,
-                attrs: vec![],
+                attrs: code::attr::module_attrs(),
                 other_code: [default_imports, storage_items].concat(),
                 class_name,
                 classes: vec![contract_def(&mut ctx)?],

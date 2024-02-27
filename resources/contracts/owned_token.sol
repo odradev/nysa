@@ -53,14 +53,6 @@ contract ERC20 {
     function transfer(address _to, uint256 _value) public {
         _transfer(msg.sender, _to, _value);
     }
-
-    function getBalanceOf(address _owner) public view returns (uint256) {
-        return balanceOf[_owner];
-    }
-
-    function getTotalSupply() public view returns (uint256) {
-        return totalSupply;
-    }
 }
 
 contract OwnedToken is Owner, ERC20 {

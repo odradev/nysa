@@ -4,7 +4,7 @@ use super::parse;
 use crate::{
     error::ParserResult,
     formatted_invalid_expr,
-    model::ir::Expression,
+    model::ir::{eval_expression_type, Expression},
     parser::{
         common::{ExpressionParser, StatementParserContext},
         context::{FnContext, ItemType, StorageInfo, TypeInfo},
@@ -104,10 +104,18 @@ where
     } else {
         // calculate the new value by reading the current value and applying the operator,
         // then set the new value
-        let op = operator.map(Into::<BinOp>::into);
+        let op = operator.map(Into::<BinOp>::into).unwrap();
         let current_value_expr = parse_get::<_, P>(&name, ctx)?;
         let value_expr = parse_or_default::<_, P>(right, ctx)?;
-        let new_value: syn::Expr = parse_quote!(#current_value_expr #op #value_expr);
+        let ty = eval_expression_type(right, ctx).expect("failed to evaluate expression type");
+
+        let new_value = <P::ExpressionParser as ExpressionParser>::parse_update_value_expression(
+            current_value_expr,
+            value_expr,
+            op,
+            ty,
+            ctx,
+        );
         parse_set::<_, P>(&name, new_value, ctx)
     }
 }

@@ -1,6 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod my_contract {
-    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports)]
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports, unused_variables)]
 
     {{DEFAULT_IMPORTS}}
     const MY_NUMBER: soroban_sdk::Symbol = soroban_sdk::symbol_short!("MY_NUMBER");
@@ -60,9 +60,9 @@ pub mod my_contract {
         }
 
         pub fn init(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>, _my_uint: soroban_sdk::U256) {
-            env.storage.persistent().set(&MY_NUMBER, soroban_sdk::U256::from_parts(&env, 42u64, 0u64, 0u64, 0u64));
-            env.storage.persistent().set(&MIN_INT, soroban_sdk::U256::from_parts(&env, 42u64, 0u64, 0u64, 0u64));
-            env.storage.persistent().set(&NEG, soroban_sdk::U256::from_parts(&env, 42u64, 0u64, 0u64, 0u64));
+            env.storage.persistent().set(&MY_NUMBER, soroban_sdk::U256::from_parts(&env, 0u64, 0u64, 0u64, 42u64));
+            env.storage.persistent().set(&MIN_INT, soroban_sdk::U256::from_parts(&env, 0u64, 0u64, 0u64, 42u64));
+            env.storage.persistent().set(&NEG, soroban_sdk::U256::from_parts(&env, 0u64, 0u64, 0u64, 42u64));
             env.storage.persistent().set(&BOO, &true);
             env.storage.persistent().set(&MY_UNIT_2, &_my_uint);
 

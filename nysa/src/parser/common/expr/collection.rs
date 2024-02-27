@@ -1,11 +1,11 @@
 use proc_macro2::Ident;
-use syn::{parse_quote, BinOp};
+use syn::BinOp;
 
 use super::var::{self, parse_or_default};
 use crate::{
     error::ParserResult,
     formatted_invalid_expr,
-    model::ir::{Expression, Type},
+    model::ir::{eval_expression_type, Expression, Type},
     parser::{
         common::{ExpressionParser, NumberParser, StatementParserContext},
         context::ItemType,
@@ -135,10 +135,18 @@ where
         let value = parse_or_default::<_, P>(right, ctx)?;
         parse::<_, P>(name, &keys, Some(value), ctx)
     } else {
-        let op = operator.map(Into::<BinOp>::into);
+        let op = operator.map(Into::<BinOp>::into).unwrap();
         let value_expr = parse_or_default::<_, P>(right, ctx)?;
         let current_value_expr = parse::<_, P>(name, &keys, None, ctx)?;
-        let new_value: syn::Expr = parse_quote!(#current_value_expr #op #value_expr);
+        let ty = eval_expression_type(right, ctx).expect("failed to evaluate expression type");
+
+        let new_value = <P::ExpressionParser as ExpressionParser>::parse_update_value_expression(
+            current_value_expr,
+            value_expr,
+            op,
+            ty,
+            ctx,
+        );
         parse::<_, P>(name, &keys, Some(new_value), ctx)
     }
 }

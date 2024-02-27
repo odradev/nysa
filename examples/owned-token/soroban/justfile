@@ -1,0 +1,115 @@
+RPC_URL := "http://localhost:8000/soroban/rpc"
+NETWORK_PASSPHRASE := "'Standalone Network ; February 2017'"
+default_caller := "alice"
+
+alias b := build
+alias d := deploy
+alias i := init
+
+default:
+  @just --list
+
+run-container: 
+    rm -rf .soroban
+    docker run --rm -d -it \
+        -p "8000:8000" \
+        --name stellar \
+        stellar/quickstart:testing \
+        --local \
+        --enable-soroban-rpc
+
+setup-test-env:
+    mkdir -p .soroban
+    soroban keys generate --rpc-url {{RPC_URL}} --network-passphrase {{NETWORK_PASSPHRASE}} alice
+    soroban keys generate --rpc-url {{RPC_URL}} --network-passphrase {{NETWORK_PASSPHRASE}} bob
+    soroban keys generate --rpc-url {{RPC_URL}} --network-passphrase {{NETWORK_PASSPHRASE}} carol
+
+build:
+    rm src/owned_token.rs
+    soroban contract build
+
+deploy: build
+    mkdir -p .soroban
+    soroban contract deploy \
+        --wasm target/wasm32-unknown-unknown/release/soroban_nysa_owned_token.wasm \
+        --rpc-url {{RPC_URL}} \
+        --network-passphrase {{NETWORK_PASSPHRASE}} \
+        --source-account alice \
+        > .soroban/contract-id
+
+init name symbol decimals total_supply caller=default_caller:
+    soroban contract invoke \
+        --rpc-url {{RPC_URL}} \
+        --network-passphrase {{NETWORK_PASSPHRASE}} \
+        --id `cat .soroban/contract-id` \
+        --source {{caller}} \
+        -- \
+        init \
+        --caller `soroban keys address {{caller}}` \
+        --_name {{name}} \
+        --_symbol {{symbol}} \
+        --_decimals {{decimals}} \
+        --_initial_supply {{total_supply}}
+
+owner caller=default_caller:
+    soroban contract invoke \
+        --rpc-url {{RPC_URL}} \
+        --network-passphrase {{NETWORK_PASSPHRASE}} \
+        --id `cat .soroban/contract-id` \
+        --source {{caller}} \
+        -- \
+        get_owner
+
+transfer to amount caller=default_caller:
+    soroban contract invoke \
+        --rpc-url {{RPC_URL}} \
+        --network-passphrase {{NETWORK_PASSPHRASE}} \
+        --id `cat .soroban/contract-id` \
+        --source {{caller}} \
+        -- \
+        transfer \
+        --caller `soroban keys address {{caller}}` \
+        --_to `soroban keys address {{to}}` \
+        --_value {{amount}}
+
+balance_of owner caller=default_caller:
+    soroban contract invoke \
+        --rpc-url {{RPC_URL}} \
+        --network-passphrase {{NETWORK_PASSPHRASE}} \
+        --id `cat .soroban/contract-id` \
+        --source {{caller}} \
+        -- \
+        get_balance_of \
+        --_owner `soroban keys address {{owner}}`
+
+mint to amount caller=default_caller:
+    soroban contract invoke \
+        --rpc-url {{RPC_URL}} \
+        --network-passphrase {{NETWORK_PASSPHRASE}} \
+        --id `cat .soroban/contract-id` \
+        --source {{caller}} \
+        -- \
+        mint \
+        --caller `soroban keys address {{caller}}` \
+        --_to `soroban keys address {{to}}` \
+        --_amount {{amount}}
+
+burn amount caller=default_caller:
+    soroban contract invoke \
+        --rpc-url {{RPC_URL}} \
+        --network-passphrase {{NETWORK_PASSPHRASE}} \
+        --id `cat .soroban/contract-id` \
+        --source {{caller}} \
+        -- \
+        burn \
+        --caller `soroban keys address {{caller}}` \
+        --_amount {{amount}}
+
+total_supply caller=default_caller:
+    soroban contract invoke \
+        --rpc-url {{RPC_URL}} \
+        --network-passphrase {{NETWORK_PASSPHRASE}} \
+        --id `cat .soroban/contract-id` \
+        --source {{caller}} \
+        -- \
+        get_total_supply

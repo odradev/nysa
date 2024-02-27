@@ -86,13 +86,3 @@ pub(crate) fn eval_in_context<T: StatementParserContext, P: Parser>(
 ) -> ParserResult<::syn::Expr> {
     in_context(context_expr, ctx, |ctx| eval::<_, P>(expr, ctx))
 }
-
-pub(crate) fn pow<T: StatementParserContext, P: Parser>(
-    left: &Expression,
-    right: &Expression,
-    ctx: &mut T,
-) -> ParserResult<::syn::Expr> {
-    let left_expr = eval_in_context::<_, P>(left, right, ctx)?;
-    let right_expr = eval_in_context::<_, P>(right, left, ctx)?;
-    Ok(parse_quote!(#left_expr.pow(#right_expr)))
-}

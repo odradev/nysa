@@ -13,7 +13,7 @@ impl StatusMessage {
     pub const NAME: &'static str = "my name";
     pub const FLAG: bool = false;
 
-    pub fn set_status(env: Env, account_id: Address, message: String) {
+    pub fn set_status(env: Env, account_id: Address, message: String, a: u64) {
         account_id.require_auth();
         env.storage().instance().set(&DataKey(account_id), &message);
     }
@@ -106,7 +106,7 @@ impl StatusMessage {
 //             let __class = unsafe { STACK.pop_from_top_path() };
 //             match __class {
 //                 Some(ClassName::StatusMessage) => {
-//                     return env.storage().persistent().get(&Records(account_id)).unwrap();
+//                     return env.storage().instance().get(&Records(account_id)).unwrap();
 //                 }
 //                 #[allow(unreachable_patterns)]
 //                 _ => Self::super_get_status(env, caller, account_id),

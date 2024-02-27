@@ -141,6 +141,13 @@ pub trait ExpressionParser {
         op: &MathOp,
         ctx: &mut T,
     ) -> ParserResult<syn::Expr>;
+    fn parse_update_value_expression<T: StatementParserContext>(
+        current_value: syn::Expr,
+        value: syn::Expr,
+        op: syn::BinOp,
+        ty: Type,
+        ctx: &mut T,
+    ) -> syn::Expr;
 }
 
 pub trait NumberParser {

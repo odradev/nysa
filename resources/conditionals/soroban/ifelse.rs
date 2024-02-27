@@ -1,5 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod if_else {
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports, unused_variables)]
     {{DEFAULT_IMPORTS}}
 
     {{STACK_DEF}}
@@ -36,12 +37,12 @@ pub mod if_else {
             let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
                 Some(ClassName::IfElse) => {
-                    if x < soroban_sdk::U256::from_parts(&env, 10u64, 0u64, 0u64, 0u64) {
+                    if x < soroban_sdk::U256::from_parts(&env, 0u64, 0u64, 0u64, 10u64) {
                         return soroban_sdk::U256::from_parts(&env, 0u64, 0u64, 0u64, 0u64);
-                    } else if x < soroban_sdk::U256::from_parts(&env, 20u64, 0u64, 0u64, 0u64) {
-                        return soroban_sdk::U256::from_parts(&env, 1u64, 0u64, 0u64, 0u64);
+                    } else if x < soroban_sdk::U256::from_parts(&env, 0u64, 0u64, 0u64, 20u64) {
+                        return soroban_sdk::U256::from_parts(&env, 0u64, 0u64, 0u64, 1u64);
                     } else {
-                        return soroban_sdk::U256::from_parts(&env, 2u64, 0u64, 0u64, 0u64);
+                        return soroban_sdk::U256::from_parts(&env, 0u64, 0u64, 0u64, 2u64);
                     }
                 }
                 #[allow(unreachable_patterns)]
@@ -59,10 +60,10 @@ pub mod if_else {
             let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
                 Some(ClassName::IfElse) => {
-                    return if _x < u32::from_le_bytes(&[10u8, 0u8, 0u8, 0u8]) { 
-                        u32::from_le_bytes(&[1u8, 0u8, 0u8, 0u8])
+                    return if _x < u32::from_le_bytes([10u8, 0u8, 0u8, 0u8]) { 
+                        u32::from_le_bytes([1u8, 0u8, 0u8, 0u8])
                     } else { 
-                        u32::from_le_bytes(&[2u8, 0u8, 0u8, 0u8])
+                        u32::from_le_bytes([2u8, 0u8, 0u8, 0u8])
                     };
                 }
                 #[allow(unreachable_patterns)]

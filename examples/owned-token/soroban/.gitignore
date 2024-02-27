@@ -2,3 +2,5 @@
 /target
 /wasm
 /test_snapshots
+/src/owned_token.rs
+.soroban/

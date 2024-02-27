@@ -1,7 +1,7 @@
 use self::syn_utils::{ArrayReader, DefaultValue, ReadValue, UnwrapOrNone, UnwrapOrRevert};
 use crate::error::ParserResult;
-use crate::model::ir::{MathOp, Type};
-use crate::parser::common::expr::math::{eval_in_context, pow};
+use crate::model::ir::{Expression, MathOp, Type};
+use crate::parser::common::expr::math::eval_in_context;
 use crate::parser::common::{ExpressionParser, StatementParserContext, StringParser};
 use crate::parser::context::{ItemType, StorageInfo, TypeInfo};
 use crate::parser::syn_utils::{AsExpression, AsSelfField};
@@ -169,19 +169,31 @@ impl ExpressionParser for OdraParser {
         ctx: &mut T,
     ) -> ParserResult<syn::Expr> {
         if *op == MathOp::Pow {
-            return pow::<_, OdraParser>(left, right, ctx);
+            return pow(left, right, ctx);
         }
         let op: syn::BinOp = op.into();
         let left_expr = eval_in_context::<_, OdraParser>(left, right, ctx)?;
         let right_expr = eval_in_context::<_, OdraParser>(right, left, ctx)?;
         Ok(parse_quote!( (#left_expr #op #right_expr) ))
     }
-    // fn parse_math_op(
-    //     left: syn::Expr,
-    //     right: syn::Expr,
-    //     op: syn::BinOp,
-    //     ty: Option<Type>
-    // ) -> ParserResult<syn::Expr> {
-    //     Ok(parse_quote!( (#left #op #right) ))
-    // }
+
+    fn parse_update_value_expression<T: StatementParserContext>(
+        current_value: syn::Expr,
+        value: syn::Expr,
+        op: syn::BinOp,
+        ty: Type,
+        ctx: &mut T,
+    ) -> syn::Expr {
+        parse_quote!(#current_value #op #value)
+    }
+}
+
+fn pow<T: StatementParserContext>(
+    left: &Expression,
+    right: &Expression,
+    ctx: &mut T,
+) -> ParserResult<::syn::Expr> {
+    let left_expr = eval_in_context::<_, OdraParser>(left, right, ctx)?;
+    let right_expr = eval_in_context::<_, OdraParser>(right, left, ctx)?;
+    Ok(parse_quote!(#left_expr.pow(#right_expr)))
 }

@@ -18,6 +18,8 @@ pub mod events {
 pub mod enums {}
 pub mod structs {}
 pub mod owner {
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports, unused_variables)]
+
     {{DEFAULT_IMPORTS}}
 
     const OWNER: soroban_sdk::Symbol = soroban_sdk::symbol_short!("OWNER");
@@ -59,7 +61,7 @@ pub mod owner {
             let __class = unsafe { STACK.pop_from_top_path() };
             match __class {
                 Some(ClassName::Owner) => {
-                    return env.storage().persistent().get::<_, Option<soroban_sdk::Address>>(&OWNER).unwrap_or(None);
+                    return env.storage().instance().get::<_, Option<soroban_sdk::Address>>(&OWNER).unwrap_or(None);
                 }
                 #[allow(unreachable_patterns)]
                 _ => Self::super_get_owner(env, caller),
@@ -67,11 +69,11 @@ pub mod owner {
         }
 
         pub fn init(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
-            env.storage().persistent().set(&OWNER, &caller);
+            env.storage().instance().set(&OWNER, &caller);
         }
 
         fn modifier_before_only_owner(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
-            caller.expect("The sender must be known").require_auth();
+            caller.expect("`caller` must not be `None`").require_auth();
         }
 
         fn modifier_after_only_owner(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
@@ -94,7 +96,7 @@ pub mod owner {
                         .persistent()
                         .get::<_, Option<soroban_sdk::Address>>(&OWNER)
                         .unwrap_or(None);
-                    env.storage().persistent().set(&OWNER, &new_owner);
+                    env.storage().instance().set(&OWNER, &new_owner);
                     env.events().publish((), OwnershipTransferred::new(old_owner, new_owner));
                     Self::modifier_after_only_owner(env.clone(), caller.clone());
                 }

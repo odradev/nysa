@@ -12,7 +12,7 @@ use crate::{
 
 impl EventEmitParser for SorobanParser {
     fn parse_emit_stmt(event_ident: Ident, args: Vec<syn::Expr>) -> ParserResult<syn::Stmt> {
-        Ok(parse_quote!(env.events().publish((), #event_ident::new( #(#args),* ));))
+        Ok(parse_quote!(env.events().publish((), #event_ident::new( #(#args.clone()),* ));))
     }
 }
 

@@ -18,25 +18,7 @@ impl NumberParser for OdraParser {
         values: &[u64],
         ctx: &mut T,
     ) -> ParserResult<syn::Expr> {
-        let arr = values
-            .iter()
-            .map(|v| quote::quote!(#v))
-            .collect::<Punctuated<TokenStream, Token![,]>>();
-        let ty = ctx
-            .contextual_expr()
-            .map(|e| eval_expression_type(e, ctx))
-            .map(|t| t.map(|t| ty::parse_type_from_ty(&t, ctx).ok()))
-            .flatten()
-            .flatten()
-            .unwrap_or(u256());
-
-        if values.is_empty() {
-            Ok(parse_quote!(#ty::ZERO))
-        } else if values.len() == 1 && values[0] == 1 {
-            Ok(parse_quote!(#ty::ONE))
-        } else {
-            Ok(parse_quote!(#ty::from_limbs_slice(&[#arr])))
-        }
+        parse_typed_number(values, u256(), ctx)
     }
 
     fn parse_generic_number(expr: &Expression) -> ParserResult<syn::Expr> {
@@ -75,4 +57,30 @@ fn to_generic_int_expr(value: &[u64]) -> ParserResult<syn::Expr> {
         &bytes[0..4],
         u32
     )))
+}
+
+pub(super) fn parse_typed_number<T: StatementParserContext>(
+    values: &[u64],
+    default_ty: syn::Type,
+    ctx: &mut T,
+) -> ParserResult<syn::Expr> {
+    let arr = values
+        .iter()
+        .map(|v| quote::quote!(#v))
+        .collect::<Punctuated<TokenStream, Token![,]>>();
+    let ty = ctx
+        .contextual_expr()
+        .map(|e| eval_expression_type(e, ctx))
+        .map(|t| t.map(|t| ty::parse_type_from_ty(&t, ctx).ok()))
+        .flatten()
+        .flatten()
+        .unwrap_or(default_ty);
+
+    if values.is_empty() {
+        Ok(parse_quote!(#ty::ZERO))
+    } else if values.len() == 1 && values[0] == 1 {
+        Ok(parse_quote!(#ty::ONE))
+    } else {
+        Ok(parse_quote!(#ty::from_limbs_slice(&[#arr])))
+    }
 }

@@ -4,10 +4,11 @@ use syn::parse_quote;
 use crate::{
     error::ParserResult,
     formatted_invalid_expr,
-    model::ir::Type,
+    model::ir::{eval_expression_type, Expression, MathOp, Type},
     parser::{
         common::{
-            expr::math::eval_in_context, ExpressionParser, StatementParserContext, TypeParser,
+            expr::{math::eval_in_context, var},
+            ExpressionParser, StatementParserContext, TypeParser,
         },
         context::{ItemType, StorageInfo, TypeInfo},
         soroban::code,
@@ -84,7 +85,7 @@ impl ExpressionParser for SorobanParser {
     ) -> ParserResult<syn::Expr> {
         let storage = code::expr::storage_instance();
         let collection_ident = utils::to_pascal_case_ident(var_ident.to_string());
-        let key: syn::Expr = parse_quote!(#collection_ident( #( #keys_expr ),*));
+        let key: syn::Expr = parse_quote!(#collection_ident( #( #keys_expr.clone() ),*));
 
         match value_expr {
             Some(value) => Ok(parse_quote!(#storage.set(&#key, &#value))),
@@ -106,16 +107,61 @@ impl ExpressionParser for SorobanParser {
     }
 
     fn parse_math_op<T: StatementParserContext>(
-        left: &crate::model::ir::Expression,
-        right: &crate::model::ir::Expression,
-        op: &crate::model::ir::MathOp,
+        left: &Expression,
+        right: &Expression,
+        op: &MathOp,
         ctx: &mut T,
     ) -> ParserResult<syn::Expr> {
-        // u256 must use the `add`, `sub`, `mul`, `div`, `rem` functions
-        let op: syn::BinOp = op.into();
-        let left_expr = eval_in_context::<_, SorobanParser>(left, right, ctx)?;
         let right_expr = eval_in_context::<_, SorobanParser>(right, left, ctx)?;
-        Ok(parse_quote!( (#left_expr #op #right_expr) ))
+        let left_expr = eval_in_context::<_, SorobanParser>(left, right, ctx)?;
+
+        if op == &MathOp::Pow {
+            // right is always of type u32
+            let right_expr = match right {
+                // ignore casting - `pow` arg must be of type u32
+                Expression::Func(box Expression::Type(_), args) => {
+                    var::parse_or_default::<_, Self>(args.first().unwrap(), ctx)
+                }
+                _ => eval_in_context::<_, SorobanParser>(right, left, ctx),
+            }?;
+            return Ok(parse_quote!( (#left_expr.pow(#right_expr)) ));
+        }
+        let ty = ctx
+            .contextual_expr()
+            .map(|e| eval_expression_type(e, ctx))
+            .flatten()
+            .unwrap_or(Type::Uint(256));
+        let op: syn::BinOp = op.into();
+
+        match ty {
+            Type::Uint(size) | Type::Int(size) if size > 128 => match op {
+                syn::BinOp::Add(_) => Ok(parse_quote!( (#left_expr.add(&#right_expr)) )),
+                syn::BinOp::Sub(_) => Ok(parse_quote!( (#left_expr.sub(&#right_expr)) )),
+                syn::BinOp::Mul(_) => Ok(parse_quote!( (#left_expr.mul(&#right_expr)) )),
+                syn::BinOp::Div(_) => Ok(parse_quote!( (#left_expr.div(&#right_expr)) )),
+                _ => panic!("Unknown op {:?}", op),
+            },
+            _ => Ok(parse_quote!(#left_expr #op #right_expr)),
+        }
+    }
+
+    fn parse_update_value_expression<T: StatementParserContext>(
+        current_value: syn::Expr,
+        value: syn::Expr,
+        op: syn::BinOp,
+        ty: Type,
+        ctx: &mut T,
+    ) -> syn::Expr {
+        match ty {
+            Type::Uint(size) | Type::Int(size) if size > 128 => match op {
+                syn::BinOp::Add(_) => parse_quote!(#current_value.add(&#value)),
+                syn::BinOp::Sub(_) => parse_quote!(#current_value.sub(&#value)),
+                syn::BinOp::Mul(_) => parse_quote!(#current_value.mul(&#value)),
+                syn::BinOp::Div(_) => parse_quote!(#current_value.div(&#value)),
+                _ => panic!("Unknown op {:?}", op),
+            },
+            _ => parse_quote!(#current_value #op #value),
+        }
     }
 }
 

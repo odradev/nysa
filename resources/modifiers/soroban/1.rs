@@ -1,5 +1,6 @@
 {{DEFAULT_MODULES}}
 pub mod function_modifier {
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports, unused_variables)]
 
     {{DEFAULT_IMPORTS}}
     const OWNER: soroban_sdk::Symbol = soroban_sdk::symbol_short!("OWNER");
@@ -42,7 +43,7 @@ pub mod function_modifier {
                 Some(ClassName::FunctionModifier) => {
                     Self::modifier_before_only_owner(env.clone(), caller.clone());
                     Self::modifier_before_valid_address(env.clone(), caller.clone(), _new_owner);
-                    env.storage().persistent().set(&OWNER, &_new_owner);
+                    env.storage().instance().set(&OWNER, &_new_owner);
                     Self::modifier_after_valid_address(env.clone(), caller.clone(), _new_owner);
                     Self::modifier_after_only_owner(env.clone(), caller.clone());
                 }
@@ -64,10 +65,10 @@ pub mod function_modifier {
                 Some(ClassName::FunctionModifier) => {
                     Self::modifier_before_no_reentrancy(env.clone(), caller.clone());
 
-                    env.storage().persistent().set(&X, &env.storage().persistent().get::<_, u32>(&X).unwrap_or_default() - i);
+                    env.storage().instance().set(&X, &env.storage().instance().get::<_, u32>(&X).unwrap_or_default() - i);
 
-                    if i > u32::from_le_bytes(&[1u8, 0u8, 0u8, 0u8]) {
-                        Self::decrement(env.clone(), caller.clone(), (i - u32::from_le_bytes(&[1u8, 0u8, 0u8, 0u8])));
+                    if i > u32::from_le_bytes([1u8, 0u8, 0u8, 0u8]) {
+                        Self::decrement(env.clone(), caller.clone(), (i - u32::from_le_bytes([1u8, 0u8, 0u8, 0u8])));
                     }
 
                     Self::modifier_after_no_reentrancy(env.clone(), caller.clone());
@@ -78,23 +79,23 @@ pub mod function_modifier {
         }
 
         pub fn init(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
-            env.storage().persistent().set(&OWNER, &caller);
-            env.storage().persistent().set(&X, &u32::from_le_bytes(&[10u8, 0u8, 0u8, 0u8]));
+            env.storage().instance().set(&OWNER, &caller);
+            env.storage().instance().set(&X, &u32::from_le_bytes([10u8, 0u8, 0u8, 0u8]));
         }
 
         fn modifier_before_no_reentrancy(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
-            if !(!(env.storage().persistent().get::<_, bool>(&LOCKED).unwrap_or_default())) {
+            if !(!(env.storage().instance().get::<_, bool>(&LOCKED).unwrap_or_default())) {
                 panic!("No reentrancy")
             };
-            env.storage().persistent().set(&LOCKED, &true);
+            env.storage().instance().set(&LOCKED, &true);
         }
 
         fn modifier_after_no_reentrancy(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
-            env.storage().persistent().set(&LOCKED, &false);
+            env.storage().instance().set(&LOCKED, &false);
         }
 
         fn modifier_before_only_owner(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
-            caller.require_auth();
+            caller.expect("`caller` must not be `None`").require_auth();
         }
 
         fn modifier_after_only_owner(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {

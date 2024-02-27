@@ -29,6 +29,11 @@ fn test_ownable() {
 }
 
 #[test]
+fn test_owned_token() {
+    test_single("contracts", "owned_token");
+}
+
+#[test]
 fn test_array() {
     test_single("types", "array");
 }

@@ -1,5 +1,7 @@
 {{DEFAULT_MODULES}}
 pub mod e {
+    #![allow(unused_braces, unused_mut, unused_parens, non_snake_case, unused_imports, unused_variables)]
+
     {{DEFAULT_IMPORTS}}
     const NAME: soroban_sdk::Symbol = soroban_sdk::symbol_short!("NAME");
     const TEXT: soroban_sdk::Symbol = soroban_sdk::symbol_short!("TEXT");
@@ -29,11 +31,11 @@ pub mod e {
     #[soroban_sdk::contractimpl]
     impl E { 
         fn _x_init(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
-            env.storage().persistent().set(&NAME, &soroban_sdk::String::from_str(&env, "name"));
+            env.storage().instance().set(&NAME, &soroban_sdk::String::from_str(&env, "name"));
         }
 
         fn _y_init(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
-            env.storage().persistent().set(&TEXT, &soroban_sdk::String::from_str(&env, "text"));
+            env.storage().instance().set(&TEXT, &soroban_sdk::String::from_str(&env, "text"));
         } 
 
         pub fn init(env: soroban_sdk::Env, caller: Option<soroban_sdk::Address>) {
