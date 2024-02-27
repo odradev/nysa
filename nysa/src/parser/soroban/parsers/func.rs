@@ -46,7 +46,7 @@ impl FunctionParser for SorobanParser {
         args.insert(0, code::expr::cloned_caller());
         args.insert(0, code::expr::cloned_env());
 
-        parse_quote!(Self::#modifier( #(#args),* );)
+        parse_quote!(Self::#modifier( #(#args),* )?;)
     }
 
     fn parse_base_call(base: Ident, args: Vec<syn::Expr>) -> syn::Stmt {
@@ -54,11 +54,11 @@ impl FunctionParser for SorobanParser {
         args.insert(0, code::expr::cloned_caller());
         args.insert(0, code::expr::cloned_env());
 
-        parse_quote!(Self::#base( #(#args),* );)
+        parse_quote!(Self::#base( #(#args),* )?;)
     }
 
     fn parse_super_call(fn_name: Ident, args: Vec<syn::Expr>) -> syn::Expr {
-        parse_quote!(Self::#fn_name( #(#args),* );)
+        parse_quote!(Self::#fn_name( #(#args),* )?;)
     }
 
     fn parse_module_fn_call(fn_name: syn::Expr, args: Vec<syn::Expr>) -> syn::Expr {
@@ -66,6 +66,6 @@ impl FunctionParser for SorobanParser {
         args.insert(0, code::expr::cloned_caller());
         args.insert(0, code::expr::cloned_env());
 
-        parse_quote!(Self::#fn_name(#(#args),*))
+        parse_quote!(Self::#fn_name(#(#args),*)?)
     }
 }

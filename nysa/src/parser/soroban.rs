@@ -22,6 +22,7 @@ impl Parser for SorobanParser {
 
         let events = common::event::events_def::<_, Self>(&package, &ctx)?;
         let packages = parse_packages(&package, &mut ctx)?;
+        let errors = common::errors::errors_def::<Self>(&package);
 
         let contracts = packages
             .iter()
@@ -38,6 +39,7 @@ impl Parser for SorobanParser {
 
         Ok(quote::quote! {
             pub mod errors {
+                #errors
             }
 
             pub mod events {

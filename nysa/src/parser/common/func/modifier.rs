@@ -5,7 +5,7 @@ use syn::parse_quote;
 use crate::{
     error::ParserResult,
     model::ir::{contains_sender_expr, FnImplementations},
-    parser::common::{FunctionParser, StatementParserContext},
+    parser::common::{ExpressionParser, FunctionParser, StatementParserContext},
     Parser, ParserError,
 };
 
@@ -42,29 +42,37 @@ where
         <P::FnParser as FunctionParser>::parse_modifier_args(params, def.is_mutable, uses_sender)?;
     let before_fn: Class = format!("modifier_before_{}", def.base_name).into();
     let after_fn: Class = format!("modifier_after_{}", def.base_name).into();
+    let ret_stmt = <P::ExpressionParser as ExpressionParser>::parse_ret_expr(None);
+
     Ok((
         FnDef::Plain(PlainFnDef {
             attrs: vec![],
             name: before_fn.clone(),
             args: args.clone(),
-            ret: parse_quote!(),
+            ret: common::parse_ret_type::<_, P::TypeParser>(&vec![], ctx)?,
             implementation: ClassFnImpl {
                 visibility: parse_quote!(),
                 class: None,
                 fun: before_fn,
-                implementation: parse_quote!({ #(#before_stmts)* }),
+                implementation: parse_quote!({
+                    #(#before_stmts)*
+                    #ret_stmt
+                }),
             },
         }),
         FnDef::Plain(PlainFnDef {
             attrs: vec![],
             name: after_fn.clone(),
             args,
-            ret: parse_quote!(),
+            ret: common::parse_ret_type::<_, P::TypeParser>(&vec![], ctx)?,
             implementation: ClassFnImpl {
                 visibility: parse_quote!(),
                 class: None,
                 fun: after_fn,
-                implementation: parse_quote!({ #(#after_stmts)* }),
+                implementation: parse_quote!({
+                    #(#after_stmts)*
+                    #ret_stmt
+                }),
             },
         }),
     ))

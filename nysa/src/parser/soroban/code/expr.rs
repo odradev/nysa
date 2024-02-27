@@ -49,6 +49,20 @@ pub fn default_u256() -> syn::Expr {
     parse_quote!(#ty::from_u32(&env, 0))
 }
 
+pub fn ret(expr: Option<syn::Expr>) -> syn::Stmt {
+    match expr {
+        Some(expr) => parse_quote!(return Ok(#expr);),
+        None => {
+            let expr: syn::Expr = parse_quote!(Ok(()));
+            syn::Stmt::Expr(expr)
+        }
+    }
+}
+
+pub fn from_contract_error(error_num: u32) -> syn::Expr {
+    parse_quote!(return Err(soroban_sdk::Error::from_contract_error(#error_num)))
+}
+
 fn to_array(values: &[u64], size: u16) -> Vec<u8> {
     let size = round_up_num_size(size) / 8;
 

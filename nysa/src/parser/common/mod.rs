@@ -134,7 +134,6 @@ pub trait ExpressionParser {
     ) -> ParserResult<syn::Expr>;
     fn parse_var_type(name: Ident, item_type: &Option<ItemType>) -> ParserResult<syn::Expr>;
     fn caller() -> syn::Expr;
-
     fn parse_math_op<T: StatementParserContext>(
         left: &Expression,
         right: &Expression,
@@ -148,6 +147,7 @@ pub trait ExpressionParser {
         ty: Type,
         ctx: &mut T,
     ) -> syn::Expr;
+    fn parse_ret_expr(expr: Option<syn::Expr>) -> syn::Stmt;
 }
 
 pub trait NumberParser {
@@ -173,6 +173,7 @@ pub trait TypeParser {
     fn parse_state_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type>;
     fn parse_fixed_bytes(args: Vec<syn::Expr>) -> ParserResult<syn::Expr>;
     fn parse_serialize(args: Vec<syn::Expr>) -> ParserResult<syn::Expr>;
+    fn parse_ret_type(types: Punctuated<syn::Type, Token![,]>) -> ParserResult<syn::ReturnType>;
 }
 
 pub trait FunctionParser {

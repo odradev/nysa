@@ -1,7 +1,6 @@
 use crate::error::ParserResult;
 use crate::model::ir::Expression;
-use crate::parser::common::StatementParserContext;
-use crate::parser::syn_utils;
+use crate::parser::common::{ExpressionParser, StatementParserContext};
 use crate::Parser;
 
 /// Builds a syn::Stmt return statement.
@@ -23,13 +22,15 @@ where
     ctx.push_contextual_expr(ret_ty);
     let ret = super::expr::var::parse_or_default::<_, P>(expr, ctx)?;
     ctx.drop_contextual_expr();
-    Ok(syn_utils::ret(Some(ret)))
+    Ok(<P::ExpressionParser as ExpressionParser>::parse_ret_expr(
+        Some(ret),
+    ))
 }
 
 /// Builds an empty (returning Unit type) syn::Stmt return statement .
 ///
 /// ## Solidity example
 /// `return;`
-pub(super) fn ret_unit() -> ParserResult<syn::Stmt> {
-    Ok(syn_utils::ret(None))
+pub(super) fn ret_unit<P: ExpressionParser>() -> ParserResult<syn::Stmt> {
+    Ok(P::parse_ret_expr(None))
 }

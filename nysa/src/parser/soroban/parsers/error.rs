@@ -1,12 +1,9 @@
-use syn::parse_quote;
-
 use crate::{
     error::ParserResult,
     model::ir::{Expression, LogicalOp, Message},
     parser::{
         common::{expr::parse, ContractErrorParser, StatementParserContext},
         soroban::code,
-        syn_utils,
     },
     ParserError, SorobanParser,
 };
@@ -17,11 +14,19 @@ impl ContractErrorParser for SorobanParser {
         message: &str,
         ctx: &mut T,
     ) -> ParserResult<syn::Expr> {
-        let error = parse_quote!(panic!(#message));
+        let error_num = match ctx.get_error(message) {
+            Some(value) => value as u32,
+            None => {
+                ctx.insert_error(message);
+                ctx.error_count() as u32
+            }
+        };
+        let error = code::expr::from_contract_error(error_num);
+
         match condition {
             Some(condition) => {
                 let condition = parse::<_, Self>(condition, ctx)?;
-                Ok(syn_utils::if_not(condition, error))
+                Ok(crate::parser::syn_utils::if_not(condition, error))
             }
             None => Ok(error),
         }

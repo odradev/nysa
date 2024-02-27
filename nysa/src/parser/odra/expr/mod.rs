@@ -159,7 +159,7 @@ impl ExpressionParser for OdraParser {
     }
 
     fn caller() -> syn::Expr {
-        parse_quote!(self.env().caller())
+        parse_quote!(Some(self.env().caller()))
     }
 
     fn parse_math_op<T: StatementParserContext>(
@@ -185,6 +185,10 @@ impl ExpressionParser for OdraParser {
         ctx: &mut T,
     ) -> syn::Expr {
         parse_quote!(#current_value #op #value)
+    }
+
+    fn parse_ret_expr(expr: Option<syn::Expr>) -> syn::Stmt {
+        crate::parser::syn_utils::ret(expr)
     }
 }
 

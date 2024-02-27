@@ -26,7 +26,7 @@ where
         Stmt::VarDefinition(name, ty, init) => variables::definition::<_, P>(name, ty, init, ctx),
         Stmt::VarDeclaration(name, ty) => variables::declaration(name, ty, ctx),
         Stmt::Return(expr) => ret::ret::<_, P>(expr, ctx),
-        Stmt::ReturnVoid => ret::ret_unit(),
+        Stmt::ReturnVoid => ret::ret_unit::<P::ExpressionParser>(),
         Stmt::If(assertion, if_body) => control_flow::if_stmt::<_, P>(assertion, if_body, ctx),
         Stmt::IfElse(assertion, if_body, else_body) => {
             control_flow::if_else_stmt::<_, P>(assertion, if_body, else_body, ctx)

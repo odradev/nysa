@@ -9,7 +9,7 @@ use crate::{
         Named,
     },
     parser::{
-        common::{expr, FunctionParser, StatementParserContext},
+        common::{expr, ExpressionParser, FunctionParser, StatementParserContext},
         syn_utils,
     },
     utils, Parser,
@@ -133,11 +133,21 @@ where
         .map(|n| utils::to_snake_case_ident(n))
         .map(|i| quote::quote!(#i))
         .collect::<Punctuated<TokenStream, Token![,]>>();
-
-    let ret = (!ret.is_empty()).then(|| quote::quote!(return (#ret);));
+    let ret: Option<syn::Expr> = match ret.len() {
+        0 => None,
+        _ => Some(parse_quote!( (#ret) )),
+    };
 
     // parse solidity function body
     let stmts: Vec<syn::Stmt> = common::parse_statements::<_, P>(&def.stmts, ctx);
+
+    let ret = if !def.stmts.iter().any(|s| matches!(s, Stmt::Return(_))) {
+        Some(<P::ExpressionParser as ExpressionParser>::parse_ret_expr(
+            ret,
+        ))
+    } else {
+        None
+    };
 
     let ext = common::parse_external_contract_statements::<_, P::ContractReferenceParser>(
         &def.params,

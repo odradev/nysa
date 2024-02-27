@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::parse_quote;
+use syn::{parse_quote, Token};
 
 use crate::{
     error::ParserResult,
@@ -30,6 +30,19 @@ impl TypeParser for OdraParser {
 
     fn parse_state_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type> {
         super::ty::parse_state_ty(ty, ctx)
+    }
+
+    fn parse_ret_type(
+        types: syn::punctuated::Punctuated<syn::Type, Token![,]>,
+    ) -> ParserResult<syn::ReturnType> {
+        Ok(match types.len() {
+            0 => parse_quote!(),
+            1 => {
+                let ty = types.first().unwrap().clone();
+                parse_quote!(-> #ty)
+            }
+            _ => parse_quote!(-> (#types)),
+        })
     }
 }
 

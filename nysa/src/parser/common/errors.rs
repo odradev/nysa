@@ -7,7 +7,7 @@ use crate::{
     utils,
 };
 
-use super::ErrorParser;
+use super::{expr::num::to_generic_lit_expr, ErrorParser};
 
 pub(crate) fn errors_def<P: ErrorParser>(package: &Package) -> Option<syn::Item> {
     let execution_error_body = package
@@ -16,12 +16,13 @@ pub(crate) fn errors_def<P: ErrorParser>(package: &Package) -> Option<syn::Item>
         .enumerate()
         .map(|(idx, e)| {
             let name = utils::to_ident(e.name());
-            let idx = idx as isize;
+            let idx = to_generic_lit_expr(idx);
             quote!(#name = #idx)
         })
         .collect::<Punctuated<TokenStream, Token![,]>>();
     if execution_error_body.is_empty() {
         return None;
     }
+
     P::errors_def(execution_error_body)
 }

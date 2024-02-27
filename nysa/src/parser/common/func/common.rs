@@ -53,21 +53,11 @@ pub(super) fn parse_ret_type<T: TypeInfo, P: TypeParser>(
     returns: &[(Option<String>, Expression)],
     ctx: &T,
 ) -> ParserResult<syn::ReturnType> {
-    Ok(match returns.len() {
-        0 => parse_quote!(),
-        1 => {
-            let (_, e) = returns.get(0).unwrap().clone();
-            let ty = ty::parse_type_from_expr::<_, P>(&e, ctx)?;
-            parse_quote!(-> #ty)
-        }
-        _ => {
-            let types = returns
-                .iter()
-                .map(|(_, e)| ty::parse_type_from_expr::<_, P>(e, ctx))
-                .collect::<ParserResult<Punctuated<syn::Type, syn::Token![,]>>>()?;
-            parse_quote!(-> (#types))
-        }
-    })
+    let types = returns
+        .iter()
+        .map(|(_, e)| ty::parse_type_from_expr::<_, P>(e, ctx))
+        .collect::<ParserResult<Punctuated<syn::Type, syn::Token![,]>>>()?;
+    P::parse_ret_type(types)
 }
 
 pub(super) fn parse_statements<T, P>(statements: &[Stmt], ctx: &mut T) -> Vec<syn::Stmt>

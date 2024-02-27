@@ -25,10 +25,10 @@ setup-test-env:
     soroban keys generate --rpc-url {{RPC_URL}} --network-passphrase {{NETWORK_PASSPHRASE}} carol
 
 build:
-    rm src/owned_token.rs
+    rm -f src/owned_token.rs
     soroban contract build
 
-deploy: build
+deploy:
     mkdir -p .soroban
     soroban contract deploy \
         --wasm target/wasm32-unknown-unknown/release/soroban_nysa_owned_token.wasm \

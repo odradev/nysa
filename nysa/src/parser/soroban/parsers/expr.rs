@@ -163,6 +163,10 @@ impl ExpressionParser for SorobanParser {
             _ => parse_quote!(#current_value #op #value),
         }
     }
+
+    fn parse_ret_expr(expr: Option<syn::Expr>) -> syn::Stmt {
+        code::expr::ret(expr)
+    }
 }
 
 fn get_or_none(name: &str, key: Option<syn::Expr>, ty: &syn::Type) -> ParserResult<syn::Expr> {

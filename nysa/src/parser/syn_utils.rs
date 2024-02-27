@@ -28,7 +28,13 @@ pub fn definition(ident: Ident, expr: syn::Expr) -> syn::Stmt {
 }
 
 pub fn ret(expr: Option<syn::Expr>) -> syn::Stmt {
-    parse_quote!(return #expr;)
+    match expr {
+        Some(expr) => parse_quote!(return #expr;),
+        None => {
+            let e: syn::Expr = syn::Expr::Verbatim(TokenStream::new());
+            syn::Stmt::Expr(e)
+        }
+    }
 }
 
 pub fn if_stmt<T: ToTokens>(assertion: syn::Expr, body: T) -> syn::Stmt {

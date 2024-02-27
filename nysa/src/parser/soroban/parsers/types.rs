@@ -1,3 +1,5 @@
+use syn::{parse_quote, Token};
+
 use crate::{
     error::ParserResult,
     model::ir::{eval_expression_type, Expression, Type},
@@ -62,6 +64,19 @@ impl TypeParser for SorobanParser {
 
     fn parse_state_ty<T: TypeInfo>(ty: &Type, ctx: &T) -> ParserResult<syn::Type> {
         todo!()
+    }
+
+    fn parse_ret_type(
+        types: syn::punctuated::Punctuated<syn::Type, Token![,]>,
+    ) -> ParserResult<syn::ReturnType> {
+        Ok(match types.len() {
+            0 => parse_quote!(-> Result<(), soroban_sdk::Error>),
+            1 => {
+                let ty = types.first().unwrap().clone();
+                parse_quote!(-> Result<#ty, soroban_sdk::Error>)
+            }
+            _ => parse_quote!(-> Result<(#types), soroban_sdk::Error>),
+        })
     }
 }
 

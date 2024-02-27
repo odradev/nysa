@@ -1,6 +1,6 @@
 pub mod errors {
     #[derive(odra::Error, PartialEq, Eq, Debug)]
-    pub enum Error { CannotUpdateEmptyPosition = 0u16, }
+    pub enum Error { CannotUpdateEmptyPosition = 0, }
 }
 pub mod events {
     use odra::prelude::*;

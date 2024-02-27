@@ -4,7 +4,7 @@ use crate::{
     model::ir::{
         contains_sender_expr, BaseCall, Constructor, Expression, FnImplementations, Stmt, Type,
     },
-    parser::common::{expr, stmt, FunctionParser, StatementParserContext},
+    parser::common::{expr, stmt, ExpressionParser, FunctionParser, StatementParserContext},
     utils, Parser, ParserError,
 };
 use c3_lang_linearization::Class;
@@ -46,6 +46,8 @@ where
             stmts.extend(common::parse_statements::<_, P>(&c.stmts, ctx));
             let name = parse_constructor_name(id, c, c == primary_constructor);
 
+            let ret_stmt = <P::ExpressionParser as ExpressionParser>::parse_ret_expr(None);
+
             if c == primary_constructor {
                 Ok(FnDef::Plain(PlainFnDef {
                     attrs,
@@ -55,7 +57,10 @@ where
                     implementation: ClassFnImpl {
                         class: None,
                         fun: name,
-                        implementation: parse_quote!({ #(#stmts)* }),
+                        implementation: parse_quote!({
+                            #(#stmts)*
+                            #ret_stmt
+                        }),
                         visibility: parse_quote!(pub),
                     },
                 }))
@@ -68,7 +73,10 @@ where
                     implementation: ClassFnImpl {
                         class: None,
                         fun: name,
-                        implementation: parse_quote!({ #(#stmts)* }),
+                        implementation: parse_quote!({
+                            #(#stmts)*
+                            #ret_stmt
+                        }),
                         visibility: parse_quote!(),
                     },
                 }))

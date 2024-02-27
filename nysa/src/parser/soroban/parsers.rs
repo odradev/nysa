@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{punctuated::Punctuated, Token};
+use syn::{parse_quote, punctuated::Punctuated, Token};
 
 use crate::{
     error::ParserResult,
@@ -13,6 +13,8 @@ use crate::{
     },
     SorobanParser,
 };
+
+use super::code;
 
 mod error;
 mod event;
@@ -46,7 +48,13 @@ impl ExtContractParser for SorobanParser {
 
 impl ErrorParser for SorobanParser {
     fn errors_def(variants: Punctuated<TokenStream, Token![,]>) -> Option<syn::Item> {
-        todo!()
+        let attrs = code::attr::error();
+        Some(parse_quote! {
+            #( #attrs )*
+            pub enum Error {
+                #variants
+            }
+        })
     }
 }
 
